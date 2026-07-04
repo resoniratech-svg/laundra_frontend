@@ -1357,6 +1357,11 @@ input:checked + .express-badge {
   height: calc(100vh - 160px);
   align-self: flex-start;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.admin-sidebar::-webkit-scrollbar {
+  display: none;
 }
 .sidebar-brand {
   display: flex;
