@@ -71,6 +71,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   const titleMap: Record<string, string> = {
     'sales-overview': 'Sales Overview',
     'pos': 'Manual Order',
+    'manual-orders-list': 'Manual Order List',
     'daily-orders': 'Daily Orders',
     'pending-orders': 'Pending Orders',
     'your-orders': 'Your Orders',
@@ -192,6 +193,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                 className={`sidebar-menu-item ${activeModule === 'pos' ? 'active' : ''}`}
               >
                 ➕ <span>Manual Order</span>
+              </li>
+            )}
+            {isAllowed('manual-orders-list') && (
+              <li 
+                onClick={() => onModuleChange('manual-orders-list')} 
+                className={`sidebar-menu-item ${activeModule === 'manual-orders-list' ? 'active' : ''}`}
+              >
+                📋 <span>Manual Order List</span>
               </li>
             )}
             {isAllowed('daily-orders') && (
