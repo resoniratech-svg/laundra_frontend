@@ -516,61 +516,6 @@ export const SuperAdminPortal: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              <div className="card-premium" style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '56px', height: '56px', borderRadius: '12px', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>⚡</div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>CPU Diagnostics</div>
-                  <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1e293b', marginTop: '4px' }}>{systemLoad.cpu}%</div>
-                </div>
-              </div>
-
-              <div className="card-premium" style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '56px', height: '56px', borderRadius: '12px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>💾</div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Database Space</div>
-                  <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1e293b', marginTop: '4px' }}>{getLocalStorageUsage()} KB</div>
-                </div>
-              </div>
-
-              <div className="card-premium" style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '56px', height: '56px', borderRadius: '12px', background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>🔌</div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Active Sockets</div>
-                  <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1e293b', marginTop: '4px' }}>{systemLoad.activeSockets}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Health Diagnostics Panel */}
-            <div className="card-premium" style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '800' }}>Platform Operational Status</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                <div style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '16px', background: '#fafafa' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b' }}>REST API Gateway</div>
-                  <div style={{ marginTop: '8px', color: '#16a34a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a' }}></span> Operational
-                  </div>
-                </div>
-                <div style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '16px', background: '#fafafa' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b' }}>Stripe API Endpoint</div>
-                  <div style={{ marginTop: '8px', color: '#16a34a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a' }}></span> Stable
-                  </div>
-                </div>
-                <div style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '16px', background: '#fafafa' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b' }}>Twilio SMS Gateway</div>
-                  <div style={{ marginTop: '8px', color: '#16a34a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a' }}></span> Stable
-                  </div>
-                </div>
-                <div style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '16px', background: '#fafafa' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b' }}>Uptime</div>
-                  <div style={{ marginTop: '8px', color: '#1e3a8a', fontWeight: '800' }}>
-                    99.98% (32d 14h 22m)
-                  </div>
-                </div>
-              </div>
             </div>
 
           </div>
