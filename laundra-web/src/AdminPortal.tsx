@@ -1307,7 +1307,7 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           <div className="pos-cart-panel" style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>POS Cart</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Manual Order Cart</h3>
             
             <select 
               value={posCustId} 
@@ -1364,7 +1364,7 @@ export const AdminPortal: React.FC = () => {
                 className="primary-btn" 
                 style={{ width: '100%', justifyContent: 'center', height: '44px', background: '#2563eb', color: 'white', border: 'none' }}
               >
-                Checkout & Print Invoice
+                Place Order & Print Invoice
               </button>
             </div>
           </div>

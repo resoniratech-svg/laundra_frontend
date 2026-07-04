@@ -70,6 +70,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
 
   const titleMap: Record<string, string> = {
     'sales-overview': 'Sales Overview',
+    'pos': 'Manual Order',
     'daily-orders': 'Daily Orders',
     'pending-orders': 'Pending Orders',
     'your-orders': 'Your Orders',
@@ -162,9 +163,6 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
         </div>
 
         <div className="cta-row" style={{ margin: 0 }}>
-          {isTabAllowed('pos') && <button onClick={() => onModuleChange('pos')} className={`secondary-btn sub-tab-nav ${activeModule === 'pos' ? 'active' : ''}`}>POS Billing</button>}
-          {isTabAllowed('services') && <button onClick={() => onModuleChange('services')} className={`secondary-btn sub-tab-nav ${activeModule === 'services' ? 'active' : ''}`}>Services Hub</button>}
-          {isTabAllowed('admin') && <button onClick={() => onModuleChange('sales-overview')} className={`secondary-btn sub-tab-nav ${activeModule === 'sales-overview' ? 'active' : ''}`}>Manager Desk</button>}
           {isTabAllowed('customer') && <button onClick={() => navigate('/customer')} className="secondary-btn sub-tab-nav">Customer Hub</button>}
           {isTabAllowed('delivery') && <button onClick={() => onModuleChange('pending-orders')} className="secondary-btn sub-tab-nav">Delivery Hub</button>}
           <button onClick={() => navigate('/')} className="primary-btn">Home</button>
@@ -186,6 +184,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                 className={`sidebar-menu-item ${activeModule === 'sales-overview' ? 'active' : ''}`}
               >
                 📊 <span>Sales Overview</span>
+              </li>
+            )}
+            {isAllowed('pos') && (
+              <li 
+                onClick={() => onModuleChange('pos')} 
+                className={`sidebar-menu-item ${activeModule === 'pos' ? 'active' : ''}`}
+              >
+                ➕ <span>Manual Order</span>
               </li>
             )}
             {isAllowed('daily-orders') && (
