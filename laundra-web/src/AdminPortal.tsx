@@ -575,9 +575,10 @@ export const AdminPortal: React.FC = () => {
               {db.orders
                 .filter(o => {
                   const isDaily = o.frequency !== 'Monthly';
+                  const isExpress = o.planType?.toLowerCase() === 'express';
                   const matchesSearch = o.id.toLowerCase().includes(ordersSearch.toLowerCase()) || o.customerName.toLowerCase().includes(ordersSearch.toLowerCase());
                   const matchesBranch = ordersBranchFilter === 'All' || o.branch === ordersBranchFilter;
-                  return isDaily && matchesSearch && matchesBranch;
+                  return isDaily && !isExpress && matchesSearch && matchesBranch;
                 })
                 .map(o => {
                   const displayStatus = o.status === 'Received' ? 'Picked Up' : o.status;
