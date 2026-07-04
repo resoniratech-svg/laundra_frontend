@@ -70,6 +70,10 @@ export const AdminPortal: React.FC = () => {
   const [posExpress, setPosExpress] = useState(false);
   const [posCart, setPosCart] = useState<{ service: Service; qty: number; express: boolean }[]>([]);
   const [posCustId, setPosCustId] = useState('');
+  const [posCustName, setPosCustName] = useState('');
+  const [posCustPhone, setPosCustPhone] = useState('');
+  const [posCustAddress, setPosCustAddress] = useState('');
+  const [posCustEmail, setPosCustEmail] = useState('');
   const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [activeReceipt, setActiveReceipt] = useState<Order | null>(null);
 
@@ -287,6 +291,24 @@ export const AdminPortal: React.FC = () => {
     setWalletAmt('');
   };
 
+  // Update customer fields when posCustId changes
+  useEffect(() => {
+    if (posCustId) {
+      const cust = db.customers.find(c => c.id === posCustId);
+      if (cust) {
+        setPosCustName(cust.name);
+        setPosCustPhone(cust.phone || '');
+        setPosCustAddress(cust.address || '');
+        setPosCustEmail(cust.email || '');
+      }
+    } else {
+      setPosCustName('');
+      setPosCustPhone('');
+      setPosCustAddress('');
+      setPosCustEmail('');
+    }
+  }, [posCustId, db.customers]);
+
   // --- POS CART ACTIONS ---
   const handleAddCartItem = (srv: Service) => {
     const existing = posCart.find(item => item.service.id === srv.id && item.express === posExpress);
@@ -327,29 +349,56 @@ export const AdminPortal: React.FC = () => {
     
     let updatedCustomers = db.customers;
     let customerId = 'guest';
-    let customerName = 'Guest Customer';
+    let customerName = posCustName || 'Guest Customer';
 
     if (!isGuest) {
       const cust = db.customers.find(c => c.id === posCustId)!;
       customerId = cust.id;
-      customerName = cust.name;
+      customerName = posCustName || cust.name;
 
       if (posPayMethod === 'Wallet') {
         if (cust.walletBalance < total) {
           alert('Insufficient customer wallet balance!');
           return;
         }
-        updatedCustomers = db.customers.map(c => {
-          if (c.id === cust.id) {
-            return { ...c, walletBalance: c.walletBalance - total };
-          }
-          return c;
-        });
       }
+
+      updatedCustomers = db.customers.map(c => {
+        if (c.id === cust.id) {
+          return { 
+            ...c, 
+            name: posCustName || c.name,
+            phone: posCustPhone || c.phone,
+            address: posCustAddress || c.address,
+            email: posCustEmail || c.email,
+            walletBalance: posPayMethod === 'Wallet' ? c.walletBalance - total : c.walletBalance 
+          };
+        }
+        return c;
+      });
     } else {
       if (posPayMethod === 'Wallet') {
         alert('Wallet payment is not available for Guest checkout!');
         return;
+      }
+      
+      // If walk-in guest has entered a name, register them automatically
+      if (posCustName) {
+        const newCustId = 'cust-' + Math.floor(10000 + Math.random() * 90000);
+        customerId = newCustId;
+        customerName = posCustName;
+        const newCustomer: Customer = {
+          id: newCustId,
+          name: posCustName,
+          phone: posCustPhone,
+          email: posCustEmail || `${newCustId}@laundra.com`,
+          address: posCustAddress,
+          walletBalance: 0,
+          loyaltyPoints: 0,
+          creditBalance: 0,
+          notes: 'Walk-in Customer'
+        };
+        updatedCustomers = [...db.customers, newCustomer];
       }
     }
 
@@ -366,7 +415,9 @@ export const AdminPortal: React.FC = () => {
       courier: null,
       deliveryStatus: 'Pending Assignment',
       totalAmount: total,
-      total: total
+      total: total,
+      phone: posCustPhone,
+      address: posCustAddress
     };
 
     saveDB({
@@ -377,6 +428,11 @@ export const AdminPortal: React.FC = () => {
 
     setPosCart([]);
     setActiveReceipt(newOrder);
+    setPosCustName('');
+    setPosCustPhone('');
+    setPosCustAddress('');
+    setPosCustEmail('');
+    setPosCustId('');
   };
 
   return (
@@ -1386,6 +1442,45 @@ export const AdminPortal: React.FC = () => {
                 ))
               )}
             </div>
+
+            {/* Customer Details Form shows when cart has items */}
+            {posCart.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px', flexShrink: 0 }}>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.88rem', fontWeight: '800', color: '#1e293b' }}>Customer Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Customer Name" 
+                    value={posCustName} 
+                    onChange={(e) => setPosCustName(e.target.value)} 
+                    style={{ padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', outline: 'none' }}
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Phone Number" 
+                    value={posCustPhone} 
+                    onChange={(e) => setPosCustPhone(e.target.value)} 
+                    style={{ padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Address" 
+                    value={posCustAddress} 
+                    onChange={(e) => setPosCustAddress(e.target.value)} 
+                    style={{ padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', outline: 'none' }}
+                  />
+                  <input 
+                    type="email" 
+                    placeholder="Email Address" 
+                    value={posCustEmail} 
+                    onChange={(e) => setPosCustEmail(e.target.value)} 
+                    style={{ padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', outline: 'none' }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '1.15rem', marginBottom: '16px', color: '#0f172a' }}>
