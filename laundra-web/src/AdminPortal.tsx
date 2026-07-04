@@ -1257,101 +1257,160 @@ export const AdminPortal: React.FC = () => {
 
       {/* 12. POS BILLING MODULE */}
       {activeModule === 'pos' && (
-        <div className="pos-workspace-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '24px' }}>
+        <div className="pos-workspace-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '24px', height: 'calc(100vh - 140px)' }}>
           
-          <div className="pos-catalog-wrapper" style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
-            <div className="pos-category-scroller" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '8px' }}>
+          <div className="pos-catalog-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflow: 'hidden' }}>
+            <div className="pos-category-scroller" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '8px', paddingBottom: '8px', flexShrink: 0 }}>
               {['All', 'Wash & Fold', 'Dry Cleaning', 'Steam Press', 'Premium Services', 'Express Services', 'Hotel Laundry', 'Commercial Laundry'].map(cat => (
                 <button 
                   key={cat}
                   data-category={cat}
                   onClick={() => setPosCategory(cat)}
                   className={`pos-category-btn ${posCategory === cat ? 'active' : ''}`}
-                  style={{ whiteSpace: 'nowrap', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: '600' }}
+                  style={{ whiteSpace: 'nowrap', border: '1.5px solid #cbd5e1', borderRadius: '20px', padding: '8px 16px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '700', flexShrink: 0 }}
                 >
                   {cat}
                 </button>
               ))}
             </div>
 
-            <div className="pos-search-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+            <div className="pos-search-row" style={{ display: 'flex', gap: '16px', marginBottom: '12px', alignItems: 'center', flexShrink: 0 }}>
               <input 
                 type="text" 
-                placeholder="Search catalog..." 
+                placeholder="Search catalog items..." 
                 value={posSearch}
                 onChange={(e) => setPosSearch(e.target.value)}
-                style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none', fontSize: '0.9rem' }}
               />
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600' }}>
-                <input type="checkbox" checked={posExpress} onChange={(e) => setPosExpress(e.target.checked)} />
-                <span>Express Surcharge (+50%)</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '700', color: '#475569', background: '#f8fafc', padding: '10px 16px', borderRadius: '10px', border: '1.5px solid #cbd5e1', userSelect: 'none' }}>
+                <input type="checkbox" checked={posExpress} onChange={(e) => setPosExpress(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                <span>⚡ Express Surcharge (+50%)</span>
               </label>
             </div>
 
-              <div className="pos-services-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px', overflowY: 'auto', paddingRight: '8px' }}>
-                {db.services
-                  .filter(s => {
-                  const matchSearch = s.name.toLowerCase().includes(posSearch.toLowerCase());
-                  const matchCategory = posCategory === 'All' || s.category === posCategory;
-                  return s.active && matchSearch && matchCategory;
-                })
-                .map(s => (
-                  <div key={s.id} onClick={() => handleAddCartItem(s)} style={{ border: '1px solid #cbd5e1', borderRadius: '10px', padding: '12px', cursor: 'pointer', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{s.name}</div>
-                    <div style={{ color: '#2563eb', fontWeight: '800', marginTop: 'auto' }}>
+            <div className="pos-services-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px', overflowY: 'auto', paddingRight: '8px', flex: 1 }}>
+              {db.services
+                .filter(s => {
+                const matchSearch = s.name.toLowerCase().includes(posSearch.toLowerCase());
+                const matchCategory = posCategory === 'All' || s.category === posCategory;
+                return s.active && matchSearch && matchCategory;
+              })
+              .map(s => (
+                <div 
+                  key={s.id} 
+                  onClick={() => handleAddCartItem(s)} 
+                  style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', cursor: 'pointer', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '10px', transition: 'all 0.18s ease' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = '#2563eb';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(37,99,235,0.06)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ fontWeight: '800', fontSize: '0.92rem', color: '#1e293b', lineHeight: 1.3 }}>{s.name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '8px' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700' }}>{s.category}</span>
+                    <span style={{ color: '#2563eb', fontWeight: '800', fontSize: '1rem' }}>
                       QR {getServicePrice(s, posExpress ? 'express' : 'normal').toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-          </div>
-
-          <div className="pos-cart-panel" style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Manual Order Cart</h3>
-            
-            <select 
-              value={posCustId} 
-              onChange={(e) => setPosCustId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-            >
-              <option value="">-- Guest Checkout --</option>
-              {db.customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name} (QR {c.walletBalance.toFixed(2)})</option>
-              ))}
-            </select>
-
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '200px' }}>
-              {posCart.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>{item.service.name}</div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                      {item.express ? 'Express' : 'Normal'}
                     </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button onClick={() => handleUpdateCartQty(idx, -1)} style={{ padding: '2px 8px' }}>-</button>
-                    <span style={{ fontWeight: '700' }}>{item.qty}</span>
-                    <button onClick={() => handleUpdateCartQty(idx, 1)} style={{ padding: '2px 8px' }}>+</button>
-                    <button onClick={() => handleRemoveCartItem(idx)} style={{ color: '#ef4444', border: 'none', background: 'transparent' }}>✕</button>
                   </div>
                 </div>
               ))}
             </div>
+          </div>
 
-            <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '1.2rem', marginBottom: '16px' }}>
+          <div className="pos-cart-panel" style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflow: 'hidden' }}>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#0f172a' }}>Manual Order Cart</h3>
+            
+            <select 
+              value={posCustId} 
+              onChange={(e) => setPosCustId(e.target.value)}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontWeight: '600', fontSize: '0.88rem', outline: 'none', cursor: 'pointer', backgroundColor: '#f8fafc' }}
+            >
+              <option value="">👤 Walk-in / Guest Customer</option>
+              {db.customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name} (Balance: QR {c.walletBalance.toFixed(2)})</option>
+              ))}
+            </select>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', margin: '8px 0' }}>
+              {posCart.length === 0 ? (
+                <div style={{ margin: 'auto', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🛒</div>
+                  <div>Cart is empty</div>
+                </div>
+              ) : (
+                posCart.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#1e293b' }}>{item.service.name}</div>
+                      <span style={{ 
+                        fontSize: '0.72rem', 
+                        fontWeight: '700', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
+                        background: item.express ? '#ffe4e6' : '#f1f5f9',
+                        color: item.express ? '#e11d48' : '#475569',
+                        display: 'inline-block',
+                        marginTop: '4px'
+                      }}>
+                        {item.express ? '⚡ Express' : 'Normal'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleUpdateCartQty(idx, -1)} 
+                        style={{ border: '1px solid #cbd5e1', background: '#f8fafc', width: '24px', height: '24px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800' }}
+                      >
+                        -
+                      </button>
+                      <span style={{ fontWeight: '800', fontSize: '0.9rem', minWidth: '18px', textAlign: 'center' }}>{item.qty}</span>
+                      <button 
+                        onClick={() => handleUpdateCartQty(idx, 1)} 
+                        style={{ border: '1px solid #cbd5e1', background: '#f8fafc', width: '24px', height: '24px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800' }}
+                      >
+                        +
+                      </button>
+                      <button 
+                        onClick={() => handleRemoveCartItem(idx)} 
+                        style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1rem', marginLeft: '6px' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '1.15rem', marginBottom: '16px', color: '#0f172a' }}>
                 <span>Total Amount:</span>
-                <span>QR {getPOSCartTotal().toFixed(2)}</span>
+                <span style={{ color: '#2563eb' }}>QR {getPOSCartTotal().toFixed(2)}</span>
               </div>
               
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                 {['Cash', 'Card', 'UPI', 'Wallet'].map(m => (
                   <button 
                     key={m}
                     onClick={() => setPosPayMethod(m as any)}
-                    className={`secondary-btn ${posPayMethod === m ? 'active' : ''}`}
-                    style={{ flex: 1, padding: '8px 0', fontSize: '0.8rem' }}
+                    style={{ 
+                      flex: 1, 
+                      padding: '10px 0', 
+                      fontSize: '0.82rem', 
+                      fontWeight: '700',
+                      borderRadius: '8px',
+                      border: '1.5px solid',
+                      borderColor: posPayMethod === m ? '#2563eb' : '#cbd5e1',
+                      background: posPayMethod === m ? '#eff6ff' : '#ffffff',
+                      color: posPayMethod === m ? '#2563eb' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
                   >
                     {m}
                   </button>
@@ -1361,8 +1420,22 @@ export const AdminPortal: React.FC = () => {
               <button 
                 onClick={handleCheckoutPOS}
                 disabled={posCart.length === 0}
-                className="primary-btn" 
-                style={{ width: '100%', justifyContent: 'center', height: '44px', background: '#2563eb', color: 'white', border: 'none' }}
+                style={{ 
+                  width: '100%', 
+                  justifyContent: 'center', 
+                  height: '46px', 
+                  background: posCart.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #2563eb, #1d4ed8)', 
+                  color: 'white', 
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '800',
+                  fontSize: '0.95rem',
+                  cursor: posCart.length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: posCart.length === 0 ? 'none' : '0 4px 12px rgba(37,99,235,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'all 0.2s'
+                }}
               >
                 Place Order & Print Invoice
               </button>
