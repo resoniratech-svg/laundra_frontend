@@ -411,7 +411,7 @@ export const AdminPortal: React.FC = () => {
       date: new Date().toISOString().split('T')[0],
       weightItems: `${posCart.reduce((s, c) => s + c.qty, 0)} Items (POS checkout)`,
       paymentMethod: posPayMethod,
-      status: 'Ready',
+      status: 'Washing',
       courier: null,
       deliveryStatus: 'Pending Assignment',
       totalAmount: total,
@@ -828,6 +828,8 @@ export const AdminPortal: React.FC = () => {
                   if (o.courier === 'All' || !o.courier) {
                     // Do not show if already delivered or cancelled
                     if (o.status === 'Delivered' || o.status === 'Cancelled') return false;
+                    // For manual orders, hide from delivery boys if they are still in default Washing state
+                    if (o.isManual && o.status === 'Washing') return false;
                     return true;
                   }
                   return false;
