@@ -89,6 +89,7 @@ export const LandingPage: React.FC = () => {
     });
 
     // Auto log in customer
+    localStorage.setItem(`ll_${db.activeCompanyId}_active_customer_id`, newCustomer.id);
     localStorage.setItem('ll_active_customer_id', newCustomer.id);
     localStorage.setItem('ll_active_workspace', 'customer');
     setShowSignUp(false);
@@ -147,6 +148,7 @@ export const LandingPage: React.FC = () => {
     } else if (role === 'customer') {
       const customer = db.customers.find((c) => c.email.trim().toLowerCase() === email);
       if (customer) {
+        localStorage.setItem(`ll_${db.activeCompanyId}_active_customer_id`, customer.id);
         localStorage.setItem('ll_active_customer_id', customer.id);
         localStorage.setItem('ll_active_workspace', 'customer');
         navigate('/customer');
@@ -167,6 +169,7 @@ export const LandingPage: React.FC = () => {
         return;
       }
       setShowSignIn(false);
+      localStorage.setItem(`ll_${db.activeCompanyId}_active_customer_id`, cust.id);
       localStorage.setItem('ll_active_customer_id', cust.id);
       localStorage.setItem('ll_active_workspace', 'customer');
       navigate('/customer');
@@ -218,7 +221,7 @@ export const LandingPage: React.FC = () => {
 
   const openOrderWizard = () => {
     // Navigate to customer portal which automatically opens order wizard or customer dashboard
-    const activeCustId = localStorage.getItem('ll_active_customer_id');
+    const activeCustId = localStorage.getItem(`ll_${db.activeCompanyId}_active_customer_id`) || localStorage.getItem('ll_active_customer_id');
     if (activeCustId) {
       navigate('/customer');
     } else {
@@ -228,7 +231,8 @@ export const LandingPage: React.FC = () => {
   };
 
   const handleLandingCardClick = (targetPortal: string, _subsection?: string) => {
-    const isGuest = !localStorage.getItem('ll_activerole') && !localStorage.getItem('ll_active_customer_id');
+    const activeCustId = localStorage.getItem(`ll_${db.activeCompanyId}_active_customer_id`) || localStorage.getItem('ll_active_customer_id');
+    const isGuest = !localStorage.getItem('ll_activerole') && !activeCustId;
     if (isGuest) {
       setShowLogIn(true);
       setLoginRole(targetPortal === 'customer' ? 'customer' : targetPortal === 'delivery' ? 'delivery' : 'admin');

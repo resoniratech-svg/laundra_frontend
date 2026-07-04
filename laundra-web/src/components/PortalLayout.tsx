@@ -26,6 +26,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     localStorage.removeItem('ll_active_admin_module');
     localStorage.removeItem('ll_active_workspace');
     localStorage.removeItem('ll_active_customer_id');
+    localStorage.removeItem(`ll_${db.activeCompanyId}_active_customer_id`);
     navigate('/');
   };
 

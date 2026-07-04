@@ -8,7 +8,7 @@ export const CustomerPortal: React.FC = () => {
 
   // Active Customer Session Check
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const activeCustId = localStorage.getItem('ll_active_customer_id');
+  const activeCustId = localStorage.getItem(`ll_${db.activeCompanyId}_active_customer_id`) || localStorage.getItem('ll_active_customer_id');
 
   useEffect(() => {
     if (!activeCustId) {
@@ -17,12 +17,13 @@ export const CustomerPortal: React.FC = () => {
     }
     const match = db.customers.find((c) => c.id === activeCustId);
     if (!match) {
+      localStorage.removeItem(`ll_${db.activeCompanyId}_active_customer_id`);
       localStorage.removeItem('ll_active_customer_id');
       navigate('/');
     } else {
       setCustomer(match);
     }
-  }, [activeCustId, db.customers]);
+  }, [activeCustId, db.customers, db.activeCompanyId, navigate]);
 
   // Profile editing state
   const [profName, setProfName] = useState('');
@@ -125,6 +126,7 @@ export const CustomerPortal: React.FC = () => {
 
   // Sign out customer
   const handleLogout = () => {
+    localStorage.removeItem(`ll_${db.activeCompanyId}_active_customer_id`);
     localStorage.removeItem('ll_active_customer_id');
     localStorage.removeItem('ll_active_workspace');
     navigate('/');
