@@ -4,7 +4,7 @@ import { useDatabase } from './DatabaseContext';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB } = useDatabase();
+  const { db, saveDB, changeActiveCompany } = useDatabase();
 
   // Carousel State
   const [slideIndex, setSlideIndex] = useState(0);
@@ -100,6 +100,14 @@ export const LandingPage: React.FC = () => {
     const email = loginEmail.trim().toLowerCase();
     const pass = loginPassword;
     const role = loginRole;
+
+    // Super Admin credentials check
+    if (email === 'superadmin@laundra.com' && pass === 'superadmin') {
+      localStorage.setItem('ll_super_admin_session', 'active');
+      setShowLogIn(false);
+      navigate('/super-admin');
+      return;
+    }
 
     // Admin credentials bypass / strict check
     if (email === 'admin@laundra.com' && pass === 'admin' && role === 'admin') {
@@ -253,7 +261,9 @@ export const LandingPage: React.FC = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <span style={{ fontSize: '1.7rem' }}>🌀</span>
-          <h1 style={{ color: '#1e40af', fontSize: '1.6rem', fontWeight: '900', margin: 0, letterSpacing: '-1px' }}>Laundra</h1>
+          <h1 style={{ color: '#1e40af', fontSize: '1.6rem', fontWeight: '900', margin: 0, letterSpacing: '-1px' }}>
+            {db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundra'}
+          </h1>
         </div>
 
         {/* Center links for quick navigation */}
@@ -286,6 +296,30 @@ export const LandingPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Company Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '10px' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Store:</span>
+            <select
+              value={db.activeCompanyId}
+              onChange={(e) => changeActiveCompany(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1.5px solid #cbd5e1',
+                fontSize: '0.85rem',
+                fontWeight: '700',
+                color: '#1e3a8a',
+                cursor: 'pointer',
+                outline: 'none',
+                background: 'white'
+              }}
+            >
+              {db.companies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
           <button 
             className="secondary-btn" 
             onClick={() => {
@@ -630,7 +664,9 @@ export const LandingPage: React.FC = () => {
       <footer style={{ background: '#f1f5f9', padding: '60px 8%', borderTop: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '40px', maxWidth: '1100px', margin: '0 auto' }}>
           <div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a', marginBottom: '16px' }}>Laundra</h3>
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a', marginBottom: '16px' }}>
+              {db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundra'}
+            </h3>
             <p style={{ color: '#64748b', fontSize: '0.9rem' }}>The operating system for modern garment care.</p>
             <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '24px' }}>© 2026 Laundra Technologies. All rights reserved.</p>
           </div>
@@ -661,6 +697,20 @@ export const LandingPage: React.FC = () => {
               <button onClick={() => setShowSignUp(false)} className="icon-btn" style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
             <form onSubmit={handleSignUpSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label style={{ fontWeight: '700', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>Select Laundry Company</label>
+                <select 
+                  value={db.activeCompanyId} 
+                  onChange={(e) => changeActiveCompany(e.target.value)} 
+                  className="form-input" 
+                  required 
+                  style={{ height: '48px', fontWeight: '600' }}
+                >
+                  {db.companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="form-group">
                 <label>Full Name</label>
                 <input type="text" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="form-input" required placeholder="e.g. Selena Gomez" />
@@ -703,6 +753,22 @@ export const LandingPage: React.FC = () => {
               <button onClick={() => setShowLogIn(false)} className="icon-btn" style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
             <form onSubmit={handleLogInSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {loginEmail.trim().toLowerCase() !== 'superadmin@laundra.com' && (
+                <div className="form-group">
+                  <label style={{ fontWeight: '700', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>Select Laundry Company</label>
+                  <select 
+                    value={db.activeCompanyId} 
+                    onChange={(e) => changeActiveCompany(e.target.value)} 
+                    className="form-input" 
+                    required 
+                    style={{ height: '48px', fontWeight: '600' }}
+                  >
+                    {db.companies.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="form-group">
                 <label style={{ fontWeight: '700', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>Select Portal</label>
                 <select value={loginRole} onChange={(e) => setLoginRole(e.target.value)} className="form-input" required style={{ height: '48px', fontWeight: '600' }}>

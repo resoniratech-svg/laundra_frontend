@@ -86,6 +86,14 @@ export interface User {
   age?: number;
 }
 
+export interface Company {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+  adminEmail: string;
+}
+
 export interface Database {
   services: Service[];
   customers: Customer[];
@@ -98,6 +106,8 @@ export interface Database {
   activeBranch: string;
   activeRole: string;
   currentDeliveryBoy: string | null;
+  companies: Company[];
+  activeCompanyId: string;
 }
 
 interface DatabaseContextType {
@@ -114,6 +124,9 @@ interface DatabaseContextType {
   setActiveRole: (role: string) => void;
   setCurrentDeliveryBoy: (boy: string | null) => void;
   saveDB: (updatedFields: Partial<Database>) => void;
+  createCompany: (name: string, slug: string, adminEmail: string, adminPass: string) => void;
+  deleteCompany: (companyId: string) => void;
+  changeActiveCompany: (companyId: string) => void;
 }
 
 const DEFAULT_SERVICES: Service[] = [
@@ -172,106 +185,323 @@ const DEFAULT_USERS: User[] = [
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Read state keys individually to match app.js storage signatures
-  const [services, setServices] = useState<Service[]>(() => {
-    const saved = localStorage.getItem('ll_services');
-    if (saved) {
-      const parsed = JSON.parse(saved) as Service[];
-      return parsed.map(s => {
-        const def = DEFAULT_SERVICES.find(d => d.id === s.id);
-        return { ...s, image: def?.image || s.image };
-      });
+  // Global states for multi-tenancy
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    const saved = localStorage.getItem('ll_companies');
+    if (saved) return JSON.parse(saved);
+
+    const defaultComp: Company = {
+      id: 'comp-default',
+      name: 'Laundra HQ',
+      slug: 'laundra',
+      createdAt: new Date().toISOString().split('T')[0],
+      adminEmail: 'admin@laundra.com'
+    };
+    return [defaultComp];
+  });
+
+  const [activeCompanyId, setActiveCompanyId] = useState<string>(() => {
+    return localStorage.getItem('ll_active_company_id') || 'comp-default';
+  });
+
+  // Local tenant states
+  const [services, setServices] = useState<Service[]>(DEFAULT_SERVICES);
+  const [customers, setCustomers] = useState<Customer[]>(DEFAULT_CUSTOMERS);
+  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
+  const [expenses, setExpenses] = useState<Expense[]>(DEFAULT_EXPENSES);
+  const [promos, setPromos] = useState<Promo[]>(DEFAULT_PROMOS);
+  const [notifications, setNotifications] = useState<Notification[]>(DEFAULT_NOTIFICATIONS);
+  const [users, setUsers] = useState<User[]>(DEFAULT_USERS);
+  const [drawerCash, setDrawerCash] = useState<number>(350.00);
+  const [activeBranch, setActiveBranch] = useState<string>('Downtown HQ');
+  const [activeRole, setActiveRole] = useState<string>('Admin');
+  const [currentDeliveryBoy, setCurrentDeliveryBoy] = useState<string | null>(null);
+
+  // Helper to load company data (with migration support for comp-default)
+  const loadCompanyData = (compId: string) => {
+    // 1. Services
+    const sSaved = localStorage.getItem(`ll_${compId}_services`);
+    if (sSaved) {
+      setServices(JSON.parse(sSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_services');
+        setServices(legacy ? JSON.parse(legacy) : DEFAULT_SERVICES);
+      } else {
+        setServices(DEFAULT_SERVICES);
+      }
     }
-    return DEFAULT_SERVICES;
-  });
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('ll_customers');
-    return saved ? JSON.parse(saved) : DEFAULT_CUSTOMERS;
-  });
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('ll_orders');
-    return saved ? JSON.parse(saved) : DEFAULT_ORDERS;
-  });
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('ll_expenses');
-    return saved ? JSON.parse(saved) : DEFAULT_EXPENSES;
-  });
-  const [promos, setPromos] = useState<Promo[]>(() => {
-    const saved = localStorage.getItem('ll_promos');
-    return saved ? JSON.parse(saved) : DEFAULT_PROMOS;
-  });
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const saved = localStorage.getItem('ll_notifications');
-    return saved ? JSON.parse(saved) : DEFAULT_NOTIFICATIONS;
-  });
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('ll_users');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
-  });
-  const [drawerCash, setDrawerCash] = useState<number>(() => {
-    const saved = localStorage.getItem('ll_drawercash');
-    return saved ? parseFloat(saved) : 350.00;
-  });
-  const [activeBranch, setActiveBranch] = useState<string>(() => {
-    return localStorage.getItem('ll_activebranch') || 'Downtown HQ';
-  });
-  const [activeRole, setActiveRole] = useState<string>(() => {
-    return localStorage.getItem('ll_activerole') || 'Admin';
-  });
-  const [currentDeliveryBoy, setCurrentDeliveryBoy] = useState<string | null>(() => {
-    return localStorage.getItem('ll_active_delivery_boy') || null;
-  });
 
-  // Sync back to local storage whenever a sub-state updates
+    // 2. Customers
+    const cSaved = localStorage.getItem(`ll_${compId}_customers`);
+    if (cSaved) {
+      setCustomers(JSON.parse(cSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_customers');
+        setCustomers(legacy ? JSON.parse(legacy) : DEFAULT_CUSTOMERS);
+      } else {
+        setCustomers(DEFAULT_CUSTOMERS);
+      }
+    }
+
+    // 3. Orders
+    const oSaved = localStorage.getItem(`ll_${compId}_orders`);
+    if (oSaved) {
+      setOrders(JSON.parse(oSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_orders');
+        setOrders(legacy ? JSON.parse(legacy) : DEFAULT_ORDERS);
+      } else {
+        setOrders([]);
+      }
+    }
+
+    // 4. Expenses
+    const eSaved = localStorage.getItem(`ll_${compId}_expenses`);
+    if (eSaved) {
+      setExpenses(JSON.parse(eSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_expenses');
+        setExpenses(legacy ? JSON.parse(legacy) : DEFAULT_EXPENSES);
+      } else {
+        setExpenses([]);
+      }
+    }
+
+    // 5. Promos
+    const pSaved = localStorage.getItem(`ll_${compId}_promos`);
+    if (pSaved) {
+      setPromos(JSON.parse(pSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_promos');
+        setPromos(legacy ? JSON.parse(legacy) : DEFAULT_PROMOS);
+      } else {
+        setPromos(DEFAULT_PROMOS);
+      }
+    }
+
+    // 6. Notifications
+    const nSaved = localStorage.getItem(`ll_${compId}_notifications`);
+    if (nSaved) {
+      setNotifications(JSON.parse(nSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_notifications');
+        setNotifications(legacy ? JSON.parse(legacy) : DEFAULT_NOTIFICATIONS);
+      } else {
+        setNotifications([]);
+      }
+    }
+
+    // 7. Users
+    const uSaved = localStorage.getItem(`ll_${compId}_users`);
+    if (uSaved) {
+      setUsers(JSON.parse(uSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_users');
+        setUsers(legacy ? JSON.parse(legacy) : DEFAULT_USERS);
+      } else {
+        // new company: seed default admin user
+        const companyObj = companies.find(c => c.id === compId);
+        const seededAdmin: User = {
+          id: 'u-1',
+          name: 'Company Admin',
+          role: 'admin',
+          email: companyObj?.adminEmail || `admin@${compId}.com`,
+          password: 'admin',
+          phone: '',
+          address: '',
+          status: 'Active',
+          createdAt: new Date().toISOString()
+        };
+        setUsers([seededAdmin]);
+      }
+    }
+
+    // 8. Drawer Cash
+    const dcSaved = localStorage.getItem(`ll_${compId}_drawercash`);
+    if (dcSaved) {
+      setDrawerCash(parseFloat(dcSaved));
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_drawercash');
+        setDrawerCash(legacy ? parseFloat(legacy) : 350.00);
+      } else {
+        setDrawerCash(350.00);
+      }
+    }
+
+    // 9. Active Branch
+    const abSaved = localStorage.getItem(`ll_${compId}_activebranch`);
+    if (abSaved) {
+      setActiveBranch(abSaved);
+    } else {
+      if (compId === 'comp-default') {
+        const legacy = localStorage.getItem('ll_activebranch');
+        setActiveBranch(legacy || 'Downtown HQ');
+      } else {
+        setActiveBranch('Branch Main');
+      }
+    }
+
+    // 10. Active Role
+    const arSaved = localStorage.getItem(`ll_${compId}_activerole`);
+    setActiveRole(arSaved || 'Admin');
+
+    // 11. Current Delivery Boy
+    const cdbSaved = localStorage.getItem(`ll_${compId}_active_delivery_boy`);
+    setCurrentDeliveryBoy(cdbSaved || null);
+  };
+
+  // Sync companies list
   useEffect(() => {
-    localStorage.setItem('ll_services', JSON.stringify(services));
-  }, [services]);
+    localStorage.setItem('ll_companies', JSON.stringify(companies));
+  }, [companies]);
+
+  // Initial load
+  useEffect(() => {
+    loadCompanyData(activeCompanyId);
+  }, []);
+
+  // Multi-tenant state syncing back to local storage
+  useEffect(() => {
+    localStorage.setItem(`ll_${activeCompanyId}_services`, JSON.stringify(services));
+  }, [services, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_customers', JSON.stringify(customers));
-  }, [customers]);
+    localStorage.setItem(`ll_${activeCompanyId}_customers`, JSON.stringify(customers));
+  }, [customers, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_orders', JSON.stringify(orders));
-  }, [orders]);
+    localStorage.setItem(`ll_${activeCompanyId}_orders`, JSON.stringify(orders));
+  }, [orders, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    localStorage.setItem(`ll_${activeCompanyId}_expenses`, JSON.stringify(expenses));
+  }, [expenses, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_promos', JSON.stringify(promos));
-  }, [promos]);
+    localStorage.setItem(`ll_${activeCompanyId}_promos`, JSON.stringify(promos));
+  }, [promos, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    localStorage.setItem(`ll_${activeCompanyId}_notifications`, JSON.stringify(notifications));
+  }, [notifications, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_users', JSON.stringify(users));
-  }, [users]);
+    localStorage.setItem(`ll_${activeCompanyId}_users`, JSON.stringify(users));
+  }, [users, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_drawercash', drawerCash.toString());
-  }, [drawerCash]);
+    localStorage.setItem(`ll_${activeCompanyId}_drawercash`, drawerCash.toString());
+  }, [drawerCash, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_activebranch', activeBranch);
-  }, [activeBranch]);
+    localStorage.setItem(`ll_${activeCompanyId}_activebranch`, activeBranch);
+  }, [activeBranch, activeCompanyId]);
 
   useEffect(() => {
-    localStorage.setItem('ll_activerole', activeRole);
-  }, [activeRole]);
+    localStorage.setItem(`ll_${activeCompanyId}_activerole`, activeRole);
+  }, [activeRole, activeCompanyId]);
 
   useEffect(() => {
     if (currentDeliveryBoy) {
-      localStorage.setItem('ll_active_delivery_boy', currentDeliveryBoy);
+      localStorage.setItem(`ll_${activeCompanyId}_active_delivery_boy`, currentDeliveryBoy);
     } else {
-      localStorage.removeItem('ll_active_delivery_boy');
+      localStorage.removeItem(`ll_${activeCompanyId}_active_delivery_boy`);
     }
-  }, [currentDeliveryBoy]);
+  }, [currentDeliveryBoy, activeCompanyId]);
 
-  // Unified saveDB helper matching the signature of app.js
+  // Tenant-switching function
+  const changeActiveCompany = (companyId: string) => {
+    // 1. Flush/save current company states
+    localStorage.setItem(`ll_${activeCompanyId}_services`, JSON.stringify(services));
+    localStorage.setItem(`ll_${activeCompanyId}_customers`, JSON.stringify(customers));
+    localStorage.setItem(`ll_${activeCompanyId}_orders`, JSON.stringify(orders));
+    localStorage.setItem(`ll_${activeCompanyId}_expenses`, JSON.stringify(expenses));
+    localStorage.setItem(`ll_${activeCompanyId}_promos`, JSON.stringify(promos));
+    localStorage.setItem(`ll_${activeCompanyId}_notifications`, JSON.stringify(notifications));
+    localStorage.setItem(`ll_${activeCompanyId}_users`, JSON.stringify(users));
+    localStorage.setItem(`ll_${activeCompanyId}_drawercash`, drawerCash.toString());
+    localStorage.setItem(`ll_${activeCompanyId}_activebranch`, activeBranch);
+    localStorage.setItem(`ll_${activeCompanyId}_activerole`, activeRole);
+    if (currentDeliveryBoy) {
+      localStorage.setItem(`ll_${activeCompanyId}_active_delivery_boy`, currentDeliveryBoy);
+    } else {
+      localStorage.removeItem(`ll_${activeCompanyId}_active_delivery_boy`);
+    }
+
+    // 2. Switch context
+    setActiveCompanyId(companyId);
+    localStorage.setItem('ll_active_company_id', companyId);
+
+    // 3. Load next company's context
+    loadCompanyData(companyId);
+  };
+
+  const createCompany = (name: string, slug: string, adminEmail: string, adminPass: string) => {
+    const newId = 'comp-' + Math.floor(1000 + Math.random() * 9000);
+    const newCompany: Company = {
+      id: newId,
+      name,
+      slug: slug.toLowerCase().trim(),
+      createdAt: new Date().toISOString().split('T')[0],
+      adminEmail: adminEmail.trim().toLowerCase()
+    };
+
+    const seededAdmin: User = {
+      id: 'u-1',
+      name: 'Company Admin',
+      role: 'admin',
+      email: adminEmail.trim().toLowerCase(),
+      password: adminPass,
+      phone: '',
+      address: '',
+      status: 'Active',
+      createdAt: new Date().toISOString()
+    };
+
+    localStorage.setItem(`ll_${newId}_users`, JSON.stringify([seededAdmin]));
+    localStorage.setItem(`ll_${newId}_services`, JSON.stringify(DEFAULT_SERVICES));
+    localStorage.setItem(`ll_${newId}_promos`, JSON.stringify(DEFAULT_PROMOS));
+    localStorage.setItem(`ll_${newId}_customers`, JSON.stringify(DEFAULT_CUSTOMERS));
+    localStorage.setItem(`ll_${newId}_drawercash`, '350');
+    localStorage.setItem(`ll_${newId}_activebranch`, 'Branch Main');
+    localStorage.setItem(`ll_${newId}_activerole`, 'Admin');
+
+    setCompanies(prev => [...prev, newCompany]);
+  };
+
+  const deleteCompany = (companyId: string) => {
+    if (companyId === 'comp-default') {
+      alert('Cannot delete the default company!');
+      return;
+    }
+
+    localStorage.removeItem(`ll_${companyId}_services`);
+    localStorage.removeItem(`ll_${companyId}_customers`);
+    localStorage.removeItem(`ll_${companyId}_orders`);
+    localStorage.removeItem(`ll_${companyId}_expenses`);
+    localStorage.removeItem(`ll_${companyId}_promos`);
+    localStorage.removeItem(`ll_${companyId}_notifications`);
+    localStorage.removeItem(`ll_${companyId}_users`);
+    localStorage.removeItem(`ll_${companyId}_drawercash`);
+    localStorage.removeItem(`ll_${companyId}_activebranch`);
+    localStorage.removeItem(`ll_${companyId}_activerole`);
+    localStorage.removeItem(`ll_${companyId}_active_delivery_boy`);
+
+    setCompanies(prev => prev.filter(c => c.id !== companyId));
+
+    if (activeCompanyId === companyId) {
+      changeActiveCompany('comp-default');
+    }
+  };
+
   const saveDB = (fields: Partial<Database>) => {
     if (fields.services !== undefined) setServices(fields.services);
     if (fields.customers !== undefined) setCustomers(fields.customers);
@@ -297,7 +527,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     drawerCash,
     activeBranch,
     activeRole,
-    currentDeliveryBoy
+    currentDeliveryBoy,
+    companies,
+    activeCompanyId
   };
 
   return (
@@ -314,7 +546,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setActiveBranch,
       setActiveRole,
       setCurrentDeliveryBoy,
-      saveDB
+      saveDB,
+      createCompany,
+      deleteCompany,
+      changeActiveCompany
     }}>
       {children}
     </DatabaseContext.Provider>
