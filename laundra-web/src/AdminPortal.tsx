@@ -1662,41 +1662,7 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* ⚙️ COMPANY SETTINGS TAB */}
-      {activeModule === 'settings' && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-          <h3>⚙️ Company operational settings</h3>
-          <form onSubmit={handleSaveCompanySettings} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Company Logo Icon</label>
-              <input type="text" defaultValue={activeComp.logo || '🏢'} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Company name</label>
-              <input type="text" defaultValue={activeComp.name} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>GST Number</label>
-              <input type="text" defaultValue={activeComp.gstNumber || ''} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Invoice prefix</label>
-              <input type="text" defaultValue="INV-HQ" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Pickup charge (QR)</label>
-              <input type="number" defaultValue={5.00} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Delivery charge (QR)</label>
-              <input type="number" defaultValue={5.00} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-              <button type="submit" style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Settings Details</button>
-            </div>
-          </form>
-        </div>
-      )}
+
 
       {/* 📜 AUDIT ACTIVITY LOGS TAB */}
       {activeModule === 'audit-logs' && (

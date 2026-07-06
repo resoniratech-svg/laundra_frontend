@@ -115,7 +115,6 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     { id: 'reports', label: 'Business Reports', icon: '📊' },
     { id: 'notifications', label: 'Notification Center', icon: '✉️' },
     { id: 'reviews', label: 'Customer Reviews', icon: '⭐' },
-    { id: 'settings', label: 'Company Settings', icon: '⚙️' },
     { id: 'audit-logs', label: 'Audit Activity Logs', icon: '📜' },
     { id: 'support', label: 'Help & Support', icon: '🎫' }
   ];
