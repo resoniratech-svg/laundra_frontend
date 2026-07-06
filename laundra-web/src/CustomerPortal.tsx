@@ -388,6 +388,9 @@ export const CustomerPortal: React.FC = () => {
             <li onClick={() => setActiveTab('profile')} className={`sidebar-menu-item ${activeTab === 'profile' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'profile' ? '#2563eb' : '#475569', background: activeTab === 'profile' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
               👤 <span>Account Profile</span>
             </li>
+            <li onClick={() => setActiveTab('qr')} className={`sidebar-menu-item ${activeTab === 'qr' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'qr' ? '#2563eb' : '#475569', background: activeTab === 'qr' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              📱 <span>My Access QR</span>
+            </li>
           </ul>
         </div>
 
@@ -405,7 +408,7 @@ export const CustomerPortal: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: '#0f172a' }}>
-              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'addresses' ? 'My Address Book' : activeTab === 'offers' ? 'Coupons & Promos' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
+              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'addresses' ? 'My Address Book' : activeTab === 'offers' ? 'Coupons & Promos' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : activeTab === 'qr' ? 'My Access QR & Portal Link' : 'My Account Settings'}
             </h1>
             <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>Customer Portal / {activeTab}</div>
           </div>
@@ -684,6 +687,72 @@ export const CustomerPortal: React.FC = () => {
           </div>
         )}
 
+        {/* 📱 MY ACCESS QR TAB */}
+        {activeTab === 'qr' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '24px' }}>
+            <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: 'white', width: '100%', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Your Secure Access Code</span>
+              </div>
+              
+              {/* Mock QR Code Card */}
+              <div style={{ position: 'relative', width: '200px', height: '200px', background: 'white', border: '2px solid #e2e8f0', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)' }}>
+                {/* Outer corners of scanning box */}
+                <div style={{ position: 'absolute', top: '15px', left: '15px', width: '20px', height: '20px', borderTop: '4px solid #3b82f6', borderLeft: '4px solid #3b82f6' }}></div>
+                <div style={{ position: 'absolute', top: '15px', right: '15px', width: '20px', height: '20px', borderTop: '4px solid #3b82f6', borderRight: '4px solid #3b82f6' }}></div>
+                <div style={{ position: 'absolute', bottom: '15px', left: '15px', width: '20px', height: '20px', borderBottom: '4px solid #3b82f6', borderLeft: '4px solid #3b82f6' }}></div>
+                <div style={{ position: 'absolute', bottom: '15px', right: '15px', width: '20px', height: '20px', borderBottom: '4px solid #3b82f6', borderRight: '4px solid #3b82f6' }}></div>
+                
+                {/* Simulated QR blocks grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', width: '110px', height: '110px' }}>
+                  {[...Array(25)].map((_, i) => {
+                    const filled = (i % 2 === 0 && i !== 12) || i === 0 || i === 4 || i === 20 || i === 24;
+                    return (
+                      <div key={i} style={{ background: filled ? '#1e293b' : 'transparent', borderRadius: '2px' }}></div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center' }}>
+                <h4 style={{ margin: 0, color: '#0f172a', fontWeight: '800' }}>{customer.name}</h4>
+                <p style={{ margin: '6px 0 0 0', color: '#64748b', fontSize: '0.85rem', lineHeight: 1.4 }}>
+                  Scan this QR code with another mobile device to securely auto-login to this laundry account dashboard instantly.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: '#0f172a' }}>📱 Portal Web Link</h4>
+                <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.85rem', lineHeight: 1.4 }}>
+                  This is your personal secure auto-login URL. Bookmark this link on your phone browser for one-click access without needing any login credentials.
+                </p>
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '12px', borderRadius: '8px', fontSize: '0.8rem', wordBreak: 'break-all', fontFamily: 'monospace', color: '#3b82f6', fontWeight: '700', marginBottom: '16px' }}>
+                  {`http://localhost:5173/customer?login=${customer.id}`}
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => { navigator.clipboard.writeText(`http://localhost:5173/customer?login=${customer.id}`); alert('Secure portal link copied!'); }} style={{ flex: 1, padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+                    🔗 Copy Web Link
+                  </button>
+                  <button onClick={() => window.open(`https://api.whatsapp.com/send?text=Scan this secure link to access your customer laundry portal: http://localhost:5173/customer?login=${customer.id}`)} style={{ padding: '12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+                    Share via WhatsApp
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', padding: '16px', borderRadius: '12px', display: 'flex', gap: '12px' }}>
+                <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                <div>
+                  <h5 style={{ margin: 0, color: '#991b1b', fontWeight: '700', fontSize: '0.85rem' }}>Security Warning</h5>
+                  <p style={{ margin: '4px 0 0 0', color: '#7f1d1d', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                    Your QR code and web link contain a secure session token that grants direct access to your orders, invoices, and prepaid wallet. Do not share this link with anyone you do not trust.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* --- ORDER WIZARD MODAL --- */}
