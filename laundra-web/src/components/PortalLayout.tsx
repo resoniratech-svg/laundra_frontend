@@ -217,7 +217,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
         {/* Sidebar Panel */}
         <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0 }}>
           <div className="sidebar-brand" style={{ padding: '0 20px 16px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px' }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#1e3a8a' }}>{brandName}</span>
+            <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#1e3a8a', display: 'block' }}>{brandName}</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569', display: 'block', marginTop: '4px' }}>🏢 {activeComp?.name || 'Laundra Corp'}</span>
           </div>
 
           <div className="sidebar-menu-wrapper" style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
