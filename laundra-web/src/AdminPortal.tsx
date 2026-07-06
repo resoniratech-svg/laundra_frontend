@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo } from './DatabaseContext';
 import { PortalLayout } from './components/PortalLayout';
 
@@ -24,7 +23,6 @@ interface SupportTicket {
 }
 
 export const AdminPortal: React.FC = () => {
-  const navigate = useNavigate();
   const { db, saveDB } = useDatabase();
 
   // Active module tab state
@@ -106,19 +104,14 @@ export const AdminPortal: React.FC = () => {
   const [staffLicenseNumber, setStaffLicenseNumber] = useState('');
   const [staffVehicleRc, setStaffVehicleRc] = useState('');
 
-  const [viewingStaff, setViewingStaff] = useState<User | null>(null);
-
   // Manual orders / POS
   const [posCart, setPosCart] = useState<{ service: Service; qty: number; express: boolean }[]>([]);
   const [posCustId, setPosCustId] = useState('');
   const [posCustName, setPosCustName] = useState('');
-  const [posCustPhone, setPosCustPhone] = useState('');
-  const [posCustAddress, setPosCustAddress] = useState('');
-  const [posCustEmail, setPosCustEmail] = useState('');
   const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [posSearch, setPosSearch] = useState('');
   const [posCategory, setPosCategory] = useState('All');
-  const [posExpress, setPosExpress] = useState(false);
+  const posExpress = false;
   const [posCommission, setPosCommission] = useState<string>('');
 
   // Service Forms
@@ -138,7 +131,6 @@ export const AdminPortal: React.FC = () => {
   const [loyaltyDir, setLoyaltyDir] = useState<'add' | 'redeem'>('add');
 
   // Coupon Forms
-  const [addingCoupon, setAddingCoupon] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Promo | null>(null);
   const [cpCode, setCpCode] = useState('');
   const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Percentage');
@@ -146,7 +138,6 @@ export const AdminPortal: React.FC = () => {
   const [cpDesc, setCpDesc] = useState('');
 
   // Expense Forms
-  const [addingExpense, setAddingExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expCategory, setExpCategory] = useState('Salary');
   const [expDesc, setExpDesc] = useState('');
@@ -453,7 +444,7 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleAssignDeliveryBoy = (orderId: string, courierName: string) => {
-    const updated = db.orders.map(o => o.id === orderId ? { ...o, courier: courierName || undefined, deliveryStatus: courierName ? 'Out For Delivery' : 'Received' } : o);
+    const updated = db.orders.map(o => o.id === orderId ? { ...o, courier: courierName || null, deliveryStatus: courierName ? 'Out For Delivery' : 'Received' } : o);
     saveDB({ orders: updated });
     addActivity('Order', `Assigned delivery agent ${courierName || 'None'} to order #${orderId}`);
   };
@@ -503,6 +494,8 @@ export const AdminPortal: React.FC = () => {
 
     const newOrder: Order = {
       id: newOrderId,
+      customerId: posCustId || 'guest',
+      branch: db.activeBranch || 'Downtown HQ',
       customerName,
       date: new Date().toISOString().split('T')[0],
       totalAmount: total,
@@ -511,7 +504,8 @@ export const AdminPortal: React.FC = () => {
       paymentStatus: posPayMethod === 'Wallet' ? 'Paid' : 'Unpaid',
       services: posCart.map(i => ({ serviceId: i.service.id, name: i.service.name, qty: i.qty, plan: i.express ? 'Express (+50%)' : 'Normal' })),
       deliveryStatus: 'Received',
-      commission: commAmt
+      commission: commAmt,
+      courier: null
     };
 
     // Log cash-in transaction
@@ -542,7 +536,6 @@ export const AdminPortal: React.FC = () => {
     setPosCart([]);
     setPosCustId('');
     setPosCustName('');
-    setPosCustPhone('');
     setPosCommission('');
   };
 
@@ -564,7 +557,6 @@ export const AdminPortal: React.FC = () => {
       };
       saveDB({ promos: [...db.promos, newPromo] });
       addActivity('Settings', `Created coupon: ${cpCode}`);
-      setAddingCoupon(false);
     }
     setCpCode('');
     setCpValue('');
@@ -617,7 +609,6 @@ export const AdminPortal: React.FC = () => {
       };
       saveDB({ expenses: [...db.expenses, newExp] });
       addActivity('Payment', `Added expense: ${expDesc}`);
-      setAddingExpense(false);
     }
     setExpDesc('');
     setExpAmount('');
@@ -708,12 +699,6 @@ export const AdminPortal: React.FC = () => {
     setActiveReviewId('');
   };
 
-  // Settings
-  const handleSaveCompanySettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    addActivity('Settings', 'Updated company config details');
-    alert('Company settings saved successfully!');
-  };
 
   // Drawer logging transaction
   const handleDrawerTx = () => {
@@ -1172,7 +1157,7 @@ export const AdminPortal: React.FC = () => {
                 .filter(s => s.name.toLowerCase().includes(posSearch.toLowerCase()))
                 .filter(s => posCategory === 'All' || s.category === posCategory)
                 .map(serv => (
-                  <div key={serv.id} style={{ padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyBetween: 'space-between' }}>
+                  <div key={serv.id} style={{ padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{serv.name}</div>
                     <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#2563eb', marginTop: '4px' }}>QR {serv.price.toFixed(2)}</div>
                     

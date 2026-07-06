@@ -48,7 +48,7 @@ export const CustomerPortal: React.FC = () => {
   }, [activeCustId, db.customers, db.activeCompanyId, navigate]);
 
   // Sidebar Menu State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'offers' | 'support' | 'reviews' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'offers' | 'support' | 'reviews' | 'profile' | 'qr'>('dashboard');
 
   // Customer profile details
   const [profName, setProfName] = useState('');
@@ -106,16 +106,10 @@ export const CustomerPortal: React.FC = () => {
   const [oEmail, setOEmail] = useState('');
   const [oPhone, setOPhone] = useState('');
   const [oAddress, setOAddress] = useState('');
-  const [oNotes, setONotes] = useState('');
-
   const [payMethod, setPayMethod] = useState<'upi' | 'phonepe' | 'gpay' | 'credit' | 'debit' | 'wallet'>('upi');
-  const [cardNum, setCardNum] = useState('');
-  const [cardExp, setCardExp] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
 
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState<Promo | null>(null);
-  const [promoError, setPromoError] = useState('');
 
   // Service list filter categories
   const categories = ['All', 'Wash & Fold', 'Dry Cleaning', 'Steam Iron', 'Shoe Cleaning', 'Carpet Cleaning', 'Blanket Cleaning'];
@@ -176,14 +170,13 @@ export const CustomerPortal: React.FC = () => {
   };
 
   const handleApplyPromo = () => {
-    setPromoError('');
     setPromoApplied(null);
     const code = promoCode.trim().toUpperCase();
     if (!code) return;
 
     const promo = db.promos.find((p) => p.code === code);
     if (!promo) {
-      setPromoError('Invalid promo code.');
+      alert('Invalid promo code.');
       return;
     }
     setPromoApplied(promo);
@@ -449,7 +442,7 @@ export const CustomerPortal: React.FC = () => {
                       <div style={{ fontSize: '0.85rem' }}><strong>Items:</strong> {o.weightItems}</div>
                       
                       {/* Delivery OTP display */}
-                      {o.status === 'Out For Delivery' && o.deliveryOtp && (
+                      {o.status === 'Out for Delivery' && o.deliveryOtp && (
                         <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px', border: '1px solid #bfdbfe', fontSize: '0.82rem', textAlign: 'center' }}>
                           <span style={{ display: 'block', fontWeight: '700', color: '#1e40af' }}>Delivery Secure OTP:</span>
                           <strong style={{ fontSize: '1.25rem', color: '#2563eb', letterSpacing: '2px' }}>{o.deliveryOtp}</strong>

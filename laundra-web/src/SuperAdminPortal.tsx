@@ -60,7 +60,7 @@ interface OTPLog {
 
 export const SuperAdminPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB, createCompany, deleteCompany, updateCompany } = useDatabase();
+  const { db, saveDB, createCompany, updateCompany } = useDatabase();
 
   // Navigation main active tab matching the required SaaS workflow
   const [activeTab, setActiveTab] = useState<
@@ -137,7 +137,6 @@ export const SuperAdminPortal: React.FC = () => {
       { id: 'plan-ent', name: 'Enterprise', price: 199, billingCycle: 'Monthly', maxAdmins: 10, maxCashiers: 25, maxDeliveryStaff: 50, maxCustomers: 50000, maxOrdersPerMonth: 100000, maxBranches: 20, maxStorage: 5120, maxApiRequests: 50000 }
     ];
   });
-  const [editingPlan, setEditingPlan] = useState<SaaSPlan | null>(null);
   const [newPlanName, setNewPlanName] = useState('');
   const [newPlanPrice, setNewPlanPrice] = useState(0);
   const [newPlanAdmins, setNewPlanAdmins] = useState(3);
@@ -187,16 +186,13 @@ export const SuperAdminPortal: React.FC = () => {
   // Support ticket replies & assignments
   const [replyText, setReplyText] = useState('');
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const [assignAgent, setAssignAgent] = useState('');
-
   // Global settings state
   const [platformName, setPlatformName] = useState('Laundra Cloud SaaS');
   const [platformLogo, setPlatformLogo] = useState('🪐');
-  const [supportEmail, setSupportEmail] = useState('support@laundra.com');
+  const supportEmail = 'support@laundra.com';
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [smtpServer, setSmtpServer] = useState('smtp.central-notifications.laundra.com');
   const [smtpUser, setSmtpUser] = useState('notifications@laundra.com');
-  const [smtpPass, setSmtpPass] = useState('••••••••••••');
   const [smsGatewayUrl, setSmsGatewayUrl] = useState('https://api.sms-gateway.laundra.com/v1');
   const [whatsAppApiKey, setWhatsAppApiKey] = useState('wa_api_live_9a3j...');
   const [googleMapsKey, setGoogleMapsKey] = useState('AIzaSy...');
@@ -206,20 +202,20 @@ export const SuperAdminPortal: React.FC = () => {
   const [lockedCompanies, setLockedCompanies] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('ll_locked_companies') || '[]'); } catch { return []; }
   });
-  const [failedAttemptsLog, setFailedAttemptsLog] = useState<{ id: string; target: string; ip: string; time: string }[]>(() => [
+  const failedAttemptsLog = [
     { id: 'f-1', target: 'admin@bhanu.com', ip: '102.15.22.45', time: new Date(Date.now() - 3600 * 1000).toLocaleString() },
     { id: 'f-2', target: 'staff@laundra.com', ip: '201.88.92.11', time: new Date(Date.now() - 7200 * 1000).toLocaleString() }
-  ]);
+  ];
   const [blockedIps, setBlockedIps] = useState<string[]>(['201.88.92.11']);
 
   // System status mock
-  const [healthStats, setHealthStats] = useState({
+  const healthStats = {
     server: 'Online',
     db: 'Healthy (11ms latency)',
     storage: '320 MB / 10 GB',
     apiHealth: '100% Operational',
     lastBackup: 'Today, 03:00 AM'
-  });
+  };
   const [autoBackupSchedule, setAutoBackupSchedule] = useState('Daily');
 
   // Add system log helper
@@ -630,6 +626,38 @@ export const SuperAdminPortal: React.FC = () => {
       setBlockedIps([...blockedIps, ip]);
       addAuditLog('SECURITY_IP_BLOCK', `Blocked suspicious IP: ${ip}`);
       alert(`IP address ${ip} has been blocked.`);
+    }
+  };
+
+  const handleDownloadBackup = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `laundra_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    addAuditLog('SETTINGS_UPDATE', 'Super Admin downloaded database backup');
+  };
+
+  const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed && parsed.companies && parsed.users) {
+            saveDB(parsed);
+            alert('Database restored successfully!');
+            addAuditLog('SETTINGS_UPDATE', 'Super Admin restored database from backup file');
+          } else {
+            alert('Invalid backup file structure!');
+          }
+        } catch {
+          alert('Error parsing JSON backup file!');
+        }
+      };
     }
   };
 
@@ -1486,7 +1514,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#f8fafc', borderRadius: '6px' }}>
                     <span>Central Notifications Sent</span>
-                    <strong>{Object.values(sentOtps).length + 12} messages</strong>
+                    <strong>{otpLogs.length + 12} messages</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#f8fafc', borderRadius: '6px' }}>
                     <span>Estimated Storage Space Used</span>

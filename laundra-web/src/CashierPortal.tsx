@@ -37,7 +37,6 @@ export const CashierPortal: React.FC = () => {
   const [custAddress, setCustAddress] = useState('');
   const [custEmail, setCustEmail] = useState('');
   const [payMethod, setPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
-  const [lastReceipt, setLastReceipt] = useState<Order | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   // Orders state
@@ -180,7 +179,6 @@ export const CashierPortal: React.FC = () => {
       setDrawerTxs(prev => [tx, ...prev]);
     }
 
-    setLastReceipt(newOrder);
     setViewingReceipt(newOrder);
     setCart([]); setCustId(''); setCustName(''); setCustPhone(''); setCustAddress(''); setCustEmail('');
     setCheckoutSuccess(true);

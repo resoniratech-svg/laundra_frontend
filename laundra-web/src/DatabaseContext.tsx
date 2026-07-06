@@ -24,6 +24,7 @@ export interface Customer {
   subRemaining?: number;
   subDuration?: string;
   password?: string;
+  qrDisabled?: boolean;
 }
 
 export interface Order {
@@ -36,18 +37,20 @@ export interface Order {
   quantity?: number;
   planType?: string;
   paymentMethod: string;
-  status: 'Pending' | 'Placed' | 'Accepted' | 'Received' | 'Washing' | 'Ironing' | 'Processing' | 'Ready' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  status: 'Created' | 'Pending' | 'Placed' | 'Accepted' | 'Received' | 'Washing' | 'Ironing' | 'Processing' | 'Ready' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   courier: string | null;
   deliveryStatus: string;
   phone?: string;
   address?: string;
   services?: any[];
-  totalAmount?: number;
+  totalAmount: number;
   total?: number;
   frequency?: 'One-time / Daily' | 'Monthly';
   clothesPerDay?: number;
   isManual?: boolean;
   commission?: number;
+  paymentStatus?: string;
+  deliveryOtp?: string;
 }
 
 export interface Expense {
