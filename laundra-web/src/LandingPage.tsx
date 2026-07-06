@@ -202,8 +202,8 @@ export const LandingPage: React.FC = () => {
         saveDB({ activeRole: 'Cashier', currentDeliveryBoy: null });
         localStorage.setItem('ll_activerole', 'Cashier');
         localStorage.removeItem('ll_active_delivery_boy');
-        localStorage.setItem('ll_active_workspace', 'admin');
-        navigate('/admin');
+        localStorage.setItem('ll_active_workspace', 'cashier');
+        navigate('/cashier');
       } else {
         saveDB({ activeRole: 'Admin', currentDeliveryBoy: null });
         localStorage.setItem('ll_activerole', 'Admin');

@@ -5,6 +5,7 @@ import { AdminPortal } from './AdminPortal';
 import { CustomerPortal } from './CustomerPortal';
 import { DeliveryPortal } from './DeliveryPortal';
 import { SuperAdminPortal } from './SuperAdminPortal';
+import { CashierPortal } from './CashierPortal';
 import './index.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route path="/customer" element={<CustomerPortal />} />
           <Route path="/delivery" element={<DeliveryPortal />} />
           <Route path="/super-admin" element={<SuperAdminPortal />} />
+          <Route path="/cashier" element={<CashierPortal />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
@@ -25,3 +27,4 @@ function App() {
 }
 
 export default App;
+
