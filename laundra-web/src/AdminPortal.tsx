@@ -188,6 +188,27 @@ export const AdminPortal: React.FC = () => {
   // User Management actions
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const activeCompany = db.companies.find(c => c.id === db.activeCompanyId);
+    const limits = activeCompany?.limits || { maxAdmins: 3, maxCashiers: 5, maxDeliveryStaff: 10 };
+    
+    const currentAdmins = db.users.filter(u => u.role === 'admin').length;
+    const currentCashiers = db.users.filter(u => u.role === 'cashier').length;
+    const currentDelivery = db.users.filter(u => u.role === 'delivery').length;
+
+    if (uRole === 'admin' && currentAdmins >= (limits.maxAdmins || 3)) {
+      alert(`Resource Limit Reached: Maximum allowed Company Admins is ${limits.maxAdmins || 3}. Contact Platform Super Admin to upgrade.`);
+      return;
+    }
+    if (uRole === 'cashier' && currentCashiers >= (limits.maxCashiers || 5)) {
+      alert(`Resource Limit Reached: Maximum allowed Cashiers is ${limits.maxCashiers || 5}. Contact Platform Super Admin to upgrade.`);
+      return;
+    }
+    if (uRole === 'delivery' && currentDelivery >= (limits.maxDeliveryStaff || 10)) {
+      alert(`Resource Limit Reached: Maximum allowed Delivery Staff is ${limits.maxDeliveryStaff || 10}. Contact Platform Super Admin to upgrade.`);
+      return;
+    }
+
     const newUser: User = {
       id: 'u-' + (db.users.length + 1),
       name: uName,
@@ -343,6 +364,15 @@ export const AdminPortal: React.FC = () => {
 
   const handleCheckoutPOS = () => {
     if (posCart.length === 0) return;
+
+    const activeCompany = db.companies.find(c => c.id === db.activeCompanyId);
+    const limits = activeCompany?.limits || { maxOrdersPerMonth: 2000, maxCustomers: 5000 };
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const monthlyOrdersCount = db.orders.filter(o => o.date.startsWith(currentMonth)).length;
+    if (monthlyOrdersCount >= (limits.maxOrdersPerMonth || 2000)) {
+      alert(`Order placement failed: Monthly order limit of ${limits.maxOrdersPerMonth || 2000} reached for this company portal.`);
+      return;
+    }
     
     const isGuest = !posCustId;
     const total = getPOSCartTotal();
@@ -384,6 +414,10 @@ export const AdminPortal: React.FC = () => {
       
       // If walk-in guest has entered a name, register them automatically
       if (posCustName) {
+        if (db.customers.length >= (limits.maxCustomers || 5000)) {
+          alert(`Failed to register walk-in customer: Limit of ${limits.maxCustomers || 5000} customers reached. Checkouts can only be done as Guest (leave customer name empty or clear customer details).`);
+          return;
+        }
         const newCustId = 'cust-' + Math.floor(10000 + Math.random() * 90000);
         customerId = newCustId;
         customerName = posCustName;
@@ -1876,6 +1910,7 @@ export const AdminPortal: React.FC = () => {
                 <select value={uRole} onChange={(e) => setURole(e.target.value as any)} className="form-input" required>
                   <option value="admin">Admin</option>
                   <option value="delivery">Delivery staff</option>
+                  <option value="cashier">Cashier</option>
                 </select>
               </div>
               <div className="form-group">

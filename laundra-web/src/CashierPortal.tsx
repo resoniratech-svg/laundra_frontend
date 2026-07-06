@@ -111,6 +111,16 @@ export const CashierPortal: React.FC = () => {
   const handleCheckout = () => {
     if (cart.length === 0) return;
     if (!shiftOpen) { alert('Please open your shift before processing orders.'); return; }
+
+    const activeCompany = db.companies.find(c => c.id === db.activeCompanyId);
+    const limits = activeCompany?.limits || { maxOrdersPerMonth: 2000, maxCustomers: 5000 };
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const monthlyOrdersCount = db.orders.filter(o => o.date.startsWith(currentMonth)).length;
+    if (monthlyOrdersCount >= (limits.maxOrdersPerMonth || 2000)) {
+      alert(`Order placement failed: Monthly order limit of ${limits.maxOrdersPerMonth || 2000} reached for this company portal.`);
+      return;
+    }
+
     const total = cartTotal();
     let updatedCustomers = db.customers;
     let customerId = 'guest';
@@ -127,6 +137,10 @@ export const CashierPortal: React.FC = () => {
     } else {
       if (payMethod === 'Wallet') { alert('Wallet payment is not available for walk-in customers!'); return; }
       if (custName) {
+        if (db.customers.length >= (limits.maxCustomers || 5000)) {
+          alert(`Failed to register walk-in customer: Limit of ${limits.maxCustomers || 5000} customers reached. Please checkout as Guest (clear name).`);
+          return;
+        }
         const newId = 'cust-' + Math.floor(10000 + Math.random() * 90000);
         customerId = newId;
         const newCust: Customer = {

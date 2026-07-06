@@ -181,8 +181,16 @@ export const CustomerPortal: React.FC = () => {
     setPromoApplied(promo);
   };
 
-  // Submit new order logic
   const handlePlaceOrder = () => {
+    const activeCompany = db.companies.find(c => c.id === db.activeCompanyId);
+    const limits = activeCompany?.limits || { maxOrdersPerMonth: 2000 };
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const monthlyOrdersCount = db.orders.filter(o => o.date.startsWith(currentMonth)).length;
+    if (monthlyOrdersCount >= (limits.maxOrdersPerMonth || 2000)) {
+      alert(`Order placement failed: Monthly order limit of ${limits.maxOrdersPerMonth || 2000} reached for this company portal. Contact company admin.`);
+      return;
+    }
+
     const grandTotal = getGrandTotal();
     let updatedCustomers = db.customers;
 

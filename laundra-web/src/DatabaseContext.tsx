@@ -76,7 +76,7 @@ export interface Notification {
 export interface User {
   id: string;
   name: string;
-  role: 'admin' | 'delivery' | 'customer';
+  role: 'admin' | 'delivery' | 'customer' | 'cashier';
   email: string;
   password?: string;
   phone?: string;
@@ -95,6 +95,9 @@ export interface Company {
   status: 'Active' | 'Suspended';
   phone?: string;
   address?: string;
+  gstNumber?: string;
+  businessType?: string;
+  logo?: string;
   subscription: {
     tier: 'Free Trial' | 'Premium' | 'Enterprise';
     status: 'Active' | 'Expired';
@@ -105,6 +108,38 @@ export interface Company {
     expenses: boolean;
     promos: boolean;
     deliveryOperations: boolean;
+    customerManagement?: boolean;
+    orderManagement?: boolean;
+    cashierModule?: boolean;
+    deliveryModule?: boolean;
+    serviceManagement?: boolean;
+    paymentModule?: boolean;
+    expenseModule?: boolean;
+    reports?: boolean;
+    coupons?: boolean;
+    wallet?: boolean;
+    loyaltyProgram?: boolean;
+    invoiceModule?: boolean;
+    qrCode?: boolean;
+    barcode?: boolean;
+    emailNotifications?: boolean;
+    smsNotifications?: boolean;
+    whatsAppNotifications?: boolean;
+    publicTracking?: boolean;
+    apiAccess?: boolean;
+    webhooks?: boolean;
+    multiLanguage?: boolean;
+    backupRestore?: boolean;
+  };
+  limits?: {
+    maxAdmins?: number;
+    maxCashiers?: number;
+    maxDeliveryStaff?: number;
+    maxCustomers?: number;
+    maxOrdersPerMonth?: number;
+    maxBranches?: number;
+    maxStorage?: number;
+    maxApiRequests?: number;
   };
 }
 
@@ -138,7 +173,7 @@ interface DatabaseContextType {
   setActiveRole: (role: string) => void;
   setCurrentDeliveryBoy: (boy: string | null) => void;
   saveDB: (updatedFields: Partial<Database>) => void;
-  createCompany: (name: string, slug: string, adminEmail: string, adminPass: string, address?: string, phone?: string) => void;
+  createCompany: (name: string, slug: string, adminEmail: string, adminPass: string, address?: string, phone?: string, gstNumber?: string, businessType?: string, logo?: string) => void;
   deleteCompany: (companyId: string) => void;
   updateCompany: (companyId: string, updates: Partial<Company>) => void;
   changeActiveCompany: (companyId: string) => void;
@@ -214,11 +249,43 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             status: 'Active',
             expiresAt: '2027-12-31'
           },
-          features: c.features || {
-            expressWash: true,
-            expenses: true,
-            promos: true,
-            deliveryOperations: true
+          features: {
+            expressWash: c.features?.expressWash !== false,
+            expenses: c.features?.expenses !== false,
+            promos: c.features?.promos !== false,
+            deliveryOperations: c.features?.deliveryOperations !== false,
+            customerManagement: c.features?.customerManagement !== false,
+            orderManagement: c.features?.orderManagement !== false,
+            cashierModule: c.features?.cashierModule !== false,
+            deliveryModule: c.features?.deliveryModule !== false,
+            serviceManagement: c.features?.serviceManagement !== false,
+            paymentModule: c.features?.paymentModule !== false,
+            expenseModule: c.features?.expenseModule !== false,
+            reports: c.features?.reports !== false,
+            coupons: c.features?.coupons !== false,
+            wallet: c.features?.wallet !== false,
+            loyaltyProgram: c.features?.loyaltyProgram !== false,
+            invoiceModule: c.features?.invoiceModule !== false,
+            qrCode: c.features?.qrCode !== false,
+            barcode: c.features?.barcode !== false,
+            emailNotifications: c.features?.emailNotifications !== false,
+            smsNotifications: c.features?.smsNotifications !== false,
+            whatsAppNotifications: c.features?.whatsAppNotifications !== false,
+            publicTracking: c.features?.publicTracking !== false,
+            apiAccess: c.features?.apiAccess !== false,
+            webhooks: c.features?.webhooks !== false,
+            multiLanguage: c.features?.multiLanguage !== false,
+            backupRestore: c.features?.backupRestore !== false,
+          },
+          limits: c.limits || {
+            maxAdmins: 3,
+            maxCashiers: 5,
+            maxDeliveryStaff: 10,
+            maxCustomers: 5000,
+            maxOrdersPerMonth: 2000,
+            maxBranches: 3,
+            maxStorage: 512,
+            maxApiRequests: 10000,
           }
         }));
       } catch (e) {
@@ -242,7 +309,39 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         expressWash: true,
         expenses: true,
         promos: true,
-        deliveryOperations: true
+        deliveryOperations: true,
+        customerManagement: true,
+        orderManagement: true,
+        cashierModule: true,
+        deliveryModule: true,
+        serviceManagement: true,
+        paymentModule: true,
+        expenseModule: true,
+        reports: true,
+        coupons: true,
+        wallet: true,
+        loyaltyProgram: true,
+        invoiceModule: true,
+        qrCode: true,
+        barcode: true,
+        emailNotifications: true,
+        smsNotifications: true,
+        whatsAppNotifications: true,
+        publicTracking: true,
+        apiAccess: true,
+        webhooks: true,
+        multiLanguage: true,
+        backupRestore: true,
+      },
+      limits: {
+        maxAdmins: 3,
+        maxCashiers: 5,
+        maxDeliveryStaff: 10,
+        maxCustomers: 5000,
+        maxOrdersPerMonth: 2000,
+        maxBranches: 3,
+        maxStorage: 512,
+        maxApiRequests: 10000,
       }
     };
     return [defaultComp];
@@ -509,7 +608,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadCompanyData(companyId);
   };
 
-  const createCompany = (name: string, slug: string, adminEmail: string, adminPass: string, address?: string, phone?: string) => {
+  const createCompany = (name: string, slug: string, adminEmail: string, adminPass: string, address?: string, phone?: string, gstNumber?: string, businessType?: string, logo?: string) => {
     const newId = 'comp-' + Math.floor(1000 + Math.random() * 9000);
     const newCompany: Company = {
       id: newId,
@@ -520,6 +619,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       status: 'Active',
       phone: phone || '',
       address: address || '',
+      gstNumber: gstNumber || '',
+      businessType: businessType || 'Laundry',
+      logo: logo || '',
       subscription: {
         tier: 'Free Trial',
         status: 'Active',
@@ -529,7 +631,39 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         expressWash: true,
         expenses: true,
         promos: true,
-        deliveryOperations: true
+        deliveryOperations: true,
+        customerManagement: true,
+        orderManagement: true,
+        cashierModule: true,
+        deliveryModule: true,
+        serviceManagement: true,
+        paymentModule: true,
+        expenseModule: true,
+        reports: true,
+        coupons: true,
+        wallet: true,
+        loyaltyProgram: true,
+        invoiceModule: true,
+        qrCode: true,
+        barcode: true,
+        emailNotifications: true,
+        smsNotifications: true,
+        whatsAppNotifications: true,
+        publicTracking: true,
+        apiAccess: true,
+        webhooks: true,
+        multiLanguage: true,
+        backupRestore: true,
+      },
+      limits: {
+        maxAdmins: 3,
+        maxCashiers: 5,
+        maxDeliveryStaff: 10,
+        maxCustomers: 5000,
+        maxOrdersPerMonth: 2000,
+        maxBranches: 3,
+        maxStorage: 512,
+        maxApiRequests: 10000,
       }
     };
 
