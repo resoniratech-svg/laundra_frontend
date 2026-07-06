@@ -1061,7 +1061,7 @@ export const AdminPortal: React.FC = () => {
                 <option value="Delivered">Delivered</option>
               </select>
             </div>
-            {db.activeRole === 'Admin' && (
+            {(db.activeRole === 'Admin' || db.activeRole === 'Cashier') && (
               <button onClick={() => setActiveModule('pos')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Manual Order</button>
             )}
           </div>
@@ -1129,14 +1129,15 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               <input type="text" value={posSearch} onChange={e => setPosSearch(e.target.value)} placeholder="🔍 Search service catalog..." style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               <select value={posCategory} onChange={e => setPosCategory(e.target.value)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                <option value="All">All Categories</option>
-                <option value="Wash & Fold">Wash & Fold</option>
-                <option value="Dry Cleaning">Dry Cleaning</option>
+                {['All', ...Array.from(new Set(db.services.map(s => s.category)))].map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
               {db.services
+                .filter(s => s.active !== false)
                 .filter(s => s.name.toLowerCase().includes(posSearch.toLowerCase()))
                 .filter(s => posCategory === 'All' || s.category === posCategory)
                 .map(serv => (
