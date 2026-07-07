@@ -1091,7 +1091,7 @@ export const AdminPortal: React.FC = () => {
                   <th style={{ padding: '12px' }}>Date</th>
                   <th style={{ padding: '12px' }}>Total Amount</th>
                   <th style={{ padding: '12px' }}>status</th>
-                  <th style={{ padding: '12px' }}>Assigned Courier</th>
+                  {db.activeRole !== 'Delivery Staff' && <th style={{ padding: '12px' }}>Assigned Courier</th>}
                   <th style={{ padding: '12px', textAlign: 'center' }}>Modify Status</th>
                 </tr>
               </thead>
@@ -1112,18 +1112,20 @@ export const AdminPortal: React.FC = () => {
                           color: o.status === 'Delivered' ? '#15803d' : o.status === 'Created' ? '#2563eb' : '#b45309'
                         }}>{o.status}</span>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <select
-                          value={o.courier || ''}
-                          onChange={e => handleAssignDeliveryBoy(o.id, e.target.value)}
-                          style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: 'white' }}
-                        >
-                          <option value="">-- Unassigned --</option>
-                          {db.users.filter(u => u.role === 'delivery').map(u => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                          ))}
-                        </select>
-                      </td>
+                      {db.activeRole !== 'Delivery Staff' && (
+                        <td style={{ padding: '12px' }}>
+                          <select
+                            value={o.courier || ''}
+                            onChange={e => handleAssignDeliveryBoy(o.id, e.target.value)}
+                            style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: 'white' }}
+                          >
+                            <option value="">-- Unassigned --</option>
+                            {db.users.filter(u => u.role === 'delivery').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                           <select 
