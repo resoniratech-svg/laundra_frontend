@@ -223,7 +223,7 @@ export const CustomerPortal: React.FC = () => {
   }, [db.activeCompanyId]);
 
   // Sidebar Menu State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'offers' | 'support' | 'reviews' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'support' | 'reviews' | 'profile'>('dashboard');
 
   // Customer profile details
   const [profName, setProfName] = useState('');
@@ -748,9 +748,6 @@ export const CustomerPortal: React.FC = () => {
             <li onClick={() => setActiveTab('wallet')} className={`sidebar-menu-item ${activeTab === 'wallet' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'wallet' ? '#2563eb' : '#475569', background: activeTab === 'wallet' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
               💳 <span>Wallet & Loyalty</span>
             </li>
-            <li onClick={() => setActiveTab('offers')} className={`sidebar-menu-item ${activeTab === 'offers' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'offers' ? '#2563eb' : '#475569', background: activeTab === 'offers' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              🎁 <span>Special Offers</span>
-            </li>
             <li onClick={() => setActiveTab('support')} className={`sidebar-menu-item ${activeTab === 'support' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'support' ? '#2563eb' : '#475569', background: activeTab === 'support' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
               🎫 <span>Support Desk</span>
             </li>
@@ -791,7 +788,7 @@ export const CustomerPortal: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: '#0f172a' }}>
-              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'offers' ? 'Coupons & Promos' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
+              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
             </h1>
             <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>Customer Portal / {activeTab}</div>
           </div>
@@ -984,45 +981,7 @@ export const CustomerPortal: React.FC = () => {
         )}
 
 
-        {/* 🎁 SPECIAL OFFERS TAB */}
-        {activeTab === 'offers' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {/* Announcements Section */}
-            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h4>📢 Active Announcements & Broadcasts</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-                {systemAnnouncements.length === 0 ? (
-                  <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No company announcements active at this moment.</div>
-                ) : (
-                  systemAnnouncements.map(a => (
-                    <div key={a.id} style={{ padding: '16px', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '12px' }}>
-                      <strong style={{ color: '#7c3aed', fontSize: '1rem' }}>{a.title}</strong>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#475569' }}>{a.content}</p>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '6px' }}>Posted: {new Date(a.created_at).toLocaleDateString()}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
 
-            {/* Coupons Section */}
-            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h4>🎁 Active Special Coupons & Promo Codes</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginTop: '16px' }}>
-                {db.promos.map(p => (
-                  <div key={p.code} style={{ padding: '16px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.72rem', background: '#2563eb', color: 'white', padding: '2px 8px', borderRadius: '8px', fontWeight: '700' }}>COUPON</span>
-                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#1e3a8a', marginTop: '6px' }}>{p.code}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#1e40af', marginTop: '4px', fontWeight: '600' }}>{p.description || 'Flat discount rates'}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
 
         {/* 🎫 SUPPORT DESK TAB */}
         {activeTab === 'support' && (

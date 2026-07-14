@@ -1728,21 +1728,10 @@ export const AdminPortal: React.FC = () => {
               <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>Today's Revenue</div>
               <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0369a1', marginTop: '4px' }}>QR {todayRevenue.toFixed(2)}</div>
             </div>
-            <div style={{ background: '#fef2f2', padding: '16px', borderRadius: '12px', border: '1px solid #fee2e2' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#b91c1c', textTransform: 'uppercase' }}>Pending Payments</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#b91c1c', marginTop: '4px' }}>QR {pendingPaymentsTotal.toFixed(2)}</div>
-            </div>
+
             <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase' }}>Total Customers</div>
               <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#16a34a', marginTop: '4px' }}>{totalCustomers} / {limits.maxCustomers}</div>
-            </div>
-            <div style={{ background: '#faf5ff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#6b21a8', textTransform: 'uppercase' }}>Cashier Agents</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6b21a8', marginTop: '4px' }}>{totalCashiers} / {limits.maxCashiers}</div>
-            </div>
-            <div style={{ background: '#fdf2f8', padding: '16px', borderRadius: '12px', border: '1px solid #fce7f3' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#be185d', textTransform: 'uppercase' }}>Delivery Staff</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#be185d', marginTop: '4px' }}>{totalDelivery} / {limits.maxDeliveryStaff}</div>
             </div>
           </div>
 
@@ -1754,7 +1743,6 @@ export const AdminPortal: React.FC = () => {
               <button onClick={() => setActiveModule('pos')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Create Manual Order</button>
               {db.activeRole !== 'Cashier' && (
                 <>
-                  <button onClick={() => setActiveModule('delivery-staff')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Approve Delivery Staff</button>
                   <button onClick={() => setActiveModule('reports')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>View Reports</button>
                 </>
               )}
