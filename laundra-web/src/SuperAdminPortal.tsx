@@ -173,14 +173,15 @@ export const SuperAdminPortal: React.FC = () => {
   const fetchBackendData = async () => {
     if (!token) return;
     try {
-      const [metricsRes, compsRes, adminsRes, annsRes, logsRes, tktsRes, plansRes] = await Promise.all([
+      const [metricsRes, compsRes, adminsRes, annsRes, logsRes, tktsRes, plansRes, settingsRes] = await Promise.all([
         fetch(`${BASE_URL}/api/v1/saas-admin/metrics`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/v1/saas-admin/companies`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/v1/saas-admin/admins`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/v1/saas-admin/announcements`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/v1/saas-admin/audit-logs`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/v1/support/tickets`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${BASE_URL}/api/v1/saas/plans`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${BASE_URL}/api/v1/saas/plans`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas-admin/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       if (metricsRes.ok) setBackendMetrics(await metricsRes.json());
       if (compsRes.ok) setBackendCompanies(await compsRes.json());
@@ -188,6 +189,18 @@ export const SuperAdminPortal: React.FC = () => {
       if (annsRes.ok) setBackendAnnouncements(await annsRes.json());
       if (logsRes.ok) setBackendAuditLogs(await logsRes.json());
       if (tktsRes.ok) setBackendTickets(await tktsRes.json());
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        if (settingsData.platform_name) setPlatformName(settingsData.platform_name);
+        if (settingsData.logo_url) setPlatformLogo(settingsData.logo_url);
+        if (settingsData.smtp_host) setSmtpServer(settingsData.smtp_host);
+        if (settingsData.smtp_port) setSmtpPort(settingsData.smtp_port);
+        if (settingsData.smtp_username) setSmtpUser(settingsData.smtp_username);
+        if (settingsData.smtp_password) setSmtpPassword(settingsData.smtp_password);
+        if (settingsData.sms_api_key) setSmsGatewayUrl(settingsData.sms_api_key);
+        if (settingsData.whatsapp_api_key) setWhatsAppApiKey(settingsData.whatsapp_api_key);
+        if (settingsData.google_maps_api_key) setGoogleMapsKey(settingsData.google_maps_api_key);
+      }
       if (plansRes.ok) {
         const plansData = await plansRes.json();
         const mappedPlans = plansData.map((p: any) => ({
@@ -288,7 +301,9 @@ export const SuperAdminPortal: React.FC = () => {
   const supportEmail = 'support@laundra.com';
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [smtpServer, setSmtpServer] = useState('smtp.central-notifications.laundra.com');
+  const [smtpPort, setSmtpPort] = useState('587');
   const [smtpUser, setSmtpUser] = useState('notifications@laundra.com');
+  const [smtpPassword, setSmtpPassword] = useState('');
   const [smsGatewayUrl, setSmsGatewayUrl] = useState('https://api.sms-gateway.laundra.com/v1');
   const [whatsAppApiKey, setWhatsAppApiKey] = useState('wa_api_live_9a3j...');
   const [googleMapsKey, setGoogleMapsKey] = useState('AIzaSy...');
@@ -1037,8 +1052,11 @@ export const SuperAdminPortal: React.FC = () => {
       platform_name: platformName,
       support_email: supportEmail,
       maintenance_mode: maintenanceMode,
+      logo_url: platformLogo,
+      smtp_host: smtpServer,
+      smtp_port: smtpPort,
       smtp_username: smtpUser,
-      smtp_password: 'placeholder_password',
+      smtp_password: smtpPassword,
       sms_api_key: smsGatewayUrl,
       whatsapp_api_key: whatsAppApiKey,
       google_maps_api_key: googleMapsKey
@@ -1145,7 +1163,8 @@ export const SuperAdminPortal: React.FC = () => {
             { id: 'reports', label: 'Platform Reports', icon: '📈' },
             { id: 'announcements', label: 'Announcements', icon: '📢' },
             { id: 'support', label: 'Support Management', icon: '🎫' },
-            { id: 'audit-logs', label: 'Audit Logs', icon: '📜' }
+            { id: 'audit-logs', label: 'Audit Logs', icon: '📜' },
+            { id: 'global-settings', label: 'Global Settings', icon: '⚙️' }
           ].map(tab => (
             <li 
               key={tab.id}
@@ -1801,6 +1820,75 @@ export const SuperAdminPortal: React.FC = () => {
                   ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* ─── 9. GLOBAL PLATFORM SETTINGS TAB ─── */}
+        {activeTab === 'global-settings' && (
+          <div style={{ background: 'white', borderRadius: '16px', padding: '32px', border: '1px solid #cbd5e1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>⚙️ Global Platform Settings</h3>
+            <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '0.88rem' }}>Configure global SMTP servers, gateway integrations, and basic branding variables.</p>
+            
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Platform Title Name</label>
+                  <input type="text" value={platformName} onChange={e => setPlatformName(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Platform Logo Icon URL</label>
+                  <input type="text" value={platformLogo} onChange={e => setPlatformLogo(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                <h4 style={{ margin: '0 0 16px 0', color: '#0f172a', fontWeight: '800' }}>📧 Central SMTP Configuration</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>SMTP Host Server</label>
+                    <input type="text" value={smtpServer} onChange={e => setSmtpServer(e.target.value)} placeholder="e.g. smtp.gmail.com" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>SMTP Port</label>
+                    <input type="text" value={smtpPort} onChange={e => setSmtpPort(e.target.value)} placeholder="e.g. 587" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>SMTP Username (Email)</label>
+                    <input type="email" value={smtpUser} onChange={e => setSmtpUser(e.target.value)} placeholder="e.g. user@gmail.com" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>SMTP Password / App Secret</label>
+                    <input type="password" value={smtpPassword} onChange={e => setSmtpPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                <h4 style={{ margin: '0 0 16px 0', color: '#0f172a', fontWeight: '800' }}>🌐 API Gateways & Integrations</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>SMS Gateway Provider Endpoint</label>
+                    <input type="text" value={smsGatewayUrl} onChange={e => setSmsGatewayUrl(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>WhatsApp Business API Key</label>
+                    <input type="text" value={whatsAppApiKey} onChange={e => setWhatsAppApiKey(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Google Maps Javascript Web Key</label>
+                  <input type="text" value={googleMapsKey} onChange={e => setGoogleMapsKey(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" style={{ padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.2)' }}>
+                  Save Global Configurations
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
