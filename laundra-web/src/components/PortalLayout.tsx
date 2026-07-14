@@ -131,6 +131,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     { id: 'pos', label: 'POS / New Order', icon: '🛒' },
     { id: 'orders', label: 'Order Management', icon: '📦' },
     { id: 'customers', label: 'Customer Management', icon: '👥' },
+    { id: 'cashiers', label: 'Cashier Management', icon: '🧑‍💼' },
+    { id: 'delivery-staff', label: 'Delivery Staff', icon: '🚚' },
     { id: 'delivery-payment', label: 'Delivery Payments', icon: '💰' },
     { id: 'services', label: 'Service Management', icon: '🏷️' },
     { id: 'coupons', label: 'Coupons Manager', icon: '🎁' },
