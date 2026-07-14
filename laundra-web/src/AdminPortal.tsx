@@ -1572,7 +1572,7 @@ export const AdminPortal: React.FC = () => {
     addActivity('Customer', `Shared QR Code for customer: ${cust.name}`);
     const updated = db.customers.map(c => c.id === cust.id ? { ...c, qrStatus: 'Shared via WhatsApp' as const } : c);
     saveDB({ customers: updated });
-    window.open(`https://api.whatsapp.com/send?text=Scan this secure link to access your customer laundry portal: http://localhost:5173/customer?login=${cust.id}`);
+    window.open(`https://api.whatsapp.com/send?text=Scan this secure link to access your customer laundry portal: ${window.location.origin}/customer?login=${cust.id}`);
   };
 
   const handleDisableQR = (cust: Customer) => {
@@ -3622,7 +3622,7 @@ export const AdminPortal: React.FC = () => {
                     <div style={{ color: '#64748b' }}>Customer manages orders, invoices, and payments via their unique QR link in browser.</div>
                     <button
                       onClick={() => {
-                        alert(`Portal Link sent to customer "${customerObj.name}" via SMS/WhatsApp: http://localhost:5173/customer?login=${customerObj.id}`);
+                        alert(`Portal Link sent to customer "${customerObj.name}" via SMS/WhatsApp: ${window.location.origin}/customer?login=${customerObj.id}`);
                       }}
                       style={{ alignSelf: 'flex-start', padding: '4px 8px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
                     >
@@ -3911,7 +3911,7 @@ export const AdminPortal: React.FC = () => {
                 <>
                   <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                     <button onClick={() => handleShareQR(qrCust)} style={{ flex: 1, padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Share via WhatsApp</button>
-                    <button onClick={() => { navigator.clipboard.writeText(`http://localhost:5173/customer?login=${qrCust.id}`); alert('Link copied to clipboard!'); }} style={{ padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🔗 Copy Link</button>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/customer?login=${qrCust.id}`); alert('Link copied to clipboard!'); }} style={{ padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🔗 Copy Link</button>
                   </div>
                   <button onClick={() => handleDisableQR(qrCust)} style={{ width: '100%', padding: '10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🚨 Disable Lost QR</button>
                 </>
