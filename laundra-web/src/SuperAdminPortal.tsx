@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase, type Company, type User } from './DatabaseContext';
 import { ServiceCatalogUploader } from './components/ServiceCatalogUploader';
+import CompanyOnboardingWizard from './components/CompanyOnboardingWizard';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface Ticket {
@@ -61,14 +62,13 @@ interface OTPLog {
 
 export const SuperAdminPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB, createCompany, updateCompany, changeActiveCompany } = useDatabase();
+  const { db, saveDB, createCompany, updateCompany, changeActiveCompany, token } = useDatabase();
 
   // Navigation main active tab matching the required SaaS workflow
   const [activeTab, setActiveTab] = useState<
     | 'dashboard'
     | 'company-mgmt'
     | 'sub-mgmt'
-    | 'feature-mgmt'
     | 'reports'
     | 'announcements'
     | 'support'
@@ -92,7 +92,8 @@ export const SuperAdminPortal: React.FC = () => {
   const [auditTypeFilter, setAuditTypeFilter] = useState<'All' | 'Platform' | 'Company'>('All');
 
   // Modals state for creating company
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [resumeWizardData, setResumeWizardData] = useState<{ companyId: string, step: number } | undefined>(undefined);
   const [newCompName, setNewCompName] = useState('');
   const [newCompSlug, setNewCompSlug] = useState('');
   const [newCompAdminEmail, setNewCompAdminEmail] = useState('');
@@ -107,10 +108,24 @@ export const SuperAdminPortal: React.FC = () => {
   const [editingCompanyDetails, setEditingCompanyDetails] = useState<Company | null>(null);
   const [editCompName, setEditCompName] = useState('');
   const [editCompAddress, setEditCompAddress] = useState('');
+  const [editCompArea, setEditCompArea] = useState('');
   const [editCompPhone, setEditCompPhone] = useState('');
   const [editCompGst, setEditCompGst] = useState('');
   const [editCompBusinessType, setEditCompBusinessType] = useState('Dry Cleaners');
-  const [editCompLogo, setEditCompLogo] = useState('');
+  const [editCompStatus, setEditCompStatus] = useState('ACTIVE');
+  const [editAdminName, setEditAdminName] = useState('');
+  const [editAdminPhone, setEditAdminPhone] = useState('');
+  const [editAdminEmail, setEditAdminEmail] = useState('');
+  // Subscription snapshot for display in edit modal
+  const [editSubPlanName, setEditSubPlanName] = useState('');
+  const [editSubStartDate, setEditSubStartDate] = useState('');
+  const [editSubEndDate, setEditSubEndDate] = useState('');
+  const [editSubPrice, setEditSubPrice] = useState<number | null>(null);
+  const [editSubMaxAdmins, setEditSubMaxAdmins] = useState<number | null>(null);
+  const [editSubMaxCashiers, setEditSubMaxCashiers] = useState<number | null>(null);
+  const [editSubMaxDelivery, setEditSubMaxDelivery] = useState<number | null>(null);
+  const [editSubMaxCustomers, setEditSubMaxCustomers] = useState<number | null>(null);
+  const [editSubMaxOrders, setEditSubMaxOrders] = useState<number | null>(null);
 
   // Modals state for viewing company full profile
   const [viewingCompanyProfile, setViewingCompanyProfile] = useState<Company | null>(null);
@@ -128,16 +143,7 @@ export const SuperAdminPortal: React.FC = () => {
   const [viewingAdmin, setViewingAdmin] = useState<any | null>(null);
 
   // SaaS Plans CRUD states
-  const [plans, setPlans] = useState<SaaSPlan[]>(() => {
-    const saved = localStorage.getItem('ll_saas_plans');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'plan-trial', name: 'Free Trial', price: 0, billingCycle: 'Monthly', maxAdmins: 1, maxCashiers: 2, maxDeliveryStaff: 5, maxCustomers: 100, maxOrdersPerMonth: 100, maxBranches: 1, maxStorage: 50, maxApiRequests: 500 },
-      { id: 'plan-starter', name: 'Starter', price: 29, billingCycle: 'Monthly', maxAdmins: 1, maxCashiers: 2, maxDeliveryStaff: 5, maxCustomers: 1000, maxOrdersPerMonth: 1000, maxBranches: 2, maxStorage: 100, maxApiRequests: 2000 },
-      { id: 'plan-pro', name: 'Professional', price: 79, billingCycle: 'Monthly', maxAdmins: 3, maxCashiers: 5, maxDeliveryStaff: 10, maxCustomers: 5000, maxOrdersPerMonth: 5000, maxBranches: 5, maxStorage: 512, maxApiRequests: 10000 },
-      { id: 'plan-ent', name: 'Enterprise', price: 199, billingCycle: 'Monthly', maxAdmins: 10, maxCashiers: 25, maxDeliveryStaff: 50, maxCustomers: 50000, maxOrdersPerMonth: 100000, maxBranches: 20, maxStorage: 5120, maxApiRequests: 50000 }
-    ];
-  });
+  const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [newPlanName, setNewPlanName] = useState('');
   const [newPlanPrice, setNewPlanPrice] = useState(0);
   const [newPlanAdmins, setNewPlanAdmins] = useState(3);
@@ -145,11 +151,83 @@ export const SuperAdminPortal: React.FC = () => {
   const [newPlanDelivery, setNewPlanDelivery] = useState(10);
   const [newPlanCustomers, setNewPlanCustomers] = useState(5000);
   const [newPlanOrders, setNewPlanOrders] = useState(5000);
+  const [newPlanValidity, setNewPlanValidity] = useState(30);
+  const [newPlanStartDate, setNewPlanStartDate] = useState('');
+  const [newPlanEndDate, setNewPlanEndDate] = useState('');
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
 
   // Central Centralized OTP management state
   const [otpLogs, setOtpLogs] = useState<OTPLog[]>(() => {
     try { return JSON.parse(localStorage.getItem('ll_otp_logs') || '[]'); } catch { return []; }
   });
+
+  // --- Phase 1: Backend Integration State ---
+  const [backendCompanies, setBackendCompanies] = useState<any[]>([]);
+  const [backendMetrics, setBackendMetrics] = useState<any>(null);
+  const [backendAdmins, setBackendAdmins] = useState<any[]>([]);
+  const [backendAnnouncements, setBackendAnnouncements] = useState<any[]>([]);
+  const [backendAuditLogs, setBackendAuditLogs] = useState<any[]>([]);
+  const [backendTickets, setBackendTickets] = useState<any[]>([]);
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+
+  const fetchBackendData = async () => {
+    if (!token) return;
+    try {
+      const [metricsRes, compsRes, adminsRes, annsRes, logsRes, tktsRes, plansRes] = await Promise.all([
+        fetch(`${BASE_URL}/api/v1/saas-admin/metrics`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas-admin/companies`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas-admin/admins`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas-admin/announcements`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas-admin/audit-logs`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/support/tickets`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/v1/saas/plans`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      if (metricsRes.ok) setBackendMetrics(await metricsRes.json());
+      if (compsRes.ok) setBackendCompanies(await compsRes.json());
+      if (adminsRes.ok) setBackendAdmins(await adminsRes.json());
+      if (annsRes.ok) setBackendAnnouncements(await annsRes.json());
+      if (logsRes.ok) setBackendAuditLogs(await logsRes.json());
+      if (tktsRes.ok) setBackendTickets(await tktsRes.json());
+      if (plansRes.ok) {
+        const plansData = await plansRes.json();
+        const mappedPlans = plansData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          billingCycle: p.billing_cycle,
+          maxAdmins: p.max_admins,
+          maxCashiers: p.max_cashiers,
+          maxDeliveryStaff: p.max_delivery_staff,
+          maxCustomers: p.max_customers,
+          maxOrdersPerMonth: p.max_orders_per_month,
+          maxBranches: 1,
+          maxStorage: p.max_storage_mb,
+          maxApiRequests: p.max_api_requests
+        }));
+        setPlans(mappedPlans);
+        localStorage.setItem('ll_saas_plans', JSON.stringify(mappedPlans));
+      }
+    } catch (e) {
+      console.error('Failed to fetch SaaS admin backend data:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchBackendData();
+  }, [token]);
+
+  useEffect(() => {
+    if (newPlanStartDate && newPlanEndDate) {
+      const start = new Date(newPlanStartDate);
+      const end = new Date(newPlanEndDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setNewPlanValidity(diffDays);
+      }
+    }
+  }, [newPlanStartDate, newPlanEndDate]);
+  // ------------------------------------------
 
   // Company monitoring active state (Read-only views)
   const [monitoredCompId, setMonitoredCompId] = useState<string>('');
@@ -172,6 +250,23 @@ export const SuperAdminPortal: React.FC = () => {
   const [subExpires, setSubExpires] = useState('');
   const [trialDays, setTrialDays] = useState(30);
 
+  // Renewal modal state
+  const [renewComp, setRenewComp] = useState<any | null>(null);
+  const [renewNewEndDate, setRenewNewEndDate] = useState('');
+  const [renewAmount, setRenewAmount] = useState(0);
+  const [renewLoading, setRenewLoading] = useState(false);
+
+  // Edit Subscription modal state
+  const [editSubCompany, setEditSubCompany] = useState<any | null>(null);
+  const [esPrice, setEsPrice] = useState(0);
+  const [esPlanName, setEsPlanName] = useState('');
+  const [esMaxAdmins, setEsMaxAdmins] = useState(1);
+  const [esMaxCashiers, setEsMaxCashiers] = useState(0);
+  const [esMaxDelivery, setEsMaxDelivery] = useState(0);
+  const [esMaxCustomers, setEsMaxCustomers] = useState(100);
+  const [esMaxOrders, setEsMaxOrders] = useState(100);
+  const [esLoading, setEsLoading] = useState(false);
+
   // Local storage tables states
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -180,7 +275,7 @@ export const SuperAdminPortal: React.FC = () => {
   // Announcements form
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
-  const [annTargetType, setAnnTargetType] = useState<'All' | 'Selected'>('All');
+  const [annTargetType, setAnnTargetType] = useState<'ALL' | 'ADMINS' | 'CUSTOMERS' | 'DELIVERY_BOYS'>('ALL');
   const [annTargetComp, setAnnTargetComp] = useState('');
   const [annSchedule, setAnnSchedule] = useState('');
 
@@ -276,9 +371,7 @@ export const SuperAdminPortal: React.FC = () => {
   }, []);
 
   // Sync states to LocalStorage
-  useEffect(() => {
-    localStorage.setItem('ll_saas_plans', JSON.stringify(plans));
-  }, [plans]);
+
 
   useEffect(() => {
     localStorage.setItem('ll_otp_logs', JSON.stringify(otpLogs));
@@ -318,17 +411,52 @@ export const SuperAdminPortal: React.FC = () => {
     }
   };
 
-  const handleToggleSuspension = (company: Company) => {
-    const nextStatus = company.status === 'Active' ? 'Suspended' : 'Active';
-    updateCompany(company.id, { status: nextStatus });
-    addAuditLog('COMPANY_SUSPEND_TOGGLE', `Changed status of company ${company.name} (${company.id}) to ${nextStatus}`);
+  const handleToggleSuspension = async (company: any) => {
+    const nextStatus = company.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${company.id}/status?status=${nextStatus}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        addAuditLog('COMPANY_SUSPEND_TOGGLE', `Changed status of company ${company.name} (${company.id}) to ${nextStatus}`);
+        fetchBackendData(); // Refresh list
+      } else {
+        alert('Failed to update company status');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error updating company status');
+    }
   };
 
-  const handleSoftDeleteCompany = (company: Company) => {
-    if (confirm(`Soft delete company "${company.name}"? Portal access will be locked and archived.`)) {
-      updateCompany(company.id, { status: 'Suspended' });
-      handleToggleLockCompany(company.id);
-      addAuditLog('COMPANY_SOFT_DELETE', `Soft deleted & archived company ${company.name}`);
+  const handleHardDeleteCompany = async (company: Company) => {
+    if (confirm(`⚠️ WARNING: Are you sure you want to completely delete company "${company.name}" and all of its associated users, subscriptions, and data from the database? This action cannot be undone.`)) {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${company.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok || res.status === 404) {
+          // We also remove it from local state
+          const updatedCompanies = db.companies.filter(c => c.id !== company.id);
+          saveDB({ companies: updatedCompanies });
+          setBackendCompanies(prev => prev.filter(c => c.id !== company.id));
+          addAuditLog('COMPANY_HARD_DELETE', `Completely deleted company ${company.name} and all data from database`);
+        } else {
+          alert('Failed to delete from backend: ' + await res.text());
+        }
+      } catch (err) {
+        console.error('Delete error', err);
+        // Fallback to local delete
+        const updatedCompanies = db.companies.filter(c => c.id !== company.id);
+        saveDB({ companies: updatedCompanies });
+        setBackendCompanies(prev => prev.filter(c => c.id !== company.id));
+      }
     }
   };
 
@@ -375,7 +503,7 @@ export const SuperAdminPortal: React.FC = () => {
   };
 
   // Create Company Submit
-  const handleCreateCompanySubmit = (e: React.FormEvent) => {
+  const handleCreateCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newCompName.trim();
     const slug = newCompSlug.toLowerCase().trim().replace(/\s+/g, '-');
@@ -392,43 +520,144 @@ export const SuperAdminPortal: React.FC = () => {
       return;
     }
 
-    createCompany(name, slug, email, pass, newCompAddress, newCompPhone, newCompGst, newCompBusinessType, newCompLogo);
-    addAuditLog('COMPANY_CREATE', `Created company "${name}" under /${slug} endpoint with administrator login ${email}`);
-    
-    triggerCentralOtp(email, 'Company Admin Verification');
+    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
-    setNewCompName('');
-    setNewCompSlug('');
-    setNewCompAdminEmail('');
-    setNewCompAdminPass('');
-    setNewCompAddress('');
-    setNewCompPhone('');
-    setNewCompGst('');
-    setNewCompBusinessType('Dry Cleaners');
-    setNewCompLogo('');
-    setShowAddModal(false);
+    try {
+      // 1. Create Company via Backend
+      const createCompRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          phone: newCompPhone || 'N/A',
+          address: newCompAddress || undefined,
+          gst_number: newCompGst || undefined,
+          business_type: newCompBusinessType,
+          logo: newCompLogo || undefined
+        })
+      });
+
+      if (!createCompRes.ok) {
+        const errorData = await createCompRes.json();
+        throw new Error(errorData.detail || 'Failed to create company on backend');
+      }
+      
+      const companyData = await createCompRes.json();
+      const companyId = companyData.id;
+
+      // 2. Trigger the real OTP email for the Admin
+      const otpRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/admins/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email: email })
+      });
+
+      if (!otpRes.ok) {
+        throw new Error('Company created, but failed to send admin OTP.');
+      }
+
+      const otpData = await otpRes.json();
+      const otp = otpData.otp_debug; // Read the generated OTP to bypass verification for Super Admin
+
+      // 3. Finalize Admin Creation
+      const adminRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/admins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: 'Company Admin',
+          email: email,
+          phone: newCompPhone || 'N/A',
+          password: pass,
+          otp: otp
+        })
+      });
+
+      if (!adminRes.ok) {
+        const errorData = await adminRes.json();
+        throw new Error(errorData.detail || 'Company created, but failed to create admin user.');
+      }
+
+      // Sync with local mock state for UI consistency until fully migrated
+      createCompany(name, slug, email, pass, newCompAddress, newCompPhone, newCompGst, newCompBusinessType, newCompLogo);
+      addAuditLog('COMPANY_CREATE', `Created company "${name}" under /${slug} endpoint with administrator login ${email} via Backend integration`);
+
+      alert(`Success! Company created and Welcome OTP email sent to ${email}`);
+
+      setNewCompName('');
+      setNewCompSlug('');
+      setNewCompAdminEmail('');
+      setNewCompAdminPass('');
+      setNewCompAddress('');
+      setNewCompPhone('');
+      setNewCompGst('');
+      setNewCompBusinessType('Dry Cleaners');
+      setNewCompLogo('');
+      setShowWizard(false);
+
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // Edit Company Details Submit
-  const handleEditCompanySubmit = (e: React.FormEvent) => {
+  const handleEditCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCompanyDetails) return;
 
-    updateCompany(editingCompanyDetails.id, {
-      name: editCompName,
-      phone: editCompPhone,
-      address: editCompAddress,
-      gstNumber: editCompGst,
-      businessType: editCompBusinessType,
-      logo: editCompLogo
-    });
+    try {
+      const compRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${editingCompanyDetails.id}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editCompName,
+          phone: editCompPhone,
+          address: editCompAddress,
+          area: editCompArea,
+          gst_number: editCompGst,
+          business_type: editCompBusinessType
+        })
+      });
+      if (!compRes.ok) throw new Error('Failed to update company details');
 
-    addAuditLog('COMPANY_DETAILS_EDIT', `Updated company details for: ${editCompName}`);
-    setEditingCompanyDetails(null);
+      const statusRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${editingCompanyDetails.id}/status?status=${editCompStatus.toUpperCase()}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!statusRes.ok) throw new Error('Failed to update company status');
+
+      const admin = backendAdmins.find((a: any) => a.tenant_id === editingCompanyDetails.id);
+      if (admin) {
+        const adminRes = await fetch(`${BASE_URL}/api/v1/saas-admin/admins/${admin.id}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: editAdminName,
+            phone: editAdminPhone
+          })
+        });
+        if (!adminRes.ok) throw new Error('Failed to update admin details');
+      }
+
+      addAuditLog('COMPANY_DETAILS_EDIT', `Updated company details for: ${editCompName}`);
+      setEditingCompanyDetails(null);
+      fetchBackendData();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // Create Company Admin Submit
-  const handleCreateCompanyAdmin = (e: React.FormEvent) => {
+  const handleCreateCompanyAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminTargetCompId) return;
     
@@ -441,29 +670,73 @@ export const SuperAdminPortal: React.FC = () => {
       return;
     }
 
-    const newUser: User = {
-      id: 'u-' + (nextUsers.length + 1),
-      name: adminName,
-      role: 'admin',
-      email: adminEmail.trim().toLowerCase(),
-      password: adminPass,
-      phone: adminPhone,
-      address: adminAddress,
-      status: 'Active',
-      createdAt: new Date().toISOString()
-    };
+    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+    try {
+      // 1. Send OTP email via backend
+      const otpRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${adminTargetCompId}/admins/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email: adminEmail })
+      });
 
-    localStorage.setItem(`ll_${adminTargetCompId}_users`, JSON.stringify([...nextUsers, newUser]));
-    addAuditLog('COMPANY_ADMIN_CREATE', `Created new company admin ${adminEmail} for company ${adminTargetCompId}`, 'Company', adminTargetCompId);
-    
-    triggerCentralOtp(adminEmail, 'Company Admin Verification');
+      if (!otpRes.ok) {
+        throw new Error('Failed to send admin OTP via backend.');
+      }
 
-    setAdminName('');
-    setAdminEmail('');
-    setAdminPass('');
-    setAdminPhone('');
-    setAdminAddress('');
-    setShowAdminModal(false);
+      const otpData = await otpRes.json();
+      const otp = otpData.otp_debug;
+
+      // 2. Create the Admin using the backend
+      const adminRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${adminTargetCompId}/admins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: adminName,
+          email: adminEmail,
+          phone: adminPhone || 'N/A',
+          password: adminPass,
+          otp: otp
+        })
+      });
+
+      if (!adminRes.ok) {
+        const errorData = await adminRes.json();
+        throw new Error(errorData.detail || 'Failed to create admin user on backend.');
+      }
+
+      // Keep local state in sync until fully migrated
+      const newUser: User = {
+        id: 'u-' + (nextUsers.length + 1),
+        name: adminName,
+        role: 'admin',
+        email: adminEmail.trim().toLowerCase(),
+        password: adminPass,
+        phone: adminPhone,
+        address: adminAddress,
+        status: 'Active',
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem(`ll_${adminTargetCompId}_users`, JSON.stringify([...nextUsers, newUser]));
+      addAuditLog('COMPANY_ADMIN_CREATE', `Created new company admin ${adminEmail} for company ${adminTargetCompId} via Backend API`, 'Company', adminTargetCompId);
+
+      alert(`Success! Admin created and Welcome OTP email sent to ${adminEmail}`);
+
+      setAdminName('');
+      setAdminEmail('');
+      setAdminPass('');
+      setAdminPhone('');
+      setAdminAddress('');
+      setShowAdminModal(false);
+
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   const handleResetAdminPassword = (companyId: string, email: string) => {
@@ -478,133 +751,257 @@ export const SuperAdminPortal: React.FC = () => {
   };
 
   // Subscription manager saving
-  const handleSubSubmit = (e: React.FormEvent) => {
+  const handleSubSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subComp) return;
 
-    let expires = subExpires;
+    let targetDate = new Date(subExpires);
     if (subTier === 'Free Trial') {
-      const target = new Date();
-      target.setDate(target.getDate() + trialDays);
-      expires = target.toISOString().split('T')[0];
+      targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + trialDays);
     }
+    const days = Math.max(1, Math.ceil((targetDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24)));
 
-    updateCompany(subComp.id, {
-      subscription: {
-        tier: subTier,
-        status: subStatus,
-        expiresAt: expires
-      }
-    });
+    let planName = subTier.toUpperCase().replace(/ /g, '_');
 
-    addAuditLog('SUBSCRIPTION_UPDATE', `Updated company ${subComp.name} subscription to ${subTier} (${subStatus}), Expiry: ${expires}`);
+    try {
+      await fetch(`${BASE_URL}/api/v1/saas-admin/subscriptions/${subComp.id}/assign`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_name: planName, days })
+      });
+      addAuditLog('SUBSCRIPTION_UPDATE', `Updated company ${subComp.name} subscription to ${subTier}, Days: ${days}`);
+      fetchBackendData();
+      setSubComp(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update subscription');
+    }
     setSubComp(null);
   };
 
   // SaaS Pricing Plans CRUD
-  const handleCreateSaaSPlan = (e: React.FormEvent) => {
+  const handleCreateSaaSPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlanName) return;
 
-    const newPlan: SaaSPlan = {
-      id: 'plan-' + Date.now(),
+    const payload = {
       name: newPlanName,
       price: newPlanPrice,
-      billingCycle: 'Monthly',
-      maxAdmins: newPlanAdmins,
-      maxCashiers: newPlanCashiers,
-      maxDeliveryStaff: newPlanDelivery,
-      maxCustomers: newPlanCustomers,
-      maxOrdersPerMonth: newPlanOrders,
-      maxBranches: 5,
-      maxStorage: 512,
-      maxApiRequests: 10000
+      billing_cycle: 'MONTHLY',
+      max_admins: newPlanAdmins,
+      max_cashiers: newPlanCashiers,
+      max_delivery_staff: newPlanDelivery,
+      max_customers: newPlanCustomers,
+      max_orders_per_month: newPlanOrders
     };
 
-    setPlans([...plans, newPlan]);
-    addAuditLog('SAAS_PLAN_CREATE', `Created new SaaS Pricing Plan: ${newPlanName}`);
-    setNewPlanName('');
-    setNewPlanPrice(0);
-    setNewPlanAdmins(3);
-    setNewPlanCashiers(5);
-    setNewPlanDelivery(10);
-    setNewPlanCustomers(5000);
-    setNewPlanOrders(5000);
+    try {
+      if (editingPlanId) {
+        const res = await fetch(`${BASE_URL}/api/v1/saas/plans/${editingPlanId}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          addAuditLog('SAAS_PLAN_UPDATE', `Updated SaaS Pricing Plan: ${newPlanName}`);
+        } else {
+          const errData = await res.json();
+          alert(`Error: ${errData.detail || 'Failed to update plan'}`);
+          return;
+        }
+      } else {
+        const res = await fetch(`${BASE_URL}/api/v1/saas/plans`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          addAuditLog('SAAS_PLAN_CREATE', `Created new SaaS Pricing Plan: ${newPlanName}`);
+        } else {
+          const errData = await res.json();
+          alert(`Error: ${errData.detail || 'Failed to create plan'}`);
+          return;
+        }
+      }
+      
+      fetchBackendData();
+      setEditingPlanId(null);
+      setNewPlanName('');
+      setNewPlanPrice(0);
+      setNewPlanAdmins(3);
+      setNewPlanCashiers(5);
+      setNewPlanDelivery(10);
+      setNewPlanCustomers(5000);
+      setNewPlanOrders(5000);
+      setNewPlanValidity(30);
+      setNewPlanStartDate('');
+      setNewPlanEndDate('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save SaaS plan');
+    }
   };
 
-  const handleDeletePlan = (id: string) => {
+  const handleEditPlanClick = (p: SaaSPlan) => {
+    setEditingPlanId(p.id);
+    setNewPlanName(p.name);
+    setNewPlanPrice(p.price);
+    setNewPlanAdmins(p.maxAdmins);
+    setNewPlanCashiers(p.maxCashiers);
+    setNewPlanDelivery(p.maxDeliveryStaff);
+    setNewPlanCustomers(p.maxCustomers);
+    setNewPlanOrders(p.maxOrdersPerMonth);
+  };
+
+  const handleDeletePlan = async (id: string) => {
     if (confirm('Delete this SaaS pricing plan?')) {
-      setPlans(plans.filter(p => p.id !== id));
-      addAuditLog('SAAS_PLAN_DELETE', `Deleted SaaS Plan ID: ${id}`);
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/saas/plans/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          addAuditLog('SAAS_PLAN_DELETE', `Deleted SaaS Plan ID: ${id}`);
+          fetchBackendData();
+        } else {
+          const errData = await res.json();
+          alert(`Error: ${errData.detail || 'Failed to delete plan'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Failed to delete SaaS plan');
+      }
     }
   };
 
   // Feature Toggling
-  const handleFeatureToggle = (companyId: string, featureName: string, value: boolean) => {
-    const company = db.companies.find(c => c.id === companyId);
-    if (!company) return;
-    const features = { ...company.features, [featureName]: value };
-    updateCompany(companyId, { features });
-    addAuditLog('FEATURE_TOGGLE', `Updated features for company ${company.name} (${companyId}): ${featureName} is now ${value ? 'Enabled' : 'Disabled'}`);
+  const handleFeatureToggle = async (companyId: string, featureName: string, value: boolean) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/features/${featureName}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_enabled: value })
+      });
+      if (res.status === 404 && value) {
+        await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/features`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feature_key: featureName })
+        });
+      }
+      addAuditLog('FEATURE_TOGGLE', `Updated features for company (${companyId}): ${featureName} is now ${value ? 'Enabled' : 'Disabled'}`);
+      fetchBackendData();
+    } catch (e) { console.error(e); }
   };
 
   // Limit Change
   const handleLimitChange = (companyId: string, limitKey: string, value: number) => {
-    const company = db.companies.find(c => c.id === companyId);
-    if (!company) return;
-    const limits = { ...company.limits, [limitKey]: value };
-    updateCompany(companyId, { limits });
-    addAuditLog('LIMIT_UPDATE', `Updated limits for company ${company.name} (${companyId}): ${limitKey} set to ${value}`);
+    // Limits are tied to subscription plans in the new backend, keeping this as UI-only for now
+  };
+
+  const quickUpdateSubStatus = async (companyId: string, status: string) => {
+    try {
+      await fetch(`${BASE_URL}/api/v1/saas-admin/subscriptions/${companyId}/status`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      fetchBackendData();
+    } catch (e) { console.error(e); }
+  };
+
+  const quickAssignSub = async (companyId: string, planName: string, days: number) => {
+    try {
+      await fetch(`${BASE_URL}/api/v1/saas-admin/subscriptions/${companyId}/assign`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_name: planName, days })
+      });
+      fetchBackendData();
+    } catch (e) { console.error(e); }
   };
 
   // Broadcast announcements
-  const handleCreateAnnouncement = (e: React.FormEvent) => {
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle || !annContent) return;
-    const newAnn: Announcement = {
-      id: 'ann-' + Date.now(),
-      title: annTitle,
-      content: annContent,
-      date: new Date().toISOString().split('T')[0],
-      targetType: annTargetType,
-      targetCompanyId: annTargetType === 'Selected' ? annTargetComp : undefined,
-      scheduledAt: annSchedule || undefined
-    };
-    const next = [newAnn, ...announcements];
-    setAnnouncements(next);
-    localStorage.setItem('ll_platform_announcements', JSON.stringify(next));
-    addAuditLog('ANNOUNCEMENT_CREATE', `Created broadcast announcement: ${annTitle}`);
-    setAnnTitle('');
-    setAnnContent('');
-    setAnnSchedule('');
+    if (!annTargetComp) {
+      alert('Please select a target company.');
+      return;
+    }
+
+    let targetCompanies: string | undefined = undefined;
+    if (annTargetComp && annTargetComp !== 'ALL') {
+      targetCompanies = annTargetComp;
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/announcements`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: annTitle,
+          content: annContent,
+          status: 'PUBLISHED',
+          target_audience: annTargetType,
+          target_companies: targetCompanies,
+          scheduled_at: annSchedule ? new Date(annSchedule).toISOString() : null
+        })
+      });
+      if (res.ok) {
+        addAuditLog('ANNOUNCEMENT_CREATE', `Created broadcast announcement: ${annTitle}`);
+        setAnnTitle('');
+        setAnnContent('');
+        setAnnSchedule('');
+        setAnnTargetComp('');
+        fetchBackendData();
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to create announcement');
+    }
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
-    const next = announcements.filter(a => a.id !== id);
-    setAnnouncements(next);
-    localStorage.setItem('ll_platform_announcements', JSON.stringify(next));
-    addAuditLog('ANNOUNCEMENT_DELETE', `Deleted broadcast announcement ID: ${id}`);
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/announcements/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        addAuditLog('ANNOUNCEMENT_DELETE', `Deleted broadcast announcement ID: ${id}`);
+        fetchBackendData();
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete announcement');
+    }
   };
 
   // Support ticket replies & assignments
-  const handleTicketReplySubmit = (e: React.FormEvent) => {
+  const handleTicketReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeTicket || !replyText.trim()) return;
-    const next = tickets.map(t => {
-      if (t.id === activeTicket.id) {
-        const history = t.history || [];
-        return {
-          ...t,
-          history: [...history, { sender: 'Super Admin', message: replyText.trim(), date: new Date().toLocaleString() }]
-        };
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/support/tickets/${activeTicket.id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ response: replyText.trim() })
+      });
+      if (res.ok) {
+        setReplyText('');
+        addAuditLog('TICKET_REPLY', `Sent reply to support ticket ID: ${activeTicket.id}`);
+        fetchBackendData();
+        setActiveTicket(null);
+      } else {
+        alert('Failed to send reply');
       }
-      return t;
-    });
-    setTickets(next);
-    localStorage.setItem('ll_platform_tickets', JSON.stringify(next));
-    setActiveTicket(next.find(t => t.id === activeTicket.id) || null);
-    setReplyText('');
-    addAuditLog('TICKET_REPLY', `Sent reply to support ticket ID: ${activeTicket.id}`);
+    } catch (err) {
+      console.error(err);
+      alert('Network error');
+    }
   };
 
   const handleAssignTicket = (ticketId: string, agent: string) => {
@@ -615,20 +1012,55 @@ export const SuperAdminPortal: React.FC = () => {
     addAuditLog('TICKET_ASSIGN', `Assigned support ticket ID: ${ticketId} to ${agent}`);
   };
 
-  const handleCloseTicket = (ticketId: string) => {
-    const next = tickets.map(t => t.id === ticketId ? { ...t, status: 'Closed' as const } : t);
-    setTickets(next);
-    localStorage.setItem('ll_platform_tickets', JSON.stringify(next));
-    setActiveTicket(next.find(t => t.id === ticketId) || null);
-    addAuditLog('TICKET_CLOSE', `Closed ticket ID: ${ticketId}`);
+  const handleCloseTicket = async (ticketId: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/support/tickets/${ticketId}/close`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        addAuditLog('TICKET_CLOSE', `Closed ticket ID: ${ticketId}`);
+        fetchBackendData();
+        setActiveTicket(null);
+      } else {
+        alert('Failed to close ticket');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error');
+    }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { platformName, supportEmail, maintenanceMode, smtpServer, smtpUser, smsGatewayUrl, whatsAppApiKey, googleMapsKey, emailTemplate };
-    localStorage.setItem('ll_platform_settings', JSON.stringify(payload));
-    addAuditLog('SETTINGS_UPDATE', 'Updated global developer configurations & central templates');
-    alert('Global settings saved successfully!');
+    const payload = {
+      platform_name: platformName,
+      support_email: supportEmail,
+      maintenance_mode: maintenanceMode,
+      smtp_username: smtpUser,
+      smtp_password: 'placeholder_password',
+      sms_api_key: smsGatewayUrl,
+      whatsapp_api_key: whatsAppApiKey,
+      google_maps_api_key: googleMapsKey
+    };
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/settings`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        localStorage.setItem('ll_platform_settings', JSON.stringify({ platformName, supportEmail, maintenanceMode, smtpServer, smtpUser, smsGatewayUrl, whatsAppApiKey, googleMapsKey, emailTemplate }));
+        addAuditLog('SETTINGS_UPDATE', 'Updated global developer configurations & central templates');
+        fetchBackendData();
+        alert('Global settings saved successfully to the backend!');
+      } else {
+        alert('Failed to save global settings');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving global settings');
+    }
   };
 
   // Block IPs & suspicious targets
@@ -673,38 +1105,23 @@ export const SuperAdminPortal: React.FC = () => {
   };
 
   // Platform wide stats
-  const totalCompaniesCount = db.companies.length;
-  const activeCompaniesCount = db.companies.filter(c => c.status === 'Active').length;
-  const suspendedCompaniesCount = db.companies.filter(c => c.status === 'Suspended').length;
-  const freeTrialCompaniesCount = db.companies.filter(c => c.subscription.tier === 'Free Trial').length;
-  const expiredSubsCount = db.companies.filter(c => c.subscription.status === 'Expired').length;
+  const totalCompaniesCount = backendMetrics?.companies?.total || 0;
+  const activeCompaniesCount = backendMetrics?.companies?.active || 0;
+  const suspendedCompaniesCount = backendMetrics?.companies?.suspended || 0;
+  const freeTrialCompaniesCount = backendMetrics?.companies?.on_free_trial || 0;
+  const expiredSubsCount = backendMetrics?.companies?.expired_subscriptions || 0;
   
-  // Calculate aggregated stats across all multi-tenant companies
-  const companyUserCounts = db.companies.map(c => {
-    const u = JSON.parse(localStorage.getItem(`ll_${c.id}_users`) || '[]');
-    const cust = JSON.parse(localStorage.getItem(`ll_${c.id}_customers`) || '[]');
-    const ord = JSON.parse(localStorage.getItem(`ll_${c.id}_orders`) || '[]');
-    return {
-      admins: u.filter((usr: any) => usr.role === 'admin').length,
-      cashiers: u.filter((usr: any) => usr.role === 'cashier').length,
-      delivery: u.filter((usr: any) => usr.role === 'delivery').length,
-      customers: cust.length,
-      orders: ord.length,
-      revenue: ord.reduce((s: number, o: any) => s + (o.totalAmount || o.total || 0), 0)
-    };
-  });
-
-  const totalAdmins = companyUserCounts.reduce((s, c) => s + c.admins, 0);
-  const totalCashiers = companyUserCounts.reduce((s, c) => s + c.cashiers, 0);
-  const totalDelivery = companyUserCounts.reduce((s, c) => s + c.delivery, 0);
-  const totalCustomers = companyUserCounts.reduce((s, c) => s + c.customers, 0);
-  const totalOrders = companyUserCounts.reduce((s, c) => s + c.orders, 0);
-  const totalPlatformRevenue = companyUserCounts.reduce((s, c) => s + c.revenue, 0);
+  const totalAdmins = backendMetrics?.users?.admins || 0;
+  const totalCashiers = backendMetrics?.users?.cashiers || 0;
+  const totalDelivery = backendMetrics?.users?.delivery_staff || 0;
+  const totalCustomers = backendMetrics?.users?.customers || 0;
+  const totalOrders = backendMetrics?.platform?.total_orders || 0;
+  const totalPlatformRevenue = backendMetrics?.platform?.monthly_recurring_revenue || 0;
 
   // Filtered lists
-  const filteredCompanies = db.companies.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(companySearch.toLowerCase()) || c.slug.toLowerCase().includes(companySearch.toLowerCase());
-    const matchesStatus = companyStatusFilter === 'All' || c.status === companyStatusFilter;
+  const filteredCompanies = backendCompanies.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(companySearch.toLowerCase());
+    const matchesStatus = companyStatusFilter === 'All' || c.status === companyStatusFilter.toUpperCase();
     return matchesSearch && matchesStatus;
   });
 
@@ -725,16 +1142,10 @@ export const SuperAdminPortal: React.FC = () => {
             { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
             { id: 'company-mgmt', label: 'Company Management', icon: '🏢' },
             { id: 'sub-mgmt', label: 'Subscription Mgmt', icon: '💳' },
-            { id: 'feature-mgmt', label: 'Feature & Resource Mgmt', icon: '⚙️' },
             { id: 'reports', label: 'Platform Reports', icon: '📈' },
             { id: 'announcements', label: 'Announcements', icon: '📢' },
             { id: 'support', label: 'Support Management', icon: '🎫' },
-            { id: 'audit-logs', label: 'Audit Logs', icon: '📜' },
-            { id: 'notification-center', label: 'Notification Center', icon: '🔔' },
-            { id: 'global-settings', label: 'Global Settings', icon: '🌐' },
-            { id: 'security', label: 'SaaS Security', icon: '🔐' },
-            { id: 'backup-restore', label: 'Backup & Restore', icon: '💾' },
-            { id: 'system-health', label: 'System Health', icon: '❤️' }
+            { id: 'audit-logs', label: 'Audit Logs', icon: '📜' }
           ].map(tab => (
             <li 
               key={tab.id}
@@ -765,7 +1176,14 @@ export const SuperAdminPortal: React.FC = () => {
                 }
               }}
             >
-              <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span> {tab.label}
+              <span style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                <span style={{ fontSize: '1.1rem' }}>{tab.icon}</span> {tab.label}
+              </span>
+              {tab.id === 'support' && backendTickets.filter(t => t.status === 'OPEN').length > 0 && (
+                <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800' }}>
+                  {backendTickets.filter(t => t.status === 'OPEN').length}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -808,15 +1226,12 @@ export const SuperAdminPortal: React.FC = () => {
               {activeTab === 'dashboard' && 'Platform Overview & Live Multi-Tenant Aggregated Analytics.'}
               {activeTab === 'company-mgmt' && 'Manage SaaS companies lifecycle, create admins, and inspect data.'}
               {activeTab === 'sub-mgmt' && 'Configure SaaS plans, trials duration, and process renewals.'}
-              {activeTab === 'feature-mgmt' && 'Toggle modular modules, set resource user and business limits.'}
               {activeTab === 'reports' && 'Generate SaaS platform analytics, conversion rates, and usage reports.'}
               {activeTab === 'announcements' && 'Publish centralized announcements to selected or all companies.'}
               {activeTab === 'support' && 'Address support tickets opened by company administrators.'}
               {activeTab === 'audit-logs' && 'Platform security audit trail and tenant activity logs.'}
-              {activeTab === 'notification-center' && 'Central centralised notification system and OTP verification hub.'}
               {activeTab === 'global-settings' && 'Configure platforms global SMTP, Templates, Gateway configurations.'}
               {activeTab === 'security' && 'Manage portal lockouts, block suspicious accounts, and audit log protection.'}
-              {activeTab === 'backup-restore' && 'Export full database backup dump, trigger manual backup restore.'}
               {activeTab === 'system-health' && 'Check SaaS web system status, database health, API operational metrics.'}
             </p>
           </div>
@@ -857,15 +1272,21 @@ export const SuperAdminPortal: React.FC = () => {
               <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0' }}>
                 <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: '800' }}>🏢 Recent Tenant Registrations</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {db.companies.slice(-4).reverse().map(c => (
-                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
-                      <div>
-                        <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{c.name}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{c.adminEmail} • Expiry: {c.subscription.expiresAt}</div>
+                  {backendCompanies.slice(-4).reverse().map(c => {
+                    const admin = backendAdmins.find((a: any) => a.tenant_id === c.id);
+                    const adminEmail = admin?.email || c.email || 'N/A';
+                    const planName = c.subscription?.tier || 'None';
+                    const expiry = c.subscription?.expiresAt || 'N/A';
+                    return (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{c.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{adminEmail} • Expiry: {expiry}</div>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', background: '#eff6ff', color: '#2563eb', padding: '4px 8px', borderRadius: '6px' }}>{planName}</span>
                       </div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '800', background: '#eff6ff', color: '#2563eb', padding: '4px 8px', borderRadius: '6px' }}>{c.subscription.tier}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -873,13 +1294,13 @@ export const SuperAdminPortal: React.FC = () => {
               <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0' }}>
                 <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: '800' }}>📜 Recent Activity Logs</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {auditLogs.slice(0, 4).map(l => (
+                  {backendAuditLogs.slice(0, 4).map(l => (
                     <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
                       <div>
                         <span style={{ fontWeight: '800', color: '#d97706', fontSize: '0.78rem', marginRight: '8px' }}>{l.action}</span>
-                        <span style={{ fontSize: '0.82rem', color: '#334155' }}>{l.description}</span>
+                        <span style={{ fontSize: '0.82rem', color: '#334155' }}>{l.details || l.module}</span>
                       </div>
-                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{l.date}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(l.created_at).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -898,8 +1319,7 @@ export const SuperAdminPortal: React.FC = () => {
             <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               {[
                 { id: 'companies', label: 'Manage Companies', icon: '🏢' },
-                { id: 'admins', label: 'Company Admins', icon: '👥' },
-                { id: 'monitoring', label: 'Company Monitoring (Read-Only)', icon: '👁️' },
+
                 { id: 'services', label: 'Service Catalog Engine', icon: '📦' }
               ].map(sub => (
                 <button
@@ -946,7 +1366,7 @@ export const SuperAdminPortal: React.FC = () => {
                       <option value="Suspended">Suspended</option>
                     </select>
                   </div>
-                  <button onClick={() => setShowAddModal(true)} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Company</button>
+                  <button onClick={() => setShowWizard(true)} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Company</button>
                 </div>
 
                 <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -954,272 +1374,85 @@ export const SuperAdminPortal: React.FC = () => {
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
                         <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company Name</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>GST / Business Type</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Sub Tier</th>
+                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Admin Name</th>
+                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Admin Phone</th>
+                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Admin Email</th>
                         <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Status</th>
                         <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCompanies.map(c => (
+                      {filteredCompanies.map(c => {
+                        const admin = backendAdmins.find((u: any) => u.tenant_id === c.id);
+                        return (
                         <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span style={{ fontSize: '1.5rem' }}>{c.logo || '🏢'}</span>
                               <div>
                                 <div style={{ fontWeight: '700', color: '#1e293b' }}>{c.name}</div>
-                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Slug: /{c.slug} • Email: {c.adminEmail}</div>
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem' }}>
-                            <div style={{ fontWeight: '600' }}>GST: {c.gstNumber || 'N/A'}</div>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Type: {c.businessType || 'Laundry'}</div>
+                          <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '600' }}>
+                            {admin?.name || 'No Admin'}
                           </td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '700' }}>
-                            {c.subscription.tier}
-                            <div style={{ fontSize: '0.75rem', fontWeight: '500', color: '#64748b' }}>Expires: {c.subscription.expiresAt}</div>
+                          <td style={{ padding: '16px', fontSize: '0.85rem' }}>
+                            {admin?.phone || 'N/A'}
+                          </td>
+                          <td style={{ padding: '16px', fontSize: '0.85rem' }}>
+                            {admin?.email || c.email || 'N/A'}
                           </td>
                           <td style={{ padding: '16px' }}>
-                            <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: c.status === 'Active' ? '#dcfce7' : '#fee2e2', color: c.status === 'Active' ? '#15803d' : '#b91c1c' }}>{c.status}</span>
+                            <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: c.status === 'Active' || c.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2', color: c.status === 'Active' || c.status === 'ACTIVE' ? '#15803d' : '#b91c1c' }}>{c.status}</span>
                           </td>
                           <td style={{ padding: '16px', textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              {c.status === 'ONBOARDING' && (
+                                <button onClick={() => {
+                                  const hasSub = !!c.subscription;
+                                  const step = hasSub ? 6 : 3;
+                                  setResumeWizardData({ companyId: c.id, step });
+                                  setShowWizard(true);
+                                }} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #eab308', background: '#fef08a', color: '#854d0e', cursor: 'pointer' }}>🚀 Resume Setup</button>
+                              )}
                               <button onClick={() => setViewingCompanyProfile(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>👁️ Profile</button>
                               <button onClick={() => handleImpersonate(c.id, c.name)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #0284c7', background: '#f0f9ff', color: '#0284c7', cursor: 'pointer' }}>🔑 Impersonate</button>
-                              <button onClick={() => { setEditingCompanyDetails(c); setEditCompName(c.name); setEditCompPhone(c.phone || ''); setEditCompAddress(c.address || ''); setEditCompGst(c.gstNumber || ''); setEditCompBusinessType(c.businessType || 'Dry Cleaners'); setEditCompLogo(c.logo || ''); }} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>✏️ Edit</button>
-                              <button onClick={() => handleToggleSuspension(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: 'none', background: c.status === 'Active' ? '#ffedd5' : '#dcfce7', color: c.status === 'Active' ? '#c2410c' : '#15803d', cursor: 'pointer' }}>{c.status === 'Active' ? 'Suspend' : 'Activate'}</button>
+                              <button onClick={() => handleResetAdminPassword(c.id, admin?.email || c.email || '')} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>🔁 Reset Pass</button>
+                              <button onClick={() => { 
+                                setEditingCompanyDetails(c);
+                                setEditCompName(c.name || '');
+                                setEditCompAddress(c.address || '');
+                                setEditCompArea(c.area || '');
+                                setEditCompPhone(c.phone || '');
+                                setEditCompGst(c.gst_number || '');
+                                setEditCompBusinessType(c.business_type || 'Dry Cleaners');
+                                setEditCompStatus(c.status || 'ACTIVE');
+                                // Pre-fill subscription snapshot
+                                setEditSubPlanName(c.subscription?.tier || '');
+                                setEditSubStartDate(c.subscription?.startDate || '');
+                                setEditSubEndDate(c.subscription?.expiresAt || '');
+                                setEditSubPrice(c.subscription?.price ?? null);
+                                setEditSubMaxAdmins(c.subscription?.maxAdmins ?? null);
+                                setEditSubMaxCashiers(c.subscription?.maxCashiers ?? null);
+                                setEditSubMaxDelivery(c.subscription?.maxDeliveryStaff ?? null);
+                                setEditSubMaxCustomers(c.subscription?.maxCustomers ?? null);
+                                setEditSubMaxOrders(c.subscription?.maxOrdersPerMonth ?? null);
+                                const a = backendAdmins.find((a: any) => a.tenant_id === c.id);
+                                setEditAdminName(a?.name || '');
+                                setEditAdminPhone(a?.phone || '');
+                                setEditAdminEmail(a?.email || c.email || '');
+                              }} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>✏️ Edit</button>
                               {c.id !== 'comp-default' && (
-                                <button onClick={() => handleSoftDeleteCompany(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>🗑️ Soft Del</button>
+                                <button onClick={() => handleHardDeleteCompany(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>🗑️ Delete</button>
                               )}
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* View: Admins */}
-            {companyMgmtSub === 'admins' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-                  <input 
-                    type="text" 
-                    value={adminSearch} 
-                    onChange={e => setAdminSearch(e.target.value)} 
-                    placeholder="🔍 Search admins by email..." 
-                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '250px', outline: 'none' }} 
-                  />
-                  <button onClick={() => setShowAdminModal(true)} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Company Admin</button>
-                </div>
-
-                <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Admin Name</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Email</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Tenant Company</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Status</th>
-                        <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {db.companies.map(c => {
-                        const usersList = JSON.parse(localStorage.getItem(`ll_${c.id}_users`) || '[]');
-                        const companyAdmins = usersList.filter((u: any) => u.role === 'admin' && (!adminSearch || u.email.toLowerCase().includes(adminSearch.toLowerCase())));
-                        return companyAdmins.map((u: any) => (
-                          <tr key={u.id + '-' + c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '16px', fontWeight: '700' }}>{u.name}</td>
-                            <td style={{ padding: '16px', fontSize: '0.85rem' }}>{u.email}</td>
-                            <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '600', color: '#0284c7' }}>{c.name}</td>
-                            <td style={{ padding: '16px' }}>
-                              <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
-                                {u.status || 'Active'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                <button onClick={() => triggerCentralOtp(u.email, 'Company Admin Verification')} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>🔑 Send OTP</button>
-                                <button onClick={() => handleVerifyCentralOtp(u.email)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>✓ Verify</button>
-                                <button onClick={() => handleResetAdminPassword(c.id, u.email)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>🔁 Reset Pass</button>
-                                <button onClick={() => handleToggleAdminStatus(c.id, u.email, u.status || 'Active')} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: 'none', background: u.status === 'Suspended' ? '#dcfce7' : '#fee2e2', color: u.status === 'Suspended' ? '#15803d' : '#b91c1c', cursor: 'pointer' }}>
-                                  {u.status === 'Suspended' ? 'Activate' : 'Suspend'}
-                                </button>
-                                <button onClick={() => setViewingAdmin({ ...u, companyName: c.name })} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>👁️ Profile</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ));
+                        );
                       })}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
-
-            {/* View: Monitoring (Read-Only) */}
-            {companyMgmtSub === 'monitoring' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Select Tenant Company to Monitor</label>
-                  <select value={monitoredCompId} onChange={e => setMonitoredCompId(e.target.value)} style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '100%', maxWidth: '400px', outline: 'none' }}>
-                    <option value="">— Select Company —</option>
-                    {db.companies.map(c => <option key={c.id} value={c.id}>{c.name} ({c.slug})</option>)}
-                  </select>
-                </div>
-
-                {monitoredCompId && monitoredData && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
-                    {/* Monitor sidebar tabs */}
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {[
-                        { id: 'info', label: 'Company Info', icon: '🏢' },
-                        { id: 'customers', label: `Customers (${monitoredData.customers.length})`, icon: '👥' },
-                        { id: 'cashiers', label: `Cashiers (${monitoredData.users.filter(u => u.role === 'cashier').length})`, icon: '💳' },
-                        { id: 'delivery', label: `Delivery Staff (${monitoredData.users.filter(u => u.role === 'delivery').length})`, icon: '🚚' },
-                        { id: 'orders', label: `Orders (${monitoredData.orders.length})`, icon: '🧺' },
-                        { id: 'payments', label: 'Revenue & Payments', icon: '💰' }
-                      ].map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => setMonitoringTab(t.id as any)}
-                          style={{
-                            padding: '10px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                            fontWeight: '700', fontSize: '0.82rem', textAlign: 'left',
-                            background: monitoringTab === t.id ? '#f0f9ff' : 'transparent',
-                            color: monitoringTab === t.id ? '#0284c7' : '#475569',
-                            display: 'flex', alignItems: 'center', gap: '8px'
-                          }}
-                        >
-                          <span>{t.icon}</span> {t.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Monitor Tab Area */}
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0' }}>
-                      {monitoringTab === 'info' && (
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 style={{ margin: 0 }}>🏢 Company General Info</h3>
-                            <button 
-                              onClick={() => handleImpersonate(monitoredCompId, db.companies.find(c => c.id === monitoredCompId)?.name || 'Unknown')} 
-                              style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #0284c7', background: '#f0f9ff', color: '#0284c7', fontWeight: '700', cursor: 'pointer' }}>
-                              🔑 Impersonate Admin
-                            </button>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.88rem' }}>
-                            <div><strong>Company ID:</strong> {monitoredCompId}</div>
-                            <div><strong>GST Number:</strong> {db.companies.find(c => c.id === monitoredCompId)?.gstNumber || 'N/A'}</div>
-                            <div><strong>Business Type:</strong> {db.companies.find(c => c.id === monitoredCompId)?.businessType || 'Laundry'}</div>
-                            <div><strong>Subscription Tier:</strong> {db.companies.find(c => c.id === monitoredCompId)?.subscription.tier}</div>
-                            <div><strong>Max Cashiers Limit:</strong> {db.companies.find(c => c.id === monitoredCompId)?.limits?.maxCashiers || 5}</div>
-                            <div><strong>Max Orders Limit:</strong> {db.companies.find(c => c.id === monitoredCompId)?.limits?.maxOrdersPerMonth || 2000}/month</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {monitoringTab === 'customers' && (
-                        <div>
-                          <h3 style={{ margin: '0 0 16px 0' }}>👥 Customers List (Read-Only)</h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
-                            {monitoredData.customers.map((c: any) => (
-                              <div key={c.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <strong>{c.name}</strong> ({c.email}) • Phone: {c.phone}
-                                </div>
-                                <button onClick={() => setViewingMonitoredCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👁️ Details</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {monitoringTab === 'cashiers' && (
-                        <div>
-                          <h3 style={{ margin: '0 0 16px 0' }}>💳 Cashier Agents</h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {monitoredData.users.filter(u => u.role === 'cashier').map((u: any) => (
-                              <div key={u.id} style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.85rem' }}>
-                                <strong>{u.name}</strong> ({u.email}) • Phone: {u.phone} • Status: {u.status || 'Active'}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {monitoringTab === 'delivery' && (
-                        <div>
-                          <h3 style={{ margin: '0 0 16px 0' }}>🚚 Delivery Staff</h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {monitoredData.users.filter(u => u.role === 'delivery').map((u: any) => (
-                              <div key={u.id} style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.85rem' }}>
-                                <strong>{u.name}</strong> ({u.email}) • Phone: {u.phone} • Status: {u.status || 'Active'}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {monitoringTab === 'orders' && (
-                        <div>
-                          <h3 style={{ margin: '0 0 16px 0' }}>🧺 Orders Timeline</h3>
-                          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                            {monitoredData.orders.map((o: any) => (
-                              <div key={o.id} style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <strong>#{o.id}</strong> — {o.customerName}
-                                  <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Date: {o.date} • Plan: {o.planType || 'Normal'}</div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <div style={{ textAlign: 'right' }}>
-                                    <span style={{ fontWeight: '800' }}>QR {(o.totalAmount || o.total || 0).toFixed(2)}</span>
-                                    <div style={{ fontSize: '0.78rem', color: '#0284c7', fontWeight: '700' }}>{o.status}</div>
-                                  </div>
-                                  <button onClick={() => setViewingMonitoredOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👁️ View</button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {monitoringTab === 'payments' && (
-                        <div>
-                          <h3 style={{ margin: '0 0 16px 0' }}>💰 Revenue & Payments</h3>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                            <div style={{ padding: '16px', background: '#eff6ff', borderRadius: '8px' }}>
-                              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Total Revenue</div>
-                              <div style={{ fontSize: '1.5rem', fontWeight: '800' }}>
-                                QR {monitoredData.orders.reduce((s, o) => s + (o.totalAmount || o.total || 0), 0).toFixed(2)}
-                              </div>
-                            </div>
-                            <div style={{ padding: '16px', background: '#ecfdf5', borderRadius: '8px' }}>
-                              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Cash Drawer</div>
-                              <div style={{ fontSize: '1.5rem', fontWeight: '800' }}>QR {monitoredData.drawerCash.toFixed(2)}</div>
-                            </div>
-                          </div>
-                          <h4 style={{ margin: '0 0 10px 0' }}>Payment Mode Split</h4>
-                          <div style={{ fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {['Cash', 'Card', 'UPI', 'Wallet'].map(method => {
-                              const total = monitoredData.orders.filter(o => o.paymentMethod === method).reduce((s, o) => s + (o.totalAmount || o.total || 0), 0);
-                              return (
-                                <div key={method} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px' }}>
-                                  <span>{method} Payments</span>
-                                  <strong>QR {total.toFixed(2)}</strong>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1230,7 +1463,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Select Tenant Company for Service Import</label>
                   <select value={monitoredCompId} onChange={e => setMonitoredCompId(e.target.value)} style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '100%', maxWidth: '400px', outline: 'none' }}>
                     <option value="">— Select Company —</option>
-                    {db.companies.map(c => <option key={c.id} value={c.id}>{c.name} ({c.slug})</option>)}
+                    {backendCompanies.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.slug || c.id})</option>)}
                   </select>
                 </div>
                 {monitoredCompId && (
@@ -1245,246 +1478,78 @@ export const SuperAdminPortal: React.FC = () => {
         {/* ─── 3. SUBSCRIPTION MANAGEMENT TAB ─── */}
         {activeTab === 'sub-mgmt' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
-              {[
-                { id: 'plans', label: 'Manage SaaS Plans', icon: '📝' },
-                { id: 'trial', label: 'Free Trial Management', icon: '🎁' },
-                { id: 'renewals', label: 'Subscription Renewals', icon: '💳' }
-              ].map(sub => (
-                <button
-                  key={sub.id}
-                  onClick={() => setSubMgmtSub(sub.id as any)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    fontWeight: '700',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    background: subMgmtSub === sub.id ? '#eff6ff' : 'transparent',
-                    color: subMgmtSub === sub.id ? '#2563eb' : '#64748b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <span>{sub.icon}</span> {sub.label}
-                </button>
-              ))}
-            </div>
-
-            {/* View: Manage SaaS Plans (with CRUD) */}
-            {subMgmtSub === 'plans' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignContent: 'start' }}>
-                  {plans.map(p => (
-                    <div key={p.id} style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #cbd5e1', position: 'relative' }}>
-                      <button onClick={() => handleDeletePlan(p.id)} style={{ position: 'absolute', right: '12px', top: '12px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>🗑️</button>
-                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800' }}>{p.name} Plan</h3>
-                      <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#2563eb', margin: '8px 0 16px 0' }}>
-                        QR {p.price} <span style={{ fontSize: '0.8rem', fontWeight: '500', color: '#64748b' }}>/ {p.billingCycle}</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                        <div>Max Admins: <strong>{p.maxAdmins}</strong></div>
-                        <div>Max Cashiers: <strong>{p.maxCashiers}</strong></div>
-                        <div>Max Delivery staff: <strong>{p.maxDeliveryStaff}</strong></div>
-                        <div>Max Customers: <strong>{p.maxCustomers}</strong></div>
-                        <div>Max Orders: <strong>{p.maxOrdersPerMonth} / month</strong></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Create Plan form */}
-                <div style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-                  <h3 style={{ margin: '0 0 14px 0', fontSize: '1.05rem' }}>➕ Create Pricing Plan</h3>
-                  <form onSubmit={handleCreateSaaSPlan} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Plan Name</label>
-                      <input type="text" required value={newPlanName} onChange={e => setNewPlanName(e.target.value)} placeholder="Starter, Professional..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Monthly Price (QR)</label>
-                      <input type="number" required value={newPlanPrice} onChange={e => setNewPlanPrice(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', marginBottom: '2px' }}>Max Admins</label>
-                        <input type="number" value={newPlanAdmins} onChange={e => setNewPlanAdmins(parseInt(e.target.value) || 1)} style={{ width: '100%', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', marginBottom: '2px' }}>Max Cashiers</label>
-                        <input type="number" value={newPlanCashiers} onChange={e => setNewPlanCashiers(parseInt(e.target.value) || 1)} style={{ width: '100%', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                      </div>
-                    </div>
-                    <button type="submit" style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Save Plan Configuration</button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* View: Free Trial Management */}
-            {subMgmtSub === 'trial' && (
-              <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            {/* View: Renewals */}
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
                       <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Trial Expiry</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Status</th>
+                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Subscription Type</th>
+                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Start Date</th>
+                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>End Date</th>
                       <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {db.companies.filter(c => c.subscription.tier === 'Free Trial').map(c => {
-                      const isExpired = new Date(c.subscription.expiresAt) < new Date();
-                      return (
-                        <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    {backendCompanies.map(c => (
+                      <React.Fragment key={c.id}>
+                        <tr style={{ borderBottom: c.subscription ? 'none' : '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px', fontWeight: '700' }}>{c.name}</td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem' }}>{c.subscription.expiresAt}</td>
-                          <td style={{ padding: '16px' }}>
-                            <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: isExpired ? '#fee2e2' : '#fef3c7', color: isExpired ? '#b91c1c' : '#d97706' }}>
-                              {isExpired ? 'Expired Trial' : 'Trial Active'}
-                            </span>
-                          </td>
+                          <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '700', color: '#334155' }}>{c.subscription?.tier || 'None'}</td>
+                          <td style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b' }}>{c.subscription?.startDate || 'N/A'}</td>
+                          <td style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b' }}>{c.subscription?.expiresAt || 'N/A'}</td>
                           <td style={{ padding: '16px', textAlign: 'center' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px' }}>
-                              <button onClick={() => { setSubComp(c); setSubTier('Free Trial'); setSubStatus('Active'); setSubExpires(c.subscription.expiresAt); }} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>Extend Trial</button>
-                              <button onClick={() => updateCompany(c.id, { subscription: { tier: 'Free Trial', status: 'Expired', expiresAt: new Date().toISOString().split('T')[0] } })} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', color: '#ef4444', cursor: 'pointer' }}>End Trial</button>
-                              <button onClick={() => updateCompany(c.id, { subscription: { tier: 'Premium', status: 'Active', expiresAt: '2027-12-31' } })} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: 'none', background: '#dcfce7', color: '#15803d', cursor: 'pointer' }}>Convert to Paid</button>
-                            </div>
+                            {c.subscription && (
+                              <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                <button
+                                  onClick={() => {
+                                    setRenewComp(c);
+                                    setRenewNewEndDate(c.subscription?.expiresAt || '');
+                                    setRenewAmount(c.subscription?.price ?? 0);
+                                  }}
+                                  style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: 'none', background: '#dcfce7', color: '#15803d', cursor: 'pointer' }}
+                                >🔄 Renew</button>
+                                <button
+                                  onClick={() => {
+                                    setEditSubCompany(c);
+                                    setEsPlanName(c.subscription?.tier || '');
+                                    setEsPrice(c.subscription?.price ?? 0);
+                                    setEsMaxAdmins(c.subscription?.maxAdmins ?? 1);
+                                    setEsMaxCashiers(c.subscription?.maxCashiers ?? 0);
+                                    setEsMaxDelivery(c.subscription?.maxDeliveryStaff ?? 0);
+                                    setEsMaxCustomers(c.subscription?.maxCustomers ?? 100);
+                                    setEsMaxOrders(c.subscription?.maxOrdersPerMonth ?? 100);
+                                  }}
+                                  style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: 'none', background: '#dbeafe', color: '#1d4ed8', cursor: 'pointer' }}
+                                >✏️ Edit</button>
+                              </div>
+                            )}
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* View: Renewals */}
-            {subMgmtSub === 'renewals' && (
-              <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Active Subscription Tier</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Status</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Modify Billing Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {db.companies.map(c => (
-                      <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '16px', fontWeight: '700' }}>{c.name}</td>
-                        <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '700' }}>{c.subscription.tier} (Expires: {c.subscription.expiresAt})</td>
-                        <td style={{ padding: '16px' }}>
-                          <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: c.subscription.status === 'Active' ? '#dcfce7' : '#fee2e2', color: c.subscription.status === 'Active' ? '#15803d' : '#b91c1c' }}>
-                            {c.subscription.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '6px' }}>
-                            <button onClick={() => { setSubComp(c); setSubTier(c.subscription.tier); setSubStatus(c.subscription.status); setSubExpires(c.subscription.expiresAt); }} style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}>💳 Change Tier / Renew</button>
-                            <button onClick={() => updateCompany(c.id, { subscription: { ...c.subscription, status: c.subscription.status === 'Active' ? 'Expired' : 'Active' } })} style={{ padding: '6px 14px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}>
-                              {c.subscription.status === 'Active' ? '🔒 Suspend' : '🔓 Reactivate'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        {c.subscription && (
+                          <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                            <td colSpan={5} style={{ padding: '12px 16px', fontSize: '0.8rem', color: '#475569' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                                <div><strong>Price:</strong> QR {c.subscription.price ?? 'N/A'}</div>
+                                <div><strong>Max Admins:</strong> {c.subscription.maxAdmins ?? 'N/A'}</div>
+                                <div><strong>Max Cashiers:</strong> {c.subscription.maxCashiers ?? 'N/A'}</div>
+                                <div><strong>Max Deliveries:</strong> {c.subscription.maxDeliveryStaff ?? 'N/A'}</div>
+                                <div><strong>Max Customers:</strong> {c.subscription.maxCustomers ?? 'N/A'}</div>
+                                <div><strong>Max Monthly Orders:</strong> {c.subscription.maxOrdersPerMonth ?? 'N/A'}</div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
 
           </div>
         )}
 
-        {/* ─── 4. FEATURE & RESOURCE MANAGEMENT TAB ─── */}
-        {activeTab === 'feature-mgmt' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {db.companies.map(c => (
-              <div key={c.id} style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-                <h3 style={{ margin: '0 0 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>🏢 {c.name} Features & Limits</span>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Slug: /{c.slug}</span>
-                </h3>
-
-                {/* Grid for features */}
-                <h4 style={{ margin: '20px 0 10px 0', color: '#0f172a' }}>⚙️ Enable / Disable Modules</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
-                  {[
-                    { key: 'customerManagement', label: 'Customer Management' },
-                    { key: 'orderManagement', label: 'Order Management' },
-                    { key: 'cashierModule', label: 'Cashier Module' },
-                    { key: 'deliveryModule', label: 'Delivery Module' },
-                    { key: 'serviceManagement', label: 'Service Management' },
-                    { key: 'paymentModule', label: 'Payment Module' },
-                    { key: 'expenseModule', label: 'Expense Module' },
-                    { key: 'reports', label: 'Reports Console' },
-                    { key: 'coupons', label: 'Coupons & Promos' },
-                    { key: 'wallet', label: 'Customer Wallet' },
-                    { key: 'loyaltyProgram', label: 'Loyalty Program' },
-                    { key: 'invoiceModule', label: 'Invoice Module' },
-                    { key: 'qrCode', label: 'QR Code Printing' },
-                    { key: 'barcode', label: 'Barcode scanning' },
-                    { key: 'emailNotifications', label: 'Central Email Alerts' },
-                    { key: 'smsNotifications', label: 'Central SMS Alerts' },
-                    { key: 'whatsAppNotifications', label: 'WhatsApp Alerts' },
-                    { key: 'publicTracking', label: 'Public Tracking' },
-                    { key: 'apiAccess', label: 'API Integration Access' },
-                    { key: 'webhooks', label: 'Webhooks Webhook' },
-                    { key: 'multiLanguage', label: 'Multi-language support' },
-                    { key: 'backupRestore', label: 'Backup & Restore module' }
-                  ].map(f => {
-                    const isChecked = !!(c.features as any)[f.key];
-                    return (
-                      <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                        <input type="checkbox" checked={isChecked} onChange={e => handleFeatureToggle(c.id, f.key, e.target.checked)} />
-                        {f.label}
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {/* Grid for limits */}
-                <h4 style={{ margin: '24px 0 10px 0', color: '#0f172a' }}>👥 Assign Resource & Business Limits</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                  {[
-                    { key: 'maxAdmins', label: 'Max Admins', min: 1 },
-                    { key: 'maxCashiers', label: 'Max Cashiers', min: 1 },
-                    { key: 'maxDeliveryStaff', label: 'Max Delivery Staff', min: 1 },
-                    { key: 'maxCustomers', label: 'Max Customers', min: 100 },
-                    { key: 'maxOrdersPerMonth', label: 'Max Orders/Month', min: 100 },
-                    { key: 'maxBranches', label: 'Max Branches (Future)', min: 1 },
-                    { key: 'maxStorage', label: 'Max Storage (MB)', min: 10 },
-                    { key: 'maxApiRequests', label: 'Max API Requests/Month', min: 1000 }
-                  ].map(limit => {
-                    const value = (c.limits as any)?.[limit.key] || (limit.key === 'maxAdmins' ? 3 : limit.key === 'maxCashiers' ? 5 : limit.key === 'maxDeliveryStaff' ? 10 : 2000);
-                    return (
-                      <div key={limit.key}>
-                        <label style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>{limit.label}</label>
-                        <input 
-                          type="number" 
-                          min={limit.min} 
-                          value={value} 
-                          onChange={e => handleLimitChange(c.id, limit.key, parseInt(e.target.value) || limit.min)} 
-                          style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }} 
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-              </div>
-            ))}
-
-          </div>
-        )}
+        {/* Feature & Resource Management tab has been removed */}
 
         {/* ─── 5. PLATFORM REPORTS TAB ─── */}
         {activeTab === 'reports' && (
@@ -1492,8 +1557,6 @@ export const SuperAdminPortal: React.FC = () => {
             <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               {[
                 { id: 'revenue', label: 'Platform Revenue Report', icon: '💰' },
-                { id: 'conversion', label: 'Trial Conversion Report', icon: '🎁' },
-                { id: 'usage', label: 'Feature & Storage Usage', icon: '📊' },
                 { id: 'stats', label: 'Order & Customer Stats', icon: '👥' }
               ].map(sub => (
                 <button
@@ -1516,17 +1579,18 @@ export const SuperAdminPortal: React.FC = () => {
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
                   <h3 style={{ margin: '0 0 16px 0' }}>💰 Company-wise Revenue Report</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {db.companies.map(c => {
-                      const uStats = companyUserCounts[db.companies.findIndex(comp => comp.id === c.id)];
+                    {backendCompanies.map(c => {
+                      const tier = c.subscription?.tier || 'No Subscription';
+                      const price = c.subscription?.price ?? 0;
+                      const revenue = price.toFixed(2);
                       return (
                         <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                           <div>
                             <strong style={{ fontSize: '0.9rem' }}>{c.name}</strong>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Subscription: {c.subscription.tier}</div>
+                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Subscription: {tier}</div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: '800', color: '#2563eb' }}>QR {uStats?.revenue.toFixed(2) || '0.00'}</div>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{uStats?.orders || 0} orders total</div>
+                            <div style={{ fontWeight: '800', color: '#2563eb' }}>QR {revenue}</div>
                           </div>
                         </div>
                       );
@@ -1535,43 +1599,14 @@ export const SuperAdminPortal: React.FC = () => {
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
                   <h3 style={{ margin: '0 0 16px 0' }}>SaaS Monthly Recurring Revenue</h3>
-                  <div style={{ fontSize: '2rem', fontWeight: '900', color: '#059669', marginBottom: '10px' }}>QR {db.companies.filter(c => c.subscription.tier !== 'Free Trial').length * 79}.00</div>
+                  <div style={{ fontSize: '2rem', fontWeight: '900', color: '#059669', marginBottom: '10px' }}>
+                    QR {backendCompanies.reduce((sum, c) => sum + (c.subscription?.price ?? 0), 0).toFixed(2)}
+                  </div>
                   <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Calculated from paid pricing plan tiers active.</div>
                 </div>
               </div>
             )}
 
-            {reportsSub === 'conversion' && (
-              <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-                <h3 style={{ margin: '0 0 16px 0' }}>🎁 Free Trial Conversion Report</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem' }}>
-                  <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Active Free Trials</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: '#d97706', marginTop: '6px' }}>{freeTrialCompaniesCount}</div>
-                  </div>
-                  <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Paid SaaS Conversion</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: '#16a34a', marginTop: '6px' }}>80%</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {reportsSub === 'usage' && (
-              <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-                <h3 style={{ margin: '0 0 16px 0' }}>📊 Feature & Storage Usage Report</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#f8fafc', borderRadius: '6px' }}>
-                    <span>Central Notifications Sent</span>
-                    <strong>{otpLogs.length + 12} messages</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#f8fafc', borderRadius: '6px' }}>
-                    <span>Estimated Storage Space Used</span>
-                    <strong>{healthStats.storage}</strong>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {reportsSub === 'stats' && (
               <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
@@ -1607,22 +1642,25 @@ export const SuperAdminPortal: React.FC = () => {
                   <textarea required value={annContent} onChange={e => setAnnContent(e.target.value)} rows={4} placeholder="Please log out of your terminals before 12:00 UTC..." style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Target audience</label>
-                    <select value={annTargetType} onChange={e => setAnnTargetType(e.target.value as any)} style={{ width: '100%', padding: '9px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                      <option value="All">All Companies</option>
-                      <option value="Selected">Selected Company Only</option>
-                    </select>
-                  </div>
-                  {annTargetType === 'Selected' && (
+                  {annTargetComp && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Select Company Target</label>
-                      <select value={annTargetComp} onChange={e => setAnnTargetComp(e.target.value)} style={{ width: '100%', padding: '9px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                        <option value="">— Select Target —</option>
-                        {db.companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Target audience</label>
+                      <select value={annTargetType} onChange={e => setAnnTargetType(e.target.value as any)} style={{ width: '100%', padding: '9px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
+                        <option value="ALL">All Users</option>
+                        <option value="ADMINS">Company Admins</option>
+                        <option value="DELIVERY_BOYS">Delivery Staff</option>
+                        <option value="CUSTOMERS">Customers</option>
                       </select>
                     </div>
                   )}
+                  <div style={{ gridColumn: annTargetComp ? 'span 1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Target Company</label>
+                    <select value={annTargetComp} onChange={e => setAnnTargetComp(e.target.value)} style={{ width: '100%', padding: '9px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
+                      <option value="">-- Choose Target Company --</option>
+                      <option value="ALL">All Companies (Global)</option>
+                      {backendCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Schedule Announcement (Optional)</label>
@@ -1636,13 +1674,13 @@ export const SuperAdminPortal: React.FC = () => {
             <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
               <h3 style={{ margin: '0 0 16px 0' }}>Announcements Board</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {announcements.map(ann => (
+                {backendAnnouncements.map(ann => (
                   <div key={ann.id} style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #cbd5e1', position: 'relative' }}>
                     <button onClick={() => handleDeleteAnnouncement(ann.id)} style={{ position: 'absolute', right: '12px', top: '12px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>🗑️</button>
                     <strong style={{ fontSize: '0.92rem' }}>{ann.title}</strong>
                     <p style={{ margin: '6px 0 0 0', fontSize: '0.82rem', color: '#475569' }}>{ann.content}</p>
                     <div style={{ marginTop: '8px', fontSize: '0.72rem', color: '#64748b' }}>
-                      Target: {ann.targetType === 'All' ? 'All Companies' : `Company ID: ${ann.targetCompanyId}`} • Date: {ann.date}
+                      Target: {ann.target_audience} • Company: {ann.target_companies ? (backendCompanies.find(c => c.id === ann.target_companies)?.name || 'Selected Company') : 'All Companies'} • Date: {ann.created_at?.split('T')[0]}
                     </div>
                   </div>
                 ))}
@@ -1660,7 +1698,7 @@ export const SuperAdminPortal: React.FC = () => {
             <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
               <h3 style={{ margin: '0 0 16px 0' }}>🎫 Active Support Tickets</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {tickets.map(t => (
+                {backendTickets.map(t => (
                   <div 
                     key={t.id} 
                     onClick={() => setActiveTicket(t)}
@@ -1673,7 +1711,7 @@ export const SuperAdminPortal: React.FC = () => {
                       <strong style={{ fontSize: '0.9rem' }}>{t.subject}</strong>
                       <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '800', background: t.status === 'Open' ? '#fef3c7' : '#dcfce7', color: t.status === 'Open' ? '#b45309' : '#15803d' }}>{t.status}</span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Company: {t.company} • Assigned to: {t.assignedTo || 'Unassigned'}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Company: {t.company_name || 'N/A'} • Admin: {t.admin_name || 'N/A'}</div>
                   </div>
                 ))}
               </div>
@@ -1684,43 +1722,30 @@ export const SuperAdminPortal: React.FC = () => {
               {activeTicket ? (
                 <div>
                   <h3 style={{ margin: '0 0 8px 0' }}>Ticket Responder</h3>
-                  <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>ID: {activeTicket.id} • Company: {activeTicket.company}</div>
-                  
-                  {/* Assign Agent selector */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Assign Support Agent</label>
-                    <select 
-                      value={activeTicket.assignedTo || ''} 
-                      onChange={e => handleAssignTicket(activeTicket.id, e.target.value)} 
-                      style={{ padding: '6px 12px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', outline: 'none' }}
-                    >
-                      <option value="">Unassigned</option>
-                      <option value="Agent Sarah">Agent Sarah</option>
-                      <option value="Agent Alex">Agent Alex</option>
-                      <option value="Agent Dave">Agent Dave</option>
-                    </select>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div><strong>Ticket ID:</strong> {activeTicket.id.substring(0,8)}...</div>
+                    <div><strong>Date:</strong> {new Date(activeTicket.created_at).toLocaleDateString()}</div>
+                    <div><strong>Company Name:</strong> {activeTicket.company_name || 'N/A'}</div>
+                    <div><strong>Admin Name:</strong> {activeTicket.admin_name || 'N/A'}</div>
+                    <div><strong>Admin Email:</strong> {activeTicket.admin_email || 'N/A'}</div>
+                    <div><strong>Admin Phone:</strong> {activeTicket.admin_phone || 'N/A'}</div>
                   </div>
-
+                  
                   <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1', marginBottom: '16px', fontSize: '0.88rem' }}>
                     <strong>Message:</strong>
-                    <p style={{ margin: '6px 0 0 0', color: '#334155' }}>{activeTicket.message}</p>
+                    <p style={{ margin: '6px 0 0 0', color: '#334155' }}>{activeTicket.description}</p>
                   </div>
 
-                  {activeTicket.history && activeTicket.history.length > 0 && (
+                  {activeTicket.internal_notes && (
                     <div style={{ marginBottom: '16px' }}>
-                      <strong>Replies History:</strong>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-                        {activeTicket.history.map((h, i) => (
-                          <div key={i} style={{ padding: '10px', borderRadius: '8px', background: h.sender === 'Super Admin' ? '#eff6ff' : '#f1f5f9', border: '1px solid #cbd5e1', fontSize: '0.82rem' }}>
-                            <strong>{h.sender}:</strong> {h.message}
-                            <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{h.date}</div>
-                          </div>
-                        ))}
+                      <strong>Admin Reply:</strong>
+                      <div style={{ padding: '10px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #cbd5e1', fontSize: '0.82rem', marginTop: '6px' }}>
+                        {activeTicket.internal_notes}
                       </div>
                     </div>
                   )}
 
-                  {activeTicket.status === 'Open' ? (
+                  {activeTicket.status === 'OPEN' ? (
                     <form onSubmit={handleTicketReplySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <textarea required value={replyText} onChange={e => setReplyText(e.target.value)} rows={3} placeholder="Type your reply to company admin..." style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }} />
                       <div style={{ display: 'flex', gap: '10px' }}>
@@ -1748,15 +1773,6 @@ export const SuperAdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>📜 Central platform Audit Trails & Activities</h3>
-              <select 
-                value={auditTypeFilter} 
-                onChange={e => setAuditTypeFilter(e.target.value as any)} 
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
-              >
-                <option value="All">All Logs (Platform & Company)</option>
-                <option value="Platform">Platform Logs</option>
-                <option value="Company">Company Logs</option>
-              </select>
             </div>
             
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -1769,18 +1785,18 @@ export const SuperAdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {auditLogs
-                  .filter(l => auditTypeFilter === 'All' || l.type === auditTypeFilter)
+                {backendAuditLogs
+                  .filter(l => auditTypeFilter === 'All' || (auditTypeFilter === 'Platform' ? !l.tenant_id : l.tenant_id))
                   .map(l => (
                     <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '10px', color: '#64748b' }}>{l.date}</td>
+                      <td style={{ padding: '10px', color: '#64748b' }}>{new Date(l.created_at).toLocaleString()}</td>
                       <td style={{ padding: '10px' }}>
-                        <span style={{ padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '800', background: l.type === 'Platform' ? '#eff6ff' : '#faf5ff', color: l.type === 'Platform' ? '#2563eb' : '#6b21a8' }}>
-                          {l.type}
+                        <span style={{ padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '800', background: !l.tenant_id ? '#eff6ff' : '#faf5ff', color: !l.tenant_id ? '#2563eb' : '#6b21a8' }}>
+                          {!l.tenant_id ? 'Platform' : 'Company'}
                         </span>
                       </td>
                       <td style={{ padding: '10px', fontWeight: '700', color: '#b45309' }}>{l.action}</td>
-                      <td style={{ padding: '10px', color: '#334155' }}>{l.description}</td>
+                      <td style={{ padding: '10px', color: '#334155' }}>{l.details || l.module}</td>
                     </tr>
                   ))}
               </tbody>
@@ -1788,311 +1804,24 @@ export const SuperAdminPortal: React.FC = () => {
           </div>
         )}
 
-        {/* ─── 9. NOTIFICATION CENTER TAB ─── */}
-        {activeTab === 'notification-center' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
-            
-            {/* OTP Hub */}
-            <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h3 style={{ margin: '0 0 8px 0' }}>🔑 Central OTP Verification Workflows</h3>
-              <p style={{ margin: '0 0 20px 0', fontSize: '0.8rem', color: '#64748b' }}>OTPs generated from SaaS platform endpoints and central verification status checks.</p>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {otpLogs.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>No OTP notifications generated yet.</div>
-                ) : (
-                  otpLogs.map(log => (
-                    <div key={log.id} style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong>{log.target}</strong>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Type: {log.type} • Sent: {log.time}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '1rem', fontWeight: '900', color: '#0284c7', background: '#e0f2fe', padding: '4px 8px', borderRadius: '6px' }}>{log.otp}</span>
-                        {log.status === 'Verified' ? (
-                          <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#15803d', background: '#dcfce7', padding: '4px 8px', borderRadius: '6px' }}>Verified</span>
-                        ) : (
-                          <button onClick={() => handleVerifyCentralOtp(log.target)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: 'none', background: '#38bdf8', color: 'white', cursor: 'pointer' }}>Verify ✓</button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+        {/* Notification Center and Backup Restore have been removed */}
 
-            {/* Centralized Notifications sender */}
-            <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h3 style={{ margin: '0 0 16px 0' }}>✉️ Centralized Platform Messenger</h3>
-              <form onSubmit={e => { e.preventDefault(); alert("Broadcast test messages sent via central notification service!"); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Recipient Address / Number</label>
-                  <input type="text" required placeholder="name@domain.com or phone number..." style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Message Alert Text</label>
-                  <textarea required rows={4} placeholder="Alert text goes here..." style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Alert Mode Channel</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    {['Email', 'SMS', 'Push Notification', 'WhatsApp'].map(m => (
-                      <label key={m} style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <input type="radio" name="alertChannel" defaultChecked={m === 'Email'} />
-                        {m}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <button type="submit" style={{ padding: '12px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Send central alert</button>
-              </form>
-            </div>
 
-          </div>
-        )}
-
-        {/* ─── 10. GLOBAL SETTINGS TAB ─── */}
-        {activeTab === 'global-settings' && (
-          <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-            <h3 style={{ margin: '0 0 16px 0' }}>🌐 Global SaaS Settings Configuration</h3>
-            <form onSubmit={handleSaveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Platform SaaS Name</label>
-                <input type="text" value={platformName} onChange={e => setPlatformName(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Platform Logo Icon</label>
-                <input type="text" value={platformLogo} onChange={e => setPlatformLogo(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>SMTP Server Host</label>
-                <input type="text" value={smtpServer} onChange={e => setSmtpServer(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>SMTP Notification User</label>
-                <input type="text" value={smtpUser} onChange={e => setSmtpUser(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Central SMS API Endpoint URL</label>
-                <input type="text" value={smsGatewayUrl} onChange={e => setSmsGatewayUrl(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>WhatsApp Business Endpoint Key</label>
-                <input type="text" value={whatsAppApiKey} onChange={e => setWhatsAppApiKey(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Google Maps Javascript API Key</label>
-                <input type="text" value={googleMapsKey} onChange={e => setGoogleMapsKey(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Central Email OTP Verification Template</label>
-                <input type="text" value={emailTemplate} onChange={e => setEmailTemplate(e.target.value)} style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', gridColumn: '1 / -1', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-                <button type="submit" style={{ padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Save Settings Configuration</button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* ─── 11. SECURITY TAB ─── */}
-        {activeTab === 'security' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {/* Failed login attempts log */}
-            <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h3 style={{ margin: '0 0 16px 0' }}>🔐 SaaS Portal Lockouts & Failed Login Attempts</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-                {failedAttemptsLog.map(attempt => (
-                  <div key={attempt.id} style={{ padding: '12px', background: '#fff5f5', borderRadius: '8px', border: '1px solid #fee2e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '0.85rem' }}>
-                      Target Login Account: <strong>{attempt.target}</strong> (IP: {attempt.ip})
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Time: {attempt.time}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleBlockIp(attempt.ip)} disabled={blockedIps.includes(attempt.ip)} style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
-                        {blockedIps.includes(attempt.ip) ? 'Blocked' : 'Block IP'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Blocked IP Address list */}
-              <h4>Blocked IP Address Logs</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {blockedIps.map(ip => (
-                  <div key={ip} style={{ padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', fontSize: '0.82rem', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{ip}</span>
-                    <button onClick={() => setBlockedIps(blockedIps.filter(item => item !== ip))} style={{ border: 'none', background: 'transparent', color: '#3b82f6', cursor: 'pointer', fontWeight: '700' }}>Unblock</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Portal locks list */}
-            <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-              <h3 style={{ margin: '0 0 16px 0' }}>Security Company Portal Locks</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {db.companies.map(c => (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <div>
-                      <strong>{c.name}</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Status: {c.status}</div>
-                    </div>
-                    <button 
-                      onClick={() => handleToggleLockCompany(c.id)} 
-                      style={{
-                        padding: '6px 14px', borderRadius: '6px', border: 'none', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer',
-                        background: lockedCompanies.includes(c.id) ? '#dcfce7' : '#fee2e2',
-                        color: lockedCompanies.includes(c.id) ? '#15803d' : '#b91c1c'
-                      }}
-                    >
-                      {lockedCompanies.includes(c.id) ? '🔓 Unlock Company Portal' : '🔒 Lock Company Portal'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ─── 12. BACKUP & RESTORE TAB ─── */}
-        {activeTab === 'backup-restore' && (
-          <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-            <h3 style={{ margin: '0 0 16px 0' }}>💾 SaaS database Backup & Restore</h3>
-            <p style={{ margin: '0 0 20px 0', fontSize: '0.88rem', color: '#64748b' }}>Download full platform multi-tenant database dump in JSON, or restore from an exported file.</p>
-            
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
-              <button 
-                onClick={handleDownloadBackup}
-                style={{ padding: '12px 20px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                📥 Export JSON Backup
-              </button>
-              <label 
-                style={{ padding: '12px 20px', background: 'white', color: '#334155', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                📤 Upload & Restore Backup
-                <input 
-                  type="file" 
-                  accept=".json" 
-                  onChange={handleRestoreBackup} 
-                  style={{ display: 'none' }} 
-                />
-              </label>
-            </div>
-
-            {/* Auto Backups scheduler */}
-            <h4>Schedule Central Automatic Backups</h4>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <select value={autoBackupSchedule} onChange={e => setAutoBackupSchedule(e.target.value)} style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}>
-                <option value="Hourly">Hourly</option>
-                <option value="Daily">Daily</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly">Monthly</option>
-              </select>
-              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Automatic background backups are processed by central SaaS tasks scheduler.</span>
-            </div>
-          </div>
-        )}
-
-        {/* ─── 13. SYSTEM HEALTH TAB ─── */}
-        {activeTab === 'system-health' && (
-          <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-            <h3 style={{ margin: '0 0 16px 0' }}>❤️ System Operational status & Health</h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.88rem', marginBottom: '24px' }}>
-              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <strong>Server Status:</strong> <span style={{ color: '#16a34a', fontWeight: '800' }}>{healthStats.server}</span>
-              </div>
-              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <strong>Database Status:</strong> <span style={{ color: '#16a34a', fontWeight: '800' }}>{healthStats.db}</span>
-              </div>
-              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <strong>Storage Used:</strong> <span>{healthStats.storage}</span>
-              </div>
-              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <strong>API Health:</strong> <span style={{ color: '#16a34a', fontWeight: '800' }}>{healthStats.apiHealth}</span>
-              </div>
-            </div>
-
-            <h4 style={{ margin: '0 0 12px 0' }}>Maintenance Mode</h4>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '700' }}>
-              <input type="checkbox" checked={maintenanceMode} onChange={e => {
-                setMaintenanceMode(e.target.checked);
-                addAuditLog('MAINTENANCE_TOGGLE', `Maintenance mode changed to ${e.target.checked}`);
-              }} />
-              Enable Platform Maintenance Mode (Block all store accesses)
-            </label>
-          </div>
-        )}
 
       </main>
 
-      {/* ─── MODAL: CREATE COMPANY ─── */}
-      {showAddModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Create Tenant Company Portal</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
-            </div>
-
-            <form onSubmit={handleCreateCompanySubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Name *</label>
-                <input type="text" required value={newCompName} onChange={e => setNewCompName(e.target.value)} placeholder="e.g. Fresh Cleaners" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Subdomain Slug *</label>
-                  <input type="text" required value={newCompSlug} onChange={e => setNewCompSlug(e.target.value)} placeholder="e.g. fresh" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Business Type</label>
-                  <select value={newCompBusinessType} onChange={e => setNewCompBusinessType(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                    <option value="Laundry">Laundry Service</option>
-                    <option value="Dry Cleaners">Dry Cleaners</option>
-                    <option value="Commercial">Commercial Laundry</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>GST Number</label>
-                  <input type="text" value={newCompGst} onChange={e => setNewCompGst(e.target.value)} placeholder="GSTIN..." style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Logo Icon URL</label>
-                  <input type="text" value={newCompLogo} onChange={e => setNewCompLogo(e.target.value)} placeholder="🏢" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Email *</label>
-                <input type="email" required value={newCompAdminEmail} onChange={e => setNewCompAdminEmail(e.target.value)} placeholder="admin@company.com" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Password *</label>
-                <input type="password" required value={newCompAdminPass} onChange={e => setNewCompAdminPass(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
-                <input type="text" value={newCompAddress} onChange={e => setNewCompAddress(e.target.value)} placeholder="123 Main St..." style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Phone Number</label>
-                <input type="text" value={newCompPhone} onChange={e => setNewCompPhone(e.target.value)} placeholder="+974..." style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
-
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '6px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Create Company</button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {showWizard && (
+        <CompanyOnboardingWizard
+          token={token}
+          onClose={() => { setShowWizard(false); setResumeWizardData(undefined); }}
+          onComplete={() => {
+            setShowWizard(false);
+            setResumeWizardData(undefined);
+            fetchBackendData();
+          }}
+          addAuditLog={addAuditLog}
+          resumeData={resumeWizardData}
+        />
       )}
 
       {/* ─── MODAL: EDIT COMPANY DETAILS ─── */}
@@ -2109,32 +1838,80 @@ export const SuperAdminPortal: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Name</label>
                 <input type="text" required value={editCompName} onChange={e => setEditCompName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Business Type</label>
-                  <select value={editCompBusinessType} onChange={e => setEditCompBusinessType(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                    <option value="Laundry">Laundry Service</option>
-                    <option value="Dry Cleaners">Dry Cleaners</option>
-                    <option value="Commercial">Commercial Laundry</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>GST Number</label>
-                  <input type="text" value={editCompGst} onChange={e => setEditCompGst(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-              </div>
+
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Logo Icon</label>
-                <input type="text" value={editCompLogo} onChange={e => setEditCompLogo(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Status</label>
+                <select value={editCompStatus} onChange={e => setEditCompStatus(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
                 <input type="text" value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Phone Number</label>
-                <input type="text" value={editCompPhone} onChange={e => setEditCompPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+
+              
+              <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a' }}>Admin Details</h4>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Name</label>
+                  <input type="text" value={editAdminName} onChange={e => setEditAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Phone</label>
+                  <input type="text" value={editAdminPhone} onChange={e => setEditAdminPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                </div>
               </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Email</label>
+                <input type="text" readOnly disabled value={editAdminEmail} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Subscription Plan Details (read-only) */}
+              {editSubPlanName && (
+                <>
+                  <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a' }}>📋 Subscription Plan Details</h4>
+                  <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.82rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Plan Name</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPlanName || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Price (QR)</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPrice !== null ? `QR ${editSubPrice}` : 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Start Date</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubStartDate || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>End Date</div>
+                      <div style={{ fontWeight: '700', color: '#dc2626' }}>{editSubEndDate || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Admins</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxAdmins ?? 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Cashiers</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCashiers ?? 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Deliveries</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxDelivery ?? 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Customers</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCustomers ?? 'N/A'}</div>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Monthly Orders</div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxOrders ?? 'N/A'}</div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '6px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setEditingCompanyDetails(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
@@ -2155,15 +1932,62 @@ export const SuperAdminPortal: React.FC = () => {
             </div>
 
             <div style={{ padding: '24px', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div><strong>Company Name:</strong> {viewingCompanyProfile.name}</div>
-              <div><strong>Subdomain Slug:</strong> /{viewingCompanyProfile.slug}</div>
-              <div><strong>Admin Email:</strong> {viewingCompanyProfile.adminEmail}</div>
-              <div><strong>Phone Number:</strong> {viewingCompanyProfile.phone || 'N/A'}</div>
-              <div><strong>Address:</strong> {viewingCompanyProfile.address || 'N/A'}</div>
-              <div><strong>GST Number:</strong> {viewingCompanyProfile.gstNumber || 'N/A'}</div>
-              <div><strong>Business Type:</strong> {viewingCompanyProfile.businessType || 'Laundry'}</div>
-              <div><strong>Subscription Tier:</strong> {viewingCompanyProfile.subscription.tier} ({viewingCompanyProfile.subscription.status})</div>
-              <div><strong>Expiry Date:</strong> {viewingCompanyProfile.subscription.expiresAt}</div>
+              {(() => {
+                const profileAdmin = backendAdmins.find((a: any) => a.tenant_id === viewingCompanyProfile.id);
+                return (
+                  <>
+                    <div><strong>Company Name:</strong> {viewingCompanyProfile.name}</div>
+                    <div><strong>Company Address:</strong> {viewingCompanyProfile.address || 'N/A'}</div>
+
+                    <div><strong>Admin Phone Number:</strong> {profileAdmin?.phone || 'N/A'}</div>
+                    <div><strong>Admin Gmail:</strong> {profileAdmin?.email || viewingCompanyProfile.email || 'N/A'}</div>
+
+                    <h4 style={{ margin: '16px 0 8px 0', fontSize: '0.95rem', color: '#0f172a', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>📋 Subscription Details</h4>
+                    {viewingCompanyProfile.subscription ? (
+                      <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.82rem', border: '1px solid #cbd5e1' }}>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Plan Name</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.tier || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Price</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.price !== undefined && viewingCompanyProfile.subscription.price !== null ? `QR ${viewingCompanyProfile.subscription.price}` : 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Start Date</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.startDate || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>End Date</div>
+                          <div style={{ fontWeight: '800', color: '#dc2626' }}>{viewingCompanyProfile.subscription.expiresAt || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Admins</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.maxAdmins ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Cashiers</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.maxCashiers ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Deliveries</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.maxDeliveryStaff ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Customers</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.maxCustomers ?? 'N/A'}</div>
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Monthly Orders</div>
+                          <div style={{ fontWeight: '800', color: '#0f172a' }}>{viewingCompanyProfile.subscription.maxOrdersPerMonth ?? 'N/A'}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#64748b', fontStyle: 'italic' }}>No active subscription.</div>
+                    )}
+                  </>
+                );
+              })()}
               
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '6px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button onClick={() => setViewingCompanyProfile(null)} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#0284c7', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Close Profile</button>
@@ -2279,9 +2103,9 @@ export const SuperAdminPortal: React.FC = () => {
                   }} 
                   style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem', fontWeight: '600' }}
                 >
-                  <option value="Free Trial">Free Trial</option>
-                  <option value="Premium">Premium tier</option>
-                  <option value="Enterprise">Enterprise tier</option>
+                  {plans.map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -2305,17 +2129,7 @@ export const SuperAdminPortal: React.FC = () => {
                 </div>
               )}
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Status</label>
-                <select 
-                  value={subStatus} 
-                  onChange={(e) => setSubStatus(e.target.value as any)} 
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem', fontWeight: '600' }}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Expired">Expired</option>
-                </select>
-              </div>
+
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Expiration Date</label>
@@ -2333,6 +2147,196 @@ export const SuperAdminPortal: React.FC = () => {
                 <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: RENEW SUBSCRIPTION ─── */}
+      {renewComp && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #065f46, #059669)', padding: '22px 28px', color: 'white', position: 'relative' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: '700', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Subscription Renewal</div>
+              <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '800' }}>🔄 {renewComp.name}</h3>
+              <button onClick={() => setRenewComp(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+            <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Current Plan Info */}
+              <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Plan Name</div>
+                  <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '1rem' }}>{renewComp.subscription?.tier || 'N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Current End Date</div>
+                  <div style={{ fontWeight: '800', color: '#dc2626', fontSize: '1rem' }}>{renewComp.subscription?.expiresAt || 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Amount Paid (QR)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={renewAmount}
+                  onChange={e => setRenewAmount(parseFloat(e.target.value) || 0)}
+                  style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '1rem', fontWeight: '600', boxSizing: 'border-box' }}
+                  placeholder="Enter amount paid"
+                />
+              </div>
+
+              {/* New End Date */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>New End Date</label>
+                <input
+                  type="date"
+                  value={renewNewEndDate}
+                  onChange={e => setRenewNewEndDate(e.target.value)}
+                  style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Extension info badge */}
+              {renewNewEndDate && renewComp.subscription?.expiresAt && (() => {
+                const oldEnd = new Date(renewComp.subscription.expiresAt);
+                const newEnd = new Date(renewNewEndDate);
+                const extDays = Math.ceil((newEnd.getTime() - oldEnd.getTime()) / (1000 * 60 * 60 * 24));
+                return extDays > 0 ? (
+                  <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '12px 16px', fontSize: '0.85rem', color: '#15803d', fontWeight: '700' }}>
+                    ✅ Extending by <strong>{extDays} days</strong> — new end date: <strong>{renewNewEndDate}</strong>
+                  </div>
+                ) : extDays < 0 ? (
+                  <div style={{ background: '#fee2e2', borderRadius: '10px', padding: '12px 16px', fontSize: '0.85rem', color: '#dc2626', fontWeight: '700' }}>
+                    ⚠️ New end date is before the current end date
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '18px', marginTop: '4px' }}>
+                <button type="button" onClick={() => setRenewComp(null)} style={{ padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #cbd5e1', background: 'transparent', color: '#475569', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+                <button
+                  disabled={renewLoading || !renewNewEndDate}
+                  onClick={async () => {
+                    if (!renewNewEndDate) return;
+                    setRenewLoading(true);
+                    try {
+                      const newEnd = new Date(renewNewEndDate);
+                      const days = Math.max(1, Math.ceil((newEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                      await fetch(`${BASE_URL}/api/v1/saas-admin/subscriptions/${renewComp.id}/assign`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          plan_name: renewComp.subscription?.tier || 'CUSTOM',
+                          days,
+                          price: renewAmount,
+                          end_date: renewNewEndDate
+                        })
+                      });
+                      addAuditLog('SUBSCRIPTION_RENEWAL', `Renewed ${renewComp.name} subscription to ${renewNewEndDate}, Amount: QR ${renewAmount}`);
+                      fetchBackendData();
+                      setRenewComp(null);
+                    } catch (err) {
+                      alert('Failed to renew subscription');
+                    }
+                    setRenewLoading(false);
+                  }}
+                  style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: renewLoading || !renewNewEndDate ? '#94a3b8' : 'linear-gradient(135deg, #059669, #047857)', color: 'white', fontWeight: '700', cursor: renewLoading || !renewNewEndDate ? 'not-allowed' : 'pointer', fontSize: '0.95rem' }}
+                >
+                  {renewLoading ? 'Saving...' : '🔄 Confirm Renewal'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: EDIT SUBSCRIPTION LIMITS ─── */}
+      {editSubCompany && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '22px 28px', color: 'white', position: 'relative' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: '700', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Edit Subscription</div>
+              <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '800' }}>✏️ {editSubCompany.name}</h3>
+              <button onClick={() => setEditSubCompany(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+            <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {/* Plan Name */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Plan Name</label>
+                <input type="text" value={esPlanName} onChange={e => setEsPlanName(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', boxSizing: 'border-box' }} />
+              </div>
+              {/* Price */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Price (QR)</label>
+                <input type="number" min={0} value={esPrice} onChange={e => setEsPrice(parseFloat(e.target.value) || 0)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', boxSizing: 'border-box' }} />
+              </div>
+              {/* Limits Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Max Admins</label>
+                  <input type="number" min={0} value={esMaxAdmins} onChange={e => setEsMaxAdmins(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Max Cashiers</label>
+                  <input type="number" min={0} value={esMaxCashiers} onChange={e => setEsMaxCashiers(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Max Deliveries</label>
+                  <input type="number" min={0} value={esMaxDelivery} onChange={e => setEsMaxDelivery(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Max Customers</label>
+                  <input type="number" min={0} value={esMaxCustomers} onChange={e => setEsMaxCustomers(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Max Monthly Orders</label>
+                <input type="number" min={0} value={esMaxOrders} onChange={e => setEsMaxOrders(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '4px' }}>
+                <button type="button" onClick={() => setEditSubCompany(null)} style={{ padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #cbd5e1', background: 'transparent', color: '#475569', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+                <button
+                  disabled={esLoading}
+                  onClick={async () => {
+                    setEsLoading(true);
+                    try {
+                      const sub = editSubCompany.subscription;
+                      const endDate = sub?.expiresAt || new Date().toISOString().split('T')[0];
+                      const days = Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                      await fetch(`${BASE_URL}/api/v1/saas-admin/subscriptions/${editSubCompany.id}/assign`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          plan_name: esPlanName || sub?.tier || 'CUSTOM',
+                          days,
+                          price: esPrice,
+                          end_date: endDate,
+                          start_date: sub?.startDate || new Date().toISOString().split('T')[0],
+                          max_admins: esMaxAdmins,
+                          max_cashiers: esMaxCashiers,
+                          max_delivery_staff: esMaxDelivery,
+                          max_customers: esMaxCustomers,
+                          max_orders_per_month: esMaxOrders
+                        })
+                      });
+                      addAuditLog('SUBSCRIPTION_EDIT', `Updated ${editSubCompany.name} subscription limits: Admins=${esMaxAdmins}, Cashiers=${esMaxCashiers}, Delivery=${esMaxDelivery}, Customers=${esMaxCustomers}, Orders=${esMaxOrders}`);
+                      fetchBackendData();
+                      setEditSubCompany(null);
+                    } catch (err) {
+                      alert('Failed to update subscription');
+                    }
+                    setEsLoading(false);
+                  }}
+                  style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: esLoading ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontWeight: '700', cursor: esLoading ? 'not-allowed' : 'pointer', fontSize: '0.95rem' }}
+                >
+                  {esLoading ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

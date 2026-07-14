@@ -45,6 +45,7 @@ export interface Customer {
   phone: string;
   email: string;
   address: string;
+  area?: string;
   walletBalance: number;
   loyaltyPoints: number;
   creditBalance: number;
@@ -67,6 +68,10 @@ export interface Order {
   paymentMethod: string;
   status: 'Created' | 'Pending' | 'Placed' | 'Accepted' | 'Received' | 'Washing' | 'Ironing' | 'Processing' | 'Ready' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   courier: string | null;
+  pickupCourier?: string | null;
+  pickupAccepted?: boolean;
+  deliveryCourier?: string | null;
+  deliveryAccepted?: boolean;
   deliveryStatus: string;
   phone?: string;
   address?: string;
@@ -78,9 +83,20 @@ export interface Order {
   clothesPerDay?: number;
   isManual?: boolean;
   commission?: number;
+  pickupCommission?: number;
+  pickupCommissionPaid?: boolean;
+  deliveryCommission?: number;
+  deliveryCommissionPaid?: boolean;
+  deliveryPaymentMethod?: string;
+  deliveryPaymentDate?: string;
+  pickupPaymentMethod?: string;
+  pickupPaymentDate?: string;
   paymentStatus?: string;
   deliveryOtp?: string;
   pickupNotes?: string;
+  deliveredDate?: string;
+  isDeleted?: boolean;
+  backendId?: string;
 }
 
 export interface Expense {
@@ -226,10 +242,15 @@ export interface Database {
   activeCompanyId: string;
   announcements: Announcement[];
   leaveRequests: LeaveRequest[];
+  unreadReviewsCount: number;
+  unresolvedSupportCount: number;
 }
 
 interface DatabaseContextType {
   db: Database;
+  token: string | null;
+  setToken: (token: string | null) => void;
+  logout: () => void;
   setServices: (services: Service[]) => void;
   setItems: (items: Item[]) => void;
   setServiceTypes: (serviceTypes: ServiceType[]) => void;
@@ -426,11 +447,27 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return localStorage.getItem('ll_active_company_id') || 'comp-default';
   });
 
+  const [unreadReviewsCount, setUnreadReviewsCountState] = useState<number>(() => {
+    return parseInt(localStorage.getItem(`ll_${activeCompanyId}_unread_reviews_count`) || '0') || 0;
+  });
+  const [unresolvedSupportCount, setUnresolvedSupportCountState] = useState<number>(() => {
+    return parseInt(localStorage.getItem(`ll_${activeCompanyId}_unresolved_support_count`) || '0') || 0;
+  });
+
   // Keep a synced ref of activeCompanyId to avoid race conditions or stale closures
   const activeCompanyIdRef = useRef(activeCompanyId);
   useEffect(() => {
     activeCompanyIdRef.current = activeCompanyId;
   }, [activeCompanyId]);
+
+  const setUnreadReviewsCount = (newVal: number) => {
+    setUnreadReviewsCountState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_unread_reviews_count`, newVal.toString());
+  };
+  const setUnresolvedSupportCount = (newVal: number) => {
+    setUnresolvedSupportCountState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_unresolved_support_count`, newVal.toString());
+  };
 
   // Local tenant states (raw state hooks)
   const [services, setServicesState] = useState<Service[]>(DEFAULT_SERVICES);
@@ -450,6 +487,26 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [currentDeliveryBoy, setCurrentDeliveryBoyState] = useState<string | null>(null);
   const [announcements, setAnnouncementsState] = useState<Announcement[]>([]);
   const [leaveRequests, setLeaveRequestsState] = useState<LeaveRequest[]>([]);
+  const [token, setTokenState] = useState<string | null>(() => localStorage.getItem('ll_auth_token'));
+
+  const setToken = (newToken: string | null) => {
+    setTokenState(newToken);
+    if (newToken) {
+      localStorage.setItem('ll_auth_token', newToken);
+    } else {
+      localStorage.removeItem('ll_auth_token');
+    }
+  };
+
+  const logout = () => {
+    setToken(null);
+    setActiveRoleState('');
+    localStorage.removeItem('ll_activerole');
+    localStorage.removeItem('ll_active_workspace');
+    localStorage.removeItem('ll_active_customer_id');
+    localStorage.removeItem('ll_super_admin_session');
+    // Optionally redirect to home: window.location.href = '/';
+  };
 
   // Wrapped setters that persist to local storage synchronously
   const setServices = (newVal: Service[]) => {
@@ -546,7 +603,34 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const loadJson = (key: string, setter: (val: any) => void, fallback: any) => {
       const saved = localStorage.getItem(`ll_${compId}_${key}`);
       if (saved) {
-        setter(JSON.parse(saved));
+        let parsed = JSON.parse(saved);
+        
+        // Auto-delete orders older than 2 months
+        if (key === 'orders' && Array.isArray(parsed)) {
+          const twoMonthsAgo = new Date();
+          twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+          const originalLength = parsed.length;
+          
+          parsed = parsed.filter((o: any) => {
+            if (!o.date) return true;
+            const d = new Date(o.date);
+            if (isNaN(d.getTime())) return true;
+            return d >= twoMonthsAgo;
+          });
+          
+          // Re-save if we purged any old orders
+          if (parsed.length < originalLength) {
+            localStorage.setItem(`ll_${compId}_${key}`, JSON.stringify(parsed));
+          }
+        }
+        
+        // Auto-clear dummy customers if seeded on a non-default company
+        if (key === 'customers' && compId !== 'comp-default' && Array.isArray(parsed) && parsed.some((c: any) => c.id === 'cust-1')) {
+          parsed = [];
+          localStorage.setItem(`ll_${compId}_${key}`, JSON.stringify(parsed));
+        }
+        
+        setter(parsed);
       } else {
         setter(fallback);
       }
@@ -557,7 +641,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadJson('serviceTypes', setServiceTypesState, []);
     loadJson('serviceVariants', setServiceVariantsState, []);
     loadJson('itemPrices', setItemPricesState, []);
-    loadJson('customers', setCustomersState, DEFAULT_CUSTOMERS);
+    loadJson('customers', setCustomersState, compId === 'comp-default' ? DEFAULT_CUSTOMERS : []);
     loadJson('orders', setOrdersState, []);
     loadJson('expenses', setExpensesState, []);
     loadJson('promos', setPromosState, DEFAULT_PROMOS);
@@ -600,6 +684,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Current Delivery Boy
     const cdbSaved = localStorage.getItem(`ll_${compId}_active_delivery_boy`);
     setCurrentDeliveryBoyState(cdbSaved || null);
+
+    // Unread Reviews Count
+    const urSaved = localStorage.getItem(`ll_${compId}_unread_reviews_count`);
+    setUnreadReviewsCountState(urSaved ? parseInt(urSaved) : 0);
+
+    // Unresolved Support Count
+    const usSaved = localStorage.getItem(`ll_${compId}_unresolved_support_count`);
+    setUnresolvedSupportCountState(usSaved ? parseInt(usSaved) : 0);
   };
 
   // Sync companies list
@@ -610,6 +702,35 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Initial load
   useEffect(() => {
     loadCompanyData(activeCompanyId);
+
+    // Auto-sync real companies from backend
+    const fetchCompanies = async () => {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/companies/public`);
+        if (res.ok) {
+          const data = await res.json();
+          setCompanies(prev => {
+            const mapped = data.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              adminEmail: c.admin_email || `admin@${c.id}.com`,
+              status: c.status === 'ACTIVE' ? 'Active' : 'Suspended',
+              subscription: { tier: 'Premium', status: 'Active', expiresAt: '2027-12-31' },
+              features: {
+                expressWash: true, expenses: true, promos: true, deliveryOperations: true,
+                customerManagement: true, orderManagement: true, cashierModule: true,
+                deliveryModule: true, serviceManagement: true, walletLoyalty: true
+              }
+            }));
+            return mapped.length > 0 ? mapped : prev;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync public companies:', err);
+      }
+    };
+    fetchCompanies();
   }, []);
 
   // Listen for storage events to synchronize database across different tabs/portals
@@ -734,7 +855,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(`ll_${newId}_users`, JSON.stringify([seededAdmin]));
     localStorage.setItem(`ll_${newId}_services`, JSON.stringify(DEFAULT_SERVICES));
     localStorage.setItem(`ll_${newId}_promos`, JSON.stringify(DEFAULT_PROMOS));
-    localStorage.setItem(`ll_${newId}_customers`, JSON.stringify(DEFAULT_CUSTOMERS));
+    localStorage.setItem(`ll_${newId}_customers`, JSON.stringify([]));
     localStorage.setItem(`ll_${newId}_drawercash`, '350');
     localStorage.setItem(`ll_${newId}_activebranch`, 'Branch Main');
     localStorage.setItem(`ll_${newId}_activerole`, 'Admin');
@@ -803,6 +924,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (fields.currentDeliveryBoy !== undefined) setCurrentDeliveryBoy(fields.currentDeliveryBoy);
     if (fields.announcements !== undefined) setAnnouncements(fields.announcements);
     if (fields.leaveRequests !== undefined) setLeaveRequests(fields.leaveRequests);
+    if (fields.unreadReviewsCount !== undefined) setUnreadReviewsCount(fields.unreadReviewsCount);
+    if (fields.unresolvedSupportCount !== undefined) setUnresolvedSupportCount(fields.unresolvedSupportCount);
   };
 
   const db: Database = {
@@ -824,12 +947,17 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     companies,
     activeCompanyId,
     announcements,
-    leaveRequests
+    leaveRequests,
+    unreadReviewsCount,
+    unresolvedSupportCount
   };
 
   return (
     <DatabaseContext.Provider value={{
       db,
+      token,
+      setToken,
+      logout,
       setServices,
       setItems,
       setServiceTypes,

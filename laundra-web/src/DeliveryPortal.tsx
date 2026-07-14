@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDatabase } from './DatabaseContext';
 import type { User, Order } from './DatabaseContext';
+import { apiSendOrderOtp, apiVerifyOrderOtp } from './deliveryApi';
 
 export const DeliveryPortal: React.FC = () => {
   const { db, saveDB } = useDatabase();
@@ -40,7 +41,7 @@ export const DeliveryPortal: React.FC = () => {
   const [tempRegDetails, setTempRegDetails] = useState<any>(null);
 
   // Active Tab for Web Dashboard
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'earnings' | 'attendance' | 'profile' | 'support'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'earnings' | 'attendance' | 'profile' | 'support' | 'announcements'>('dashboard');
 
   // Tasks Sub-tab
   const [tasksSubTab, setTasksSubTab] = useState<'pickups' | 'deliveries'>('pickups');
@@ -62,6 +63,10 @@ export const DeliveryPortal: React.FC = () => {
   const [pickupDetailsOrder, setPickupDetailsOrder] = useState<Order | null>(null);
   const [pickupWeightItems, setPickupWeightItems] = useState('1 Bag (Wash & Fold)');
   const [pickupNotes, setPickupNotes] = useState('');
+  
+  // Pickup OTP Verification Modal
+  const [verifyingPickupOrder, setVerifyingPickupOrder] = useState<Order | null>(null);
+  const [enteredPickupOtp, setEnteredPickupOtp] = useState('');
 
   // Emergency contact states
   const [emergencyContact, setEmergencyContact] = useState('+974 5555 0122');
@@ -75,7 +80,46 @@ export const DeliveryPortal: React.FC = () => {
   // Support ticket state
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMsg, setSupportMsg] = useState('');
-  const [supportTickets, setSupportTickets] = useState<{ id: string; subject: string; message: string; date: string; status: string }[]>([]);
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+
+  const fetchSupportTickets = async () => {
+    try {
+      const token = localStorage.getItem('ll_auth_token');
+      if (!token) return;
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${BASE_URL}/api/v1/staff/support-tickets`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSupportTickets(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch support tickets', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSupportTickets();
+  }, []);
+
+  const [systemAnnouncements, setSystemAnnouncements] = useState<any[]>([]);
+
+  const fetchAnnouncements = async () => {
+    const token = localStorage.getItem('ll_auth_token');
+    if (!token) return;
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const res = await fetch(`${BASE_URL}/api/v1/announcements/staff`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSystemAnnouncements(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch staff announcements', err);
+    }
+  };
 
   // Automatically load active session if cached
   useEffect(() => {
@@ -97,6 +141,60 @@ export const DeliveryPortal: React.FC = () => {
       }
     }
   }, [db.users]);
+
+  useEffect(() => {
+    fetchAnnouncements();
+  }, [currentUser]);
+
+  // Mark announcements as seen when tab is active
+  useEffect(() => {
+    if (activeTab === 'announcements') {
+      localStorage.setItem(`ll_${db.activeCompanyId}_delivery_last_seen_announcements_count`, systemAnnouncements.length.toString());
+    }
+  }, [activeTab, systemAnnouncements.length, db.activeCompanyId]);
+
+  // Sync announcements & support ticket replies with local notifications
+  useEffect(() => {
+    let changed = false;
+    const currentNotifications = [...db.notifications];
+
+    // Check announcements
+    systemAnnouncements.forEach(ann => {
+      const exists = currentNotifications.some(n => n.text.includes(ann.title));
+      if (!exists) {
+        currentNotifications.unshift({
+          id: Date.now() + Math.random(),
+          text: `📢 Announcement: ${ann.title}`,
+          time: new Date(ann.created_at).toLocaleDateString(),
+          unread: true
+        });
+        changed = true;
+      }
+    });
+
+    // Check support tickets
+    supportTickets.forEach(t => {
+      if (t.internal_notes) {
+        const textToFind = `Ticket #${t.id || t.backendId} Reply`;
+        const exists = currentNotifications.some(n => n.text.includes(textToFind));
+        if (!exists) {
+          currentNotifications.unshift({
+            id: Date.now() + Math.random(),
+            text: `🎫 Ticket #${t.id || t.backendId} Reply: ${t.internal_notes}`,
+            time: 'Just now',
+            unread: true
+          });
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      saveDB({
+        notifications: currentNotifications
+      });
+    }
+  }, [systemAnnouncements, supportTickets]);
 
   // Log Audit Action Helper
   const logAudit = (message: string) => {
@@ -292,10 +390,18 @@ export const DeliveryPortal: React.FC = () => {
   const updatePickupStatus = (order: Order, nextStatus: Order['status'], deliveryStatusText: string) => {
     const updatedOrders = db.orders.map(o => {
       if (o.id === order.id) {
+        const isPickupAction = ['courier on the way', 'reached customer'].includes(deliveryStatusText.toLowerCase());
+        const isDeliveryAction = ['out for delivery'].includes(deliveryStatusText.toLowerCase()) || nextStatus === 'Out for Delivery';
+        
         return {
           ...o,
           status: nextStatus,
-          deliveryStatus: deliveryStatusText
+          deliveryStatus: deliveryStatusText,
+          courier: currentUser ? currentUser.name : o.courier,
+          pickupCourier: isPickupAction ? (o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier)) : o.pickupCourier,
+          pickupAccepted: isPickupAction ? true : o.pickupAccepted,
+          deliveryCourier: isDeliveryAction ? (o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' ? o.deliveryCourier : (currentUser ? currentUser.name : o.deliveryCourier)) : o.deliveryCourier,
+          deliveryAccepted: isDeliveryAction ? true : o.deliveryAccepted
         };
       }
       return o;
@@ -316,111 +422,200 @@ export const DeliveryPortal: React.FC = () => {
     logAudit(`Updated Pickup status of order #${order.id} to: ${nextStatus} (${deliveryStatusText})`);
   };
 
-  // Complete Pickup with weight/notes
-  const submitPickupCompletion = (e: React.FormEvent) => {
+  // Complete Pickup with weight/notes -> Triggers OTP
+  const submitPickupCompletion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pickupDetailsOrder) return;
+    
+    const token = localStorage.getItem('ll_auth_token');
+    
+    try {
+      await apiSendOrderOtp(pickupDetailsOrder.backendId || pickupDetailsOrder.id, 'pickup', token || undefined);
+      setVerifyingPickupOrder(pickupDetailsOrder);
+      setPickupDetailsOrder(null);
+      alert('OTP sent to the customer for Pickup verification.');
+    } catch (err: any) {
+      alert(`Failed to send OTP: ${err.message}`);
+    }
+  };
 
-    const nextStatus = 'Received' as const;
-    const deliveryStatusText = 'In Processing';
+  // Verify Pickup OTP and complete the process
+  const submitPickupVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyingPickupOrder) return;
 
-    const updatedOrders = db.orders.map(o => {
-      if (o.id === pickupDetailsOrder.id) {
-        return {
-          ...o,
-          status: nextStatus,
-          deliveryStatus: deliveryStatusText,
-          weightItems: pickupWeightItems,
-          pickupNotes: pickupNotes
-        };
-      }
-      return o;
-    });
+    const token = localStorage.getItem('ll_auth_token');
+    try {
+      await apiVerifyOrderOtp(verifyingPickupOrder.backendId || verifyingPickupOrder.id, 'pickup', enteredPickupOtp, token || undefined);
+      
+      const nextStatus = 'Received' as const;
+      const deliveryStatusText = 'In Processing';
 
-    const newNotification = {
-      id: Date.now(),
-      text: `🚚 Delivery update: Order #${pickupDetailsOrder.id} status updated to: ${nextStatus} (${deliveryStatusText})`,
-      time: 'Just now',
-      unread: true
-    };
+      const updatedOrders = db.orders.map(o => {
+        if (o.id === verifyingPickupOrder.id) {
+          return {
+            ...o,
+            status: nextStatus,
+            deliveryStatus: deliveryStatusText,
+            weightItems: pickupWeightItems,
+            pickupNotes: pickupNotes,
+            courier: currentUser ? currentUser.name : o.courier,
+            pickupCourier: o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier),
+            pickupAccepted: true
+          };
+        }
+        return o;
+      });
 
-    saveDB({
-      orders: updatedOrders,
-      notifications: [newNotification, ...db.notifications]
-    });
+      const newNotification = {
+        id: Date.now(),
+        text: `🚚 Delivery update: Order #${verifyingPickupOrder.id} status updated to: ${nextStatus} (${deliveryStatusText})`,
+        time: 'Just now',
+        unread: true
+      };
 
-    logAudit(`Updated Pickup status of order #${pickupDetailsOrder.id} to: ${nextStatus} (${deliveryStatusText})`);
+      saveDB({
+        orders: updatedOrders,
+        notifications: [newNotification, ...db.notifications]
+      });
 
-    setPickupDetailsOrder(null);
-    setPickupNotes('');
-    alert('Pickup details saved. Order status updated to "Received".');
+      logAudit(`Updated Pickup status of order #${verifyingPickupOrder.id} to: ${nextStatus} (${deliveryStatusText})`);
+
+      setVerifyingPickupOrder(null);
+      setPickupNotes('');
+      setEnteredPickupOtp('');
+      alert('OTP Verified! Pickup details saved and order status updated to "Received".');
+    } catch (err: any) {
+      alert(`OTP Verification failed: ${err.message}`);
+    }
   };
 
   // Complete Delivery with OTP verification
-  const submitDeliveryVerification = (e: React.FormEvent) => {
+  const triggerDeliveryOtpRequest = async (order: Order) => {
+    const token = localStorage.getItem('ll_auth_token');
+    try {
+      await apiSendOrderOtp(order.backendId || order.id, 'delivery', token || undefined);
+      setVerifyingDeliveryOrder(order);
+      alert('Delivery OTP sent to the customer.');
+    } catch (err: any) {
+      alert(`Failed to send Delivery OTP: ${err.message}`);
+    }
+  };
+
+  const submitDeliveryVerification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verifyingDeliveryOrder) return;
 
-    if (enteredDeliveryOtp !== verifyingDeliveryOrder.deliveryOtp) {
-      alert('Incorrect OTP. Please ask the customer to check their secure QR Portal.');
-      return;
+    const token = localStorage.getItem('ll_auth_token');
+    try {
+      await apiVerifyOrderOtp(verifyingDeliveryOrder.backendId || verifyingDeliveryOrder.id, 'delivery', enteredDeliveryOtp, token || undefined);
+
+      const updatedOrders = db.orders.map(o => {
+        if (o.id === verifyingDeliveryOrder.id) {
+          return {
+            ...o,
+            status: 'Delivered' as const,
+            deliveryStatus: 'Delivered',
+            paymentStatus: 'Paid',
+            deliveredDate: new Date().toISOString(),
+            courier: currentUser ? currentUser.name : o.courier,
+            deliveryCourier: o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' ? o.deliveryCourier : (currentUser ? currentUser.name : o.deliveryCourier),
+            deliveryAccepted: true
+          };
+        }
+        return o;
+      });
+
+      const newNotification = {
+        id: Date.now(),
+        text: `✅ Order #${verifyingDeliveryOrder.id} has been verified with OTP and marked DELIVERED!`,
+        time: 'Just now',
+        unread: true
+      };
+
+      saveDB({
+        orders: updatedOrders,
+        notifications: [newNotification, ...db.notifications]
+      });
+
+      logAudit(`Delivery successfully completed for order #${verifyingDeliveryOrder.id} using OTP.`);
+      alert('OTP Verified! Delivery Completed successfully.');
+      setVerifyingDeliveryOrder(null);
+      setEnteredDeliveryOtp('');
+    } catch (err: any) {
+      alert(`OTP Verification failed: ${err.message}`);
     }
-
-    const updatedOrders = db.orders.map(o => {
-      if (o.id === verifyingDeliveryOrder.id) {
-        return {
-          ...o,
-          status: 'Delivered' as const,
-          deliveryStatus: 'Delivered',
-          paymentStatus: 'Paid'
-        };
-      }
-      return o;
-    });
-
-    const newNotification = {
-      id: Date.now(),
-      text: `✅ Order #${verifyingDeliveryOrder.id} has been verified with OTP and marked DELIVERED!`,
-      time: 'Just now',
-      unread: true
-    };
-
-    saveDB({
-      orders: updatedOrders,
-      notifications: [newNotification, ...db.notifications]
-    });
-
-    logAudit(`Delivery successfully completed for order #${verifyingDeliveryOrder.id} using OTP.`);
-    alert('OTP Verified! Delivery Completed successfully.');
-    setVerifyingDeliveryOrder(null);
-    setEnteredDeliveryOtp('');
   };
 
   // Support ticket creation
-  const handleRaiseTicket = (e: React.FormEvent) => {
+  const handleRaiseTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supportSubject || !supportMsg) {
       alert('Please fill out all support ticket fields.');
       return;
     }
-    const newTicket = {
-      id: 'TKT-' + Math.floor(1000 + Math.random()*9000),
-      subject: supportSubject,
-      message: supportMsg,
-      date: new Date().toLocaleDateString(),
-      status: 'Open'
-    };
-    setSupportTickets(prev => [newTicket, ...prev]);
-    alert(`Support ticket ${newTicket.id} raised successfully.`);
-    setSupportSubject('');
-    setSupportMsg('');
+    try {
+      const token = localStorage.getItem('ll_auth_token');
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${BASE_URL}/api/v1/staff/support-tickets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subject: supportSubject,
+          description: supportMsg
+        })
+      });
+      if (response.ok) {
+        alert('Support ticket raised successfully.');
+        setSupportSubject('');
+        setSupportMsg('');
+        fetchSupportTickets();
+      } else {
+        const err = await response.json();
+        alert(`Failed to raise ticket: ${err.detail || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to raise ticket.');
+    }
   };
 
-  const assignedOrders = db.orders.filter(o => o.courier && currentUser && o.courier.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
+  const isMyPickupOrder = (o: Order) => {
+    if (o.isDeleted) return false;
+    if (!currentUser) return false;
+    const currentName = currentUser.name.trim().toLowerCase();
+    const isPickup = o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === currentName || o.pickupCourier === 'All Delivery Staff');
+    const isLegacy = !o.pickupCourier && o.courier && (o.courier.trim().toLowerCase() === currentName || o.courier === 'All Delivery Staff');
+    return !!(isPickup || isLegacy);
+  };
 
-  const pendingPickupsCount = assignedOrders.filter(o => ['Pending Pickup', 'Courier on the way', 'Reached Customer', 'Pickup Assigned'].includes(o.deliveryStatus) || (o.status as string) === 'Pickup Assigned').length;
-  const pendingDeliveriesCount = assignedOrders.filter(o => ['ready', 'out for delivery'].includes(o.status.toLowerCase())).length;
+  const isMyDeliveryOrder = (o: Order) => {
+    if (o.isDeleted) return false;
+    if (!currentUser) return false;
+    const currentName = currentUser.name.trim().toLowerCase();
+    const isDelivery = o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === currentName || o.deliveryCourier === 'All Delivery Staff');
+    const isLegacy = !o.deliveryCourier && o.courier && (o.courier.trim().toLowerCase() === currentName || o.courier === 'All Delivery Staff');
+    return !!(isDelivery || isLegacy);
+  };
+
+  const assignedOrders = db.orders.filter(o => isMyPickupOrder(o) || isMyDeliveryOrder(o));
+
+  const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
+  const deliveryReadyStatuses = ['ready', 'out for delivery'];
+  
+  const pendingPickupsCount = assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length;
+  const pendingDeliveriesCount = assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).length;
   const totalPendingTasksCount = pendingPickupsCount + pendingDeliveriesCount;
+
+  // Actual commission earnings calculation (total of completed pickups and deliveries)
+  const completedPickupTasks = assignedOrders.filter(o => isMyPickupOrder(o) && !pickupStatuses.includes(o.status.toLowerCase()));
+  const completedDeliveryTasks = assignedOrders.filter(o => isMyDeliveryOrder(o) && o.status.toLowerCase() === 'delivered');
+  const actualPickupEarnings = completedPickupTasks.reduce((sum, o) => sum + (o.pickupCommission || 0), 0);
+  const actualDeliveryEarnings = completedDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission || 0), 0);
+  const totalCommissionEarnings = actualPickupEarnings + actualDeliveryEarnings;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: '"Outfit", sans-serif' }}>
@@ -714,67 +909,114 @@ export const DeliveryPortal: React.FC = () => {
             </div>
 
             <nav style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-              {[
-                { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
-                { id: 'tasks', label: '📋 Assigned Tasks', icon: '📋' },
-                { id: 'earnings', label: '💵 My Earnings', icon: '💵' },
-                { id: 'attendance', label: '📅 Duty & Leaves', icon: '📅' },
-                { id: 'profile', label: '👤 Profile & Verification', icon: '👤' },
-                { id: 'support', label: '🎫 Helpdesk Support', icon: '🎫' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: activeTab === tab.id ? '#eff6ff' : 'transparent',
-                    color: activeTab === tab.id ? '#2563eb' : '#475569',
-                    textAlign: 'left',
-                    fontWeight: '700',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (activeTab !== tab.id) {
-                      e.currentTarget.style.background = '#f8fafc';
-                      e.currentTarget.style.color = '#1e293b';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (activeTab !== tab.id) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#475569';
-                    }
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {tab.label}
-                  </span>
-                  {tab.id === 'tasks' && totalPendingTasksCount > 0 && (
-                    <span style={{
-                      background: '#ef4444',
-                      color: 'white',
-                      borderRadius: '50%',
-                      width: '18px',
-                      height: '18px',
-                      display: 'inline-flex',
+              {(() => {
+                 const lastSeenAnn = parseInt(localStorage.getItem(`ll_${db.activeCompanyId}_delivery_last_seen_announcements_count`) || '0');
+                 const unreadAnnCount = activeTab === 'announcements' ? 0 : Math.max(0, systemAnnouncements.length - lastSeenAnn);
+                 const unreadSupport = db.notifications.filter(n => n.unread && n.text.includes('🎫')).length;
+
+                 return [
+                   { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
+                   { id: 'tasks', label: '📋 Assigned Tasks', icon: '📋' },
+                   { id: 'earnings', label: '💵 My Earnings', icon: '💵' },
+                   { id: 'attendance', label: '📅 Duty & Leaves', icon: '📅' },
+                   { id: 'support', label: '🎫 Helpdesk Support', icon: '🎫' },
+                   { id: 'announcements', label: '📢 Announcements', icon: '📢' }
+                 ].map(tab => (
+                   <button
+                     key={tab.id}
+                     onClick={() => {
+                       setActiveTab(tab.id as any);
+                       if (tab.id === 'announcements') {
+                         localStorage.setItem(`ll_${db.activeCompanyId}_delivery_last_seen_announcements_count`, systemAnnouncements.length.toString());
+                       }
+                      if (tab.id === 'support') {
+                        const updated = db.notifications.map(n => n.text.includes('🎫') ? { ...n, unread: false } : n);
+                        saveDB({ notifications: updated });
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.68rem',
-                      fontWeight: '800'
-                    }}>
-                      {totalPendingTasksCount}
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: activeTab === tab.id ? '#eff6ff' : 'transparent',
+                      color: activeTab === tab.id ? '#2563eb' : '#475569',
+                      textAlign: 'left',
+                      fontWeight: '700',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== tab.id) {
+                        e.currentTarget.style.background = '#f8fafc';
+                        e.currentTarget.style.color = '#1e293b';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== tab.id) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#475569';
+                      }
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {tab.label}
                     </span>
-                  )}
-                </button>
-              ))}
+                    {tab.id === 'tasks' && totalPendingTasksCount > 0 && (
+                      <span style={{
+                        background: '#ef4444',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.68rem',
+                        fontWeight: '800'
+                      }}>
+                        {totalPendingTasksCount}
+                      </span>
+                    )}
+                    {tab.id === 'announcements' && unreadAnnCount > 0 && (
+                      <span style={{
+                        background: '#ef4444',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.68rem',
+                        fontWeight: '800'
+                      }}>
+                        {unreadAnnCount}
+                      </span>
+                    )}
+                    {tab.id === 'support' && unreadSupport > 0 && (
+                      <span style={{
+                        background: '#ef4444',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.68rem',
+                        fontWeight: '800'
+                      }}>
+                        {unreadSupport}
+                      </span>
+                    )}
+                  </button>
+                ));
+              })()}
             </nav>
             
             <div style={{ padding: '16px', borderTop: '1px solid #1e293b', fontSize: '0.72rem', textAlign: 'center' }}>
@@ -789,20 +1031,10 @@ export const DeliveryPortal: React.FC = () => {
             {activeTab === 'dashboard' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
-                {/* Header widget */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
                   <div>
                     <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Welcome back, {currentUser.name}!</h2>
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Here is your delivery operations summary for today.</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold' }}>GPS Status</div>
-                      <div style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold' }}>📡 Connected (Active)</div>
-                    </div>
-                    <button onClick={handleClockInOut} style={{ padding: '10px 20px', background: isClockedIn ? '#ef4444' : '#16a34a', color: 'white', border: 'none', borderRadius: '24px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>
-                      {isClockedIn ? 'Clock Out (End Duty)' : 'Clock In (Start Duty)'}
-                    </button>
                   </div>
                 </div>
 
@@ -847,9 +1079,9 @@ export const DeliveryPortal: React.FC = () => {
                       <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>Earnings</span>
                     </div>
                     <div style={{ fontSize: '2.25rem', fontWeight: '900', color: '#16a34a', margin: '14px 0 4px 0' }}>
-                      QR {(assignedOrders.filter(o => o.status === 'Delivered').length * 15).toFixed(2)}
+                      QR {totalCommissionEarnings.toFixed(2)}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Today's flat-rate earnings</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Delivery/Pickup Commission</div>
                   </div>
                 </div>
 
@@ -873,14 +1105,14 @@ export const DeliveryPortal: React.FC = () => {
                   <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>📢 Active Company Announcements</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
-                      {db.announcements.filter(a => a.targetAudience === 'All' || a.targetAudience === 'Delivery Staff').length === 0 ? (
+                      {systemAnnouncements.length === 0 ? (
                         <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', padding: '20px 0' }}>No active announcements for staff.</div>
                       ) : (
-                        db.announcements.filter(a => a.targetAudience === 'All' || a.targetAudience === 'Delivery Staff').map(a => (
+                        systemAnnouncements.map(a => (
                           <div key={a.id} style={{ background: '#faf5ff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '0.82rem' }}>
                             <strong style={{ color: '#5b21b6' }}>{a.title}</strong>
                             <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{a.content}</p>
-                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>{a.date} | by {a.author}</div>
+                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>{new Date(a.created_at).toLocaleDateString()} | Platform Broadcaster</div>
                           </div>
                         ))
                       )}
@@ -921,10 +1153,10 @@ export const DeliveryPortal: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                   {tasksSubTab === 'pickups' ? (
-                    assignedOrders.filter(o => ['Pending Pickup', 'Courier on the way', 'Reached Customer', 'Pickup Assigned'].includes(o.deliveryStatus) || (o.status as string) === 'Pickup Assigned').length === 0 ? (
+                    assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length === 0 ? (
                       <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>No pending pickup assignments.</div>
                     ) : (
-                      assignedOrders.filter(o => ['Pending Pickup', 'Courier on the way', 'Reached Customer', 'Pickup Assigned'].includes(o.deliveryStatus) || (o.status as string) === 'Pickup Assigned').map(o => (
+                      assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).map(o => (
                         <div key={o.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -938,6 +1170,7 @@ export const DeliveryPortal: React.FC = () => {
                               <div>🧺 <strong>Services:</strong> {o.services?.map(s => `${s.name} x${s.qty}`).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
                               <div>📅 <strong>Pickup Time:</strong> {o.date} (10:00 AM - 1:00 PM)</div>
                               <div>📝 <strong>Instructions:</strong> Handle with care, separate whites.</div>
+                              <div style={{ marginTop: '6px', background: '#fef3c7', color: '#b45309', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Pickup Commission: QR {(o.pickupCommission || 0).toFixed(2)}</div>
                             </div>
                           </div>
 
@@ -961,10 +1194,10 @@ export const DeliveryPortal: React.FC = () => {
                       ))
                     )
                   ) : (
-                    assignedOrders.filter(o => ['ready', 'out for delivery'].includes(o.status.toLowerCase())).length === 0 ? (
+                    assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).length === 0 ? (
                       <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>No pending delivery assignments.</div>
                     ) : (
-                      assignedOrders.filter(o => ['ready', 'out for delivery'].includes(o.status.toLowerCase())).map(o => (
+                      assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).map(o => (
                         <div key={o.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -979,6 +1212,7 @@ export const DeliveryPortal: React.FC = () => {
                               <div>📅 <strong>Delivery Time:</strong> {o.date} (3:00 PM - 6:00 PM)</div>
                               <div>💳 <strong>Method:</strong> {o.paymentMethod} ({o.paymentStatus || 'Unpaid'})</div>
                               <div>📝 <strong>Instructions:</strong> Verify OTP code upon arrival.</div>
+                              <div style={{ marginTop: '6px', background: '#eff6ff', color: '#1e40af', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Delivery Commission: QR {(o.deliveryCommission || 0).toFixed(2)}</div>
                             </div>
                           </div>
 
@@ -991,7 +1225,7 @@ export const DeliveryPortal: React.FC = () => {
                               <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 Mark Out For Delivery</button>
                             )}
                             {o.status === 'Out for Delivery' && (
-                              <button onClick={() => setVerifyingDeliveryOrder(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🔑 Verify OTP & Complete</button>
+                              <button onClick={() => triggerDeliveryOtpRequest(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🔑 Verify OTP & Complete</button>
                             )}
                           </div>
                         </div>
@@ -1007,31 +1241,120 @@ export const DeliveryPortal: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>My Earnings Ledger</h2>
                 
-                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', maxWidth: '400px' }}>
-                  <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>Total Earnings (Today)</div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#16a34a', margin: '10px 0' }}>
-                    QR {(assignedOrders.filter(o => o.status === 'Delivered').length * 15).toFixed(2)}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Flat drop payout rates: <strong>QR 15.00</strong> per completed drop</div>
-                </div>
+                {(() => {
+                  const completed: { id: string; date: string; type: 'Pickup' | 'Delivery'; customerName: string; amount: number; paid: boolean; method?: string }[] = [];
+                  assignedOrders.forEach(o => {
+                    const isMyPickup = isMyPickupOrder(o);
+                    const isMyDelivery = isMyDeliveryOrder(o);
+                    if (o.pickupCommission && o.pickupCommission > 0 && isMyPickup) {
+                      completed.push({
+                        id: `${o.id}-pickup`,
+                        date: o.pickupPaymentDate || o.date,
+                        type: 'Pickup',
+                        customerName: o.customerName,
+                        amount: o.pickupCommission,
+                        paid: !!o.pickupCommissionPaid,
+                        method: o.pickupPaymentMethod
+                      });
+                    }
+                    if (o.deliveryCommission && o.deliveryCommission > 0 && isMyDelivery) {
+                      completed.push({
+                        id: `${o.id}-delivery`,
+                        date: o.deliveryPaymentDate || o.date,
+                        type: 'Delivery',
+                        customerName: o.customerName,
+                        amount: o.deliveryCommission,
+                        paid: !!o.deliveryCommissionPaid,
+                        method: o.deliveryPaymentMethod
+                      });
+                    }
+                  });
+                  const totalEarned = completed.reduce((sum, item) => sum + item.amount, 0);
+                  const paid = completed.filter(item => item.paid).reduce((sum, item) => sum + item.amount, 0);
+                  const pending = totalEarned - paid;
 
-                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', color: '#1e293b' }}>Earnings projections log</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                      <span>Completed Deliveries:</span>
-                      <strong>{assignedOrders.filter(o => o.status === 'Delivered').length} orders</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                      <span>Weekly Estimate (Avg 6 days):</span>
-                      <strong>QR {(assignedOrders.filter(o => o.status === 'Delivered').length * 15 * 6).toFixed(2)}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Monthly Estimate (Avg 26 days):</span>
-                      <strong>QR {(assignedOrders.filter(o => o.status === 'Delivered').length * 15 * 26).toFixed(2)}</strong>
-                    </div>
-                  </div>
-                </div>
+                  return (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', width: '100%', maxWidth: '800px' }}>
+                        
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>Amount Pending (Unpaid)</div>
+                          <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#f59e0b', margin: '10px 0' }}>
+                            QR {pending.toFixed(2)}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Awaiting payout from Admin</div>
+                        </div>
+
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>Successfully Paid</div>
+                          <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#16a34a', margin: '10px 0' }}>
+                            QR {paid.toFixed(2)}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Total payouts received</div>
+                        </div>
+
+                      </div>
+
+                      <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', maxWidth: '800px', marginTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>🧾 Earnings & Payout History</h3>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Total Lifetime: QR {totalEarned.toFixed(2)}</div>
+                        </div>
+
+                        {completed.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.9rem' }}>No completed tasks yet.</div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Task Date</th>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Details</th>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Task Type</th>
+                                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Commission</th>
+                                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Payout Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {completed.map(item => {
+                                  const d = new Date(item.date);
+                                  const dateStr = isNaN(d.getTime()) ? item.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                  
+                                  return (
+                                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                      <td style={{ padding: '12px', fontWeight: '600' }}>{dateStr}</td>
+                                      <td style={{ padding: '12px' }}>
+                                        <div style={{ fontWeight: '700', color: '#1e3a8a' }}>#{item.id.split('-')[0]}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.customerName}</div>
+                                      </td>
+                                      <td style={{ padding: '12px', fontWeight: '700', color: item.type === 'Pickup' ? '#d97706' : '#2563eb' }}>
+                                        {item.type}
+                                      </td>
+                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                                        QR {item.amount.toFixed(2)}
+                                      </td>
+                                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                                        {item.paid ? (
+                                          <div style={{ display: 'inline-block', background: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800' }}>
+                                            Paid via {item.method || 'Cash'}
+                                          </div>
+                                        ) : (
+                                          <div style={{ display: 'inline-block', background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800' }}>
+                                            Pending
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -1104,121 +1427,7 @@ export const DeliveryPortal: React.FC = () => {
             )}
 
             {/* TAB 5: PROFILE */}
-            {activeTab === 'profile' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>My Profile Details</h2>
-                  
-                  <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    {currentUser.profilePhoto && !profileImgError ? (
-                      <img 
-                        src={currentUser.profilePhoto} 
-                        alt="profile" 
-                        onError={() => setProfileImgError(true)} 
-                        style={{ width: '70px', height: '70px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2563eb' }} 
-                      />
-                    ) : (
-                      <div style={{ 
-                        width: '70px', 
-                        height: '70px', 
-                        borderRadius: '50%', 
-                        background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', 
-                        color: 'white', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontWeight: 'bold',
-                        fontSize: '1.8rem',
-                        border: '2px solid #2563eb'
-                      }}>
-                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'D'}
-                      </div>
-                    )}
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '1.15rem' }}>{currentUser.name}</h3>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-                        <div>🚚 Vehicle: {currentUser.vehicleType || 'Bike'}</div>
-                        <div>Plate Number: {currentUser.vehicleNumber || 'QA-8829'}</div>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '0.95rem' }}>🗂️ Verification Credentials</h3>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                        <span>Aadhaar ID Status:</span>
-                        <strong style={{ color: '#16a34a' }}>✓ VERIFIED</strong>
-                      </div>
-                      <input type="file" onChange={() => alert('Aadhaar Document uploaded successfully. Under review.')} style={{ fontSize: '0.75rem' }} />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                        <span>Driving License Status:</span>
-                        <strong style={{ color: '#16a34a' }}>✓ VERIFIED</strong>
-                      </div>
-                      <input type="file" onChange={() => alert('Driving License Document uploaded successfully. Under review.')} style={{ fontSize: '0.75rem' }} />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                        <span>Vehicle RC Status:</span>
-                        <strong style={{ color: '#16a34a' }}>✓ VERIFIED</strong>
-                      </div>
-                      <input type="file" onChange={() => alert('Vehicle RC Document uploaded successfully. Under review.')} style={{ fontSize: '0.75rem' }} />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                        <span>Insurance Policy Status:</span>
-                        <strong style={{ color: '#16a34a' }}>✓ VERIFIED</strong>
-                      </div>
-                      <input type="file" onChange={() => alert('Vehicle Insurance Document uploaded successfully. Under review.')} style={{ fontSize: '0.75rem' }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Edit Contact Information</h2>
-                  
-                  <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Home Address</label>
-                      <input type="text" value={profAddress} onChange={e => setProfAddress(e.target.value)} style={{ width: '100%', padding: '8px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Emergency Contact Name</label>
-                      <input type="text" value={emergencyName} onChange={e => setEmergencyName(e.target.value)} style={{ width: '100%', padding: '8px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Emergency Contact Phone</label>
-                      <input type="text" value={emergencyContact} onChange={e => setEmergencyContact(e.target.value)} style={{ width: '100%', padding: '8px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <button onClick={() => alert('Personal settings update completed.')} style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', marginTop: '6px' }}>Save Profiles Changes</button>
-                  </div>
-
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Change Password</h2>
-                  <form onSubmit={(e) => { e.preventDefault(); alert('Password successfully changed!'); }} style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Old Password</label>
-                      <input type="password" required style={{ width: '100%', padding: '8px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>New Password</label>
-                      <input type="password" required style={{ width: '100%', padding: '8px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                    </div>
-                    <button type="submit" style={{ padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>Update Password</button>
-                  </form>
-                </div>
-
-              </div>
-            )}
 
             {/* TAB 6: SUPPORT */}
             {activeTab === 'support' && (
@@ -1235,14 +1444,34 @@ export const DeliveryPortal: React.FC = () => {
 
                   <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                     <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Support Ticket History</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {supportTickets.length === 0 ? (
-                        <div style={{ color: '#64748b' }}>No active helpdesk tickets.</div>
+                        <div style={{ color: '#64748b', fontSize: '0.82rem' }}>No active helpdesk tickets.</div>
                       ) : (
-                        supportTickets.map((t, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
-                            <span><strong>{t.id}</strong>: {t.subject}</span>
-                            <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{t.status}</span>
+                        supportTickets.map((t) => (
+                          <div key={t.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '0.85rem' }}>{t.subject}</span>
+                              <span style={{ 
+                                fontSize: '0.72rem', 
+                                background: t.status === 'RESPONDED' ? '#dcfce7' : '#eff6ff', 
+                                color: t.status === 'RESPONDED' ? '#15803d' : '#2563eb', 
+                                padding: '2px 8px', 
+                                borderRadius: '12px', 
+                                fontWeight: 'bold' 
+                              }}>{t.status}</span>
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                              <strong>Ticket ID:</strong> {t.id}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#334155', background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              <strong>My Message:</strong> {t.description || 'No description'}
+                            </div>
+                            {t.admin_response && (
+                              <div style={{ fontSize: '0.8rem', color: '#1e3a8a', background: '#eff6ff', padding: '8px', borderRadius: '6px', border: '1px solid #bfdbfe', marginTop: '4px' }}>
+                                💬 <strong>Admin Reply:</strong> {t.admin_response}
+                              </div>
+                            )}
                           </div>
                         ))
                       )}
@@ -1271,6 +1500,38 @@ export const DeliveryPortal: React.FC = () => {
               </div>
             )}
 
+            {/* --- ANNOUNCEMENTS TAB --- */}
+            {activeTab === 'announcements' && (
+              <div>
+                <h3 style={{ margin: '0 0 16px 0', color: '#1e3a8a' }}>📢 System Announcements</h3>
+                <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '24px' }}>
+                  Important platform updates and operational changes from the management.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {systemAnnouncements.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      No active system announcements at this time.
+                    </div>
+                  ) : (
+                    systemAnnouncements.map(ann => (
+                      <div key={ann.id} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{ann.title}</strong>
+                          <span style={{ fontSize: '0.7rem', background: '#f1f5f9', padding: '4px 8px', borderRadius: '12px', color: '#475569', fontWeight: 'bold' }}>
+                            {new Date(ann.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: '#475569', margin: 0, lineHeight: '1.4' }}>
+                          {ann.content}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
           </main>
         </div>
       )}
@@ -1293,6 +1554,28 @@ export const DeliveryPortal: React.FC = () => {
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
                 <button type="button" onClick={() => setPickupDetailsOrder(null)} style={{ padding: '6px 12px', border: '1.5px solid #cbd5e1', background: 'transparent', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                 <button type="submit" style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Save Pickup</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: PICKUP OTP VERIFICATION --- */}
+      {verifyingPickupOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#1e3a8a' }}>🔑 Verify Pickup OTP</h4>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 14px 0' }}>An OTP has been sent to the customer's email. Enter it below to complete the pickup.</p>
+            
+            <form onSubmit={submitPickupVerification} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Enter Customer's OTP Code</label>
+                <input type="text" required value={enteredPickupOtp} onChange={e => setEnteredPickupOtp(e.target.value)} placeholder="6-digit OTP" style={{ width: '100%', padding: '10px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', textAlign: 'center', fontSize: '1.25rem', letterSpacing: '3px', fontWeight: 'bold' }} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button type="button" onClick={() => setVerifyingPickupOrder(null)} style={{ padding: '6px 12px', border: '1.5px solid #cbd5e1', background: 'transparent', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Verify & Complete</button>
               </div>
             </form>
           </div>

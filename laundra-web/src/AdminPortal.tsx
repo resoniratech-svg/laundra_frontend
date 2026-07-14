@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
 import { PortalLayout } from './components/PortalLayout';
-import { apiApproveDeliveryBoy } from './deliveryApi';
+import { apiApproveDeliveryBoy, apiRejectDeliveryBoy } from './deliveryApi';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface CompanyActivity {
@@ -24,9 +25,33 @@ interface SupportTicket {
   history?: { sender: string; message: string; date: string }[];
 }
 
+const getEmojiForService = (name: string) => {
+  const n = String(name).toLowerCase();
+  if (n.includes('saree') || n.includes('salwar')) return '🥻';
+  if (n.includes('thobe') || n.includes('kurta') || n.includes('jalabiya') || n.includes('kameez')) return '🥼';
+  if (n.includes('ghuthra') || n.includes('scarf')) return '🧣';
+  if (n.includes('bisht') || n.includes('jacket') || n.includes('coat')) return '🧥';
+  if (n.includes('skirt') || n.includes('dress')) return '👗';
+  if (n.includes('suit') || n.includes('uniform') || n.includes('tuxedo')) return '👔';
+  if (n.includes('pant') || n.includes('trouser') || n.includes('jean') || n.includes('short')) return '👖';
+  if (n.includes('shoe') || n.includes('sneaker')) return '👞';
+  if (n.includes('underwear') || n.includes('brief') || n.includes('bra')) return '🩲';
+  if (n.includes('blanket') || n.includes('duvet') || n.includes('bed')) return '🛏️';
+  if (n.includes('curtain') || n.includes('drape')) return '🪟';
+  if (n.includes('carpet') || n.includes('rug')) return '🛤️';
+  if (n.includes('towel')) return '🧻';
+  if (n.includes('masalla')) return '🕌';
+  if (n.includes('sock')) return '🧦';
+  if (n.includes('glove')) return '🧤';
+  if (n.includes('hat') || n.includes('cap')) return '🧢';
+  if (n.includes('bag')) return '🎒';
+  return '👕'; // Default
+};
+
 export const AdminPortal: React.FC = () => {
-  const { db, saveDB } = useDatabase();
+  const { db, saveDB, token } = useDatabase();
   const navigate = useNavigate();
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
   // Announcement composer state
   const [annTitle, setAnnTitle] = useState('');
@@ -74,18 +99,17 @@ export const AdminPortal: React.FC = () => {
     try { return JSON.parse(localStorage.getItem(`ll_${db.activeCompanyId}_activities`) || '[]'); } catch { return []; }
   });
 
-  // Support Tickets
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
-    try {
-      const all = JSON.parse(localStorage.getItem('ll_platform_tickets') || '[]');
-      return all.filter((t: any) => t.company === db.companies.find(c => c.id === db.activeCompanyId)?.name);
-    } catch {
-      return [];
-    }
-  });
+  // Platform Tickets
+  const [platformTickets, setPlatformTickets] = useState<any[]>([]);
+  
+  // Customer Tickets (Admin View)
+  const [adminCustomerTickets, setAdminCustomerTickets] = useState<any[]>([]);
+  const [viewingSenderDetails, setViewingSenderDetails] = useState<any | null>(null);
+  const [customerTicketReply, setCustomerTicketReply] = useState<{ [id: string]: string }>({});
 
   // Local state for modals & details
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Order | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
@@ -111,10 +135,12 @@ export const AdminPortal: React.FC = () => {
   const [staffVehicleNumber, setStaffVehicleNumber] = useState('');
   const [staffLicenseNumber, setStaffLicenseNumber] = useState('');
   const [staffVehicleRc, setStaffVehicleRc] = useState('');
+  const [backendLeaveRequests, setBackendLeaveRequests] = useState<any[]>([]);
 
   // Manual orders / POS
   const [posCart, setPosCart] = useState<{ itemId: string; itemName: string; serviceTypeId: string; serviceTypeName: string; variantId: string; variantName: string; price: number; qty: number }[]>([]);
-  const [selectedPosItem, setSelectedPosItem] = useState<any>(null);
+  const [selectedPosItem, setSelectedPosItem] = useState<string | null>(null);
+  const [backendServices, setBackendServices] = useState<any[]>([]);
   const [posCustId, setPosCustId] = useState('');
   const [posCustName, setPosCustName] = useState('');
   const [posCustPhone, setPosCustPhone] = useState('');
@@ -124,6 +150,10 @@ export const AdminPortal: React.FC = () => {
   const [posSearch, setPosSearch] = useState('');
   // Removed posCategory
   const [posCommission, setPosCommission] = useState<string>('');
+  const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
+  const [posCouponCode, setPosCouponCode] = useState('');
+  const [posDiscount, setPosDiscount] = useState(0);
+  const [posCouponApplied, setPosCouponApplied] = useState(false);
 
   // Service Forms
   const [addingService, setAddingService] = useState(false);
@@ -150,11 +180,13 @@ export const AdminPortal: React.FC = () => {
   const [cpDesc, setCpDesc] = useState('');
 
   // Expense Forms
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [expCategory, setExpCategory] = useState('Salary');
+  const [backendExpenses, setBackendExpenses] = useState<any[]>([]);
+  const [editingExpense, setEditingExpense] = useState<any | null>(null);
+  const [expCategory, setExpCategory] = useState('');
   const [expDesc, setExpDesc] = useState('');
-  const [expSource, setExpSource] = useState('Drawer Cash');
+  const [expSource, setExpSource] = useState('');
   const [expAmount, setExpAmount] = useState('');
+  const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Support ticket Forms
   const [tktSubject, setTktSubject] = useState('');
@@ -167,15 +199,14 @@ export const AdminPortal: React.FC = () => {
   const [notificationsLog, setNotificationsLog] = useState<{ id: string; target: string; channel: string; text: string; time: string }[]>([]);
 
   // Reviews
-  const [reviews, setReviews] = useState<{ id: string; name: string; stars: number; comment: string; reply?: string; hidden?: boolean }[]>([
-    { id: 'rev-1', name: 'Al Pacino', stars: 5, comment: 'Excellent laundry service. Pressed perfectly.' },
-    { id: 'rev-2', name: 'Robert De Niro', stars: 4, comment: 'Quick delivery but wash could be cleaner.' }
-  ]);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [replyText, setReplyText] = useState('');
   const [activeReviewId, setActiveReviewId] = useState('');
 
   // QR Modal
   const [qrCust, setQrCust] = useState<Customer | null>(null);
+
+  const [systemAnnouncements, setSystemAnnouncements] = useState<any[]>([]);
 
   // Search & Filter
   const [orderSearch, setOrderSearch] = useState('');
@@ -183,13 +214,314 @@ export const AdminPortal: React.FC = () => {
   const [custSearch, setCustSearch] = useState('');
 
   // Get active company configurations
-  const activeComp = db.companies.find(c => c.id === db.activeCompanyId)!;
+  const activeComp = db.companies.find(c => c.id === db.activeCompanyId) || {
+    id: db.activeCompanyId || 'unknown',
+    name: 'Tenant Company',
+    adminEmail: 'admin@tenant.com',
+    limits: { maxAdmins: 10, maxCashiers: 10, maxDeliveryStaff: 10, maxCustomers: 5000, maxOrdersPerMonth: 2000 },
+    features: ['CUSTOMER_MANAGEMENT', 'ORDER_MANAGEMENT', 'DELIVERY_MODULE', 'WALLET']
+  } as any;
   const limits = activeComp.limits || { maxAdmins: 3, maxCashiers: 5, maxDeliveryStaff: 10, maxCustomers: 5000, maxOrdersPerMonth: 2000 };
+  const companyHeaderName = activeComp ? `${activeComp.name}${activeComp.address ? `, ${activeComp.address}` : ''}` : 'Laundry Desk';
 
   // Sync activities
   useEffect(() => {
     localStorage.setItem(`ll_${db.activeCompanyId}_activities`, JSON.stringify(activities));
   }, [activities, db.activeCompanyId]);
+
+  // Fetch backend services, customers, and users
+  const fetchBackendData = async () => {
+    try {
+      const servicesRes = await fetch(`${BASE_URL}/api/v1/services`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (servicesRes.ok) {
+        const sData = await servicesRes.json();
+        setBackendServices(sData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend services:', err);
+    }
+
+    try {
+      const expRes = await fetch(`${BASE_URL}/api/v1/expenses`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (expRes.ok) {
+        const eData = await expRes.json();
+        setBackendExpenses(eData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend expenses:', err);
+    }
+
+    try {
+      const custRes = await fetch(`${BASE_URL}/api/v1/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (custRes.ok) {
+        const cData = await custRes.json();
+        // Map backend customers to the local Customer format
+        const mapped = cData.map((c: any) => ({
+          id: c.id,
+          name: c.name || '',
+          phone: c.phone || '',
+          email: c.email || '',
+          address: c.address || '',
+          walletBalance: parseFloat(c.wallet_balance || '0'),
+          loyaltyPoints: c.loyalty_points || 0,
+          creditBalance: 0,
+          notes: '',
+          qrStatus: 'Active QR' as const
+        }));
+        if (mapped.length > 0) {
+          saveDB({ customers: mapped });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend customers:', err);
+    }
+
+    try {
+      const coupRes = await fetch(`${BASE_URL}/api/v1/coupons`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (coupRes.ok) {
+        const coupData = await coupRes.json();
+        const mappedCoupons = coupData.map((c: any) => ({
+          id: c.id,
+          code: c.code,
+          type: c.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
+          value: parseFloat(c.value),
+          description: `Expires: ${c.expiry_date || 'Never'}`,
+          uses: 0
+        }));
+        saveDB({ promos: mappedCoupons });
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend coupons:', err);
+    }
+
+
+    try {
+      const usersRes = await fetch(`${BASE_URL}/api/v1/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (usersRes.ok) {
+        const uData = await usersRes.json();
+        const mappedUsers = uData.map((u: any) => {
+          let mappedRole = 'admin';
+          if (u.role === 'DELIVERY_BOY') mappedRole = 'delivery';
+          else if (u.role === 'CASHIER') mappedRole = 'cashier';
+          else if (u.role === 'CUSTOMER') mappedRole = 'customer';
+          
+          let mappedStatus = 'Active';
+          if (u.status === 'PENDING_APPROVAL') mappedStatus = 'Pending';
+          else if (u.status === 'SUSPENDED' || u.status === 'INACTIVE') mappedStatus = 'Suspended';
+          
+          return {
+            id: u.id,
+            name: u.name || '',
+            role: mappedRole,
+            email: u.email || '',
+            phone: u.phone || '',
+            address: u.address || '',
+            status: mappedStatus,
+            createdAt: u.created_at || new Date().toISOString(),
+            profilePhoto: u.profile_photo || '',
+            vehicleType: u.vehicle_type || '',
+            vehicleNumber: u.vehicle_number || '',
+            licenseNumber: u.license_number || '',
+            vehicleRc: u.vehicle_rc || ''
+          };
+        });
+        if (mappedUsers.length > 0) {
+          saveDB({ users: mappedUsers });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend users:', err);
+    }
+
+    try {
+      const leavesRes = await fetch(`${BASE_URL}/api/v1/leave-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (leavesRes.ok) {
+        const lData = await leavesRes.json();
+        setBackendLeaveRequests(lData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend leave requests:', err);
+    }
+
+    try {
+      const tktRes = await fetch(`${BASE_URL}/api/v1/support/tickets`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (tktRes.ok) {
+        const tData = await tktRes.json();
+        setPlatformTickets(tData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch support tickets:', err);
+    }
+
+    try {
+      const custTktRes = await fetch(`${BASE_URL}/api/v1/admin/customer-support`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (custTktRes.ok) {
+        const cTData = await custTktRes.json();
+        setAdminCustomerTickets(cTData);
+        localStorage.setItem(`ll_${db.activeCompanyId}_customer_support_tickets`, JSON.stringify(cTData));
+        const unresolvedCount = cTData.filter((t: any) => t.status === 'OPEN' || t.status === 'PENDING').length;
+        saveDB({ unresolvedSupportCount: unresolvedCount });
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer support tickets:', err);
+    }
+
+    try {
+      const revRes = await fetch(`${BASE_URL}/api/v1/reviews`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (revRes.ok) {
+        const rData = await revRes.json();
+        setReviews(rData);
+        localStorage.setItem(`ll_${db.activeCompanyId}_reviews`, JSON.stringify(rData));
+        const lastSeen = parseInt(localStorage.getItem(`ll_${db.activeCompanyId}_last_seen_reviews_count`) || '0');
+        const newCount = activeModule === 'reviews' ? 0 : Math.max(0, rData.length - lastSeen);
+        saveDB({ unreadReviewsCount: newCount });
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer reviews:', err);
+    }
+
+    try {
+      const annRes = await fetch(`${BASE_URL}/api/v1/announcements/admin`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (annRes.ok) {
+        setSystemAnnouncements(await annRes.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch system announcements:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchBackendData();
+    }
+  }, [token, db.activeCompanyId]);
+
+  // Sync announcements & support ticket replies with local notifications
+  useEffect(() => {
+    let changed = false;
+    const currentNotifications = [...db.notifications];
+
+    // Check announcements
+    systemAnnouncements.forEach(ann => {
+      const exists = currentNotifications.some(n => n.text.includes(ann.title));
+      if (!exists) {
+        currentNotifications.unshift({
+          id: Date.now() + Math.random(),
+          text: `📢 Announcement: ${ann.title}`,
+          time: new Date(ann.created_at).toLocaleDateString(),
+          unread: true
+        });
+        changed = true;
+      }
+    });
+
+    // Check support tickets
+    platformTickets.forEach(t => {
+      if (t.internal_notes) {
+        const textToFind = `Ticket #${t.id || t.backendId} Reply`;
+        const exists = currentNotifications.some(n => n.text.includes(textToFind));
+        if (!exists) {
+          currentNotifications.unshift({
+            id: Date.now() + Math.random(),
+            text: `🎫 Ticket #${t.id || t.backendId} Reply: ${t.internal_notes}`,
+            time: 'Just now',
+            unread: true
+          });
+          changed = true;
+        }
+      }
+    });
+
+    // Check customer reviews
+    reviews.forEach(rev => {
+      const cName = rev.customer_name || rev.customerName || 'Customer';
+      const textToFind = `Review from ${cName}`;
+      const exists = currentNotifications.some(n => n.text.includes(textToFind));
+      if (!exists) {
+        currentNotifications.unshift({
+          id: Date.now() + Math.random(),
+          text: `⭐ Review from ${cName}: "${(rev.comment || rev.text || '').substring(0, 30)}..."`,
+          time: 'Just now',
+          unread: true
+        });
+        changed = true;
+      }
+    });
+
+    // Check customer/delivery support tickets
+    adminCustomerTickets.forEach(t => {
+      if (t.status === 'OPEN' || t.status === 'PENDING') {
+        const textToFind = `Support Ticket #${t.id || t.backendId}`;
+        const exists = currentNotifications.some(n => n.text.includes(textToFind));
+        if (!exists) {
+          currentNotifications.unshift({
+            id: Date.now() + Math.random(),
+            text: `🎧 Support Ticket #${t.id || t.backendId} from ${t.sender_name || t.senderName || 'User'}: ${t.subject}`,
+            time: 'Just now',
+            unread: true
+          });
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      saveDB({
+        notifications: currentNotifications
+      });
+    }
+  }, [systemAnnouncements, platformTickets, reviews, adminCustomerTickets]);
+
+  // One-time migration: normalize any existing orders stored with UUID or prefixed IDs to plain 6-digit numbers
+  useEffect(() => {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const prefixPattern = /^(OR-|ORD-)/i;
+    const needsMigration = db.orders.some(o => uuidPattern.test(o.id) || prefixPattern.test(o.id));
+    if (needsMigration) {
+      const migratedOrders = db.orders.map(o => {
+        if (uuidPattern.test(o.id)) {
+          const humanId = String(Math.floor(100000 + Math.random() * 900000));
+          return { ...o, id: humanId, backendId: o.backendId || o.id };
+        }
+        if (prefixPattern.test(o.id)) {
+          // Extract digits from OR-1943 → 1943, ORD-20260713-5503 → keep last digits, pad to 6
+          const digits = o.id.replace(/[^0-9]/g, '');
+          const humanId = digits.length >= 4 ? digits.slice(-6).padStart(6, '0') : String(Math.floor(100000 + Math.random() * 900000));
+          return { ...o, id: humanId };
+        }
+        return o;
+      });
+      saveDB({ orders: migratedOrders });
+    }
+  }, [db.orders.length]);
+
+  // Clear reviews badge when reviews tab is opened and mark all as seen
+  useEffect(() => {
+    if (activeModule === 'reviews') {
+      localStorage.setItem(`ll_${db.activeCompanyId}_last_seen_reviews_count`, reviews.length.toString());
+      saveDB({ unreadReviewsCount: 0 });
+    }
+  }, [activeModule, reviews.length, db.activeCompanyId]);
 
   const addActivity = (category: CompanyActivity['category'], description: string) => {
     const newAct: CompanyActivity = {
@@ -237,63 +569,117 @@ export const AdminPortal: React.FC = () => {
     setAddingCustomerStep(1);
   };
 
-  const handleCreateCustomerInputs = (e: React.FormEvent) => {
+  const handleCreateCustomerInputs = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAddingCustomerStep(2);
-    sendCentralOtp(custEmail, 'Customer Email Verification');
-  };
-
-  const handleVerifyCustomerOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (custOtp === generatedOtp || custOtp === '1234') {
-      setAddingCustomerStep(3);
-    } else {
-      alert('Invalid Central OTP! Please enter correct code (or enter 1234 demo bypass code).');
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/customers/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: custEmail, phone: custPhone })
+      });
+      if (res.ok) {
+        setAddingCustomerStep(2);
+        alert(`OTP has been sent to ${custEmail}`);
+      } else {
+        const data = await res.json();
+        alert(`Failed to send OTP: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error while sending OTP');
     }
   };
 
-  const handleCompleteCustomerSetup = (e: React.FormEvent) => {
+  const handleVerifyCustomerOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCust: Customer = {
-      id: 'cust-' + Math.floor(10000 + Math.random() * 90000),
-      name: custName,
-      email: custEmail,
-      phone: custPhone,
-      address: custAddress,
-      walletBalance: 0,
-      loyaltyPoints: 0,
-      creditBalance: 0,
-      notes: 'Admin manual registration active'
-    };
 
-    const newUser: User = {
-      id: 'u-' + (db.users.length + 1),
-      name: custName,
-      role: 'customer',
-      email: custEmail,
-      password: custPass || 'password',
-      phone: custPhone,
-      address: custAddress,
-      status: 'Active',
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/customers/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: custEmail, otp: custOtp })
+      });
 
-    saveDB({
-      customers: [...db.customers, newCust],
-      users: [...db.users, newUser]
-    });
+      if (res.ok) {
+        setAddingCustomerStep(3);
+      } else {
+        const data = await res.json();
+        alert(`Failed to verify OTP: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error verifying OTP');
+    }
+  };
 
-    addActivity('Customer', `Manual registration verified for customer: ${custName}`);
-    alert(`Customer ${custName} registered successfully!`);
-    
-    // Reset wizard
-    setCustName('');
-    setCustEmail('');
-    setCustPhone('');
-    setCustAddress('');
-    setCustPass('');
-    setCustOtp('');
-    setAddingCustomerStep(0);
+  const handleCompleteCustomerSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          name: custName,
+          email: custEmail,
+          phone: custPhone,
+          address: custAddress,
+          otp: custOtp,
+          password: custPass
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`Failed to create customer: ${data.detail || 'Unknown error'}`);
+        return;
+      }
+
+      // Backend created successfully, update mock DB
+      const newCust: Customer = {
+        id: 'cust-' + Math.floor(10000 + Math.random() * 90000),
+        name: custName,
+        email: custEmail,
+        phone: custPhone,
+        address: custAddress,
+        walletBalance: 0,
+        loyaltyPoints: 0,
+        creditBalance: 0,
+        notes: 'Admin manual registration active'
+      };
+
+      const newUser: User = {
+        id: 'u-' + (db.users.length + 1),
+        name: custName,
+        role: 'customer',
+        email: custEmail,
+        password: custPass,
+        phone: custPhone,
+        address: custAddress,
+        status: 'Active',
+        createdAt: new Date().toISOString()
+      };
+
+      saveDB({
+        customers: [...db.customers, newCust],
+        users: [...db.users, newUser]
+      });
+
+      addActivity('Customer', `Manual registration verified for customer: ${custName}`);
+      alert(`Customer ${custName} registered successfully!`);
+      
+      // Reset wizard
+      setCustName('');
+      setCustEmail('');
+      setCustPhone('');
+      setCustAddress('');
+      setCustPass('');
+      setCustOtp('');
+      setAddingCustomerStep(0);
+    } catch (err) {
+      console.error(err);
+      alert('Network error creating customer');
+    }
   };
 
   // Staff creation actions (Cashier / Delivery boy)
@@ -314,63 +700,204 @@ export const AdminPortal: React.FC = () => {
     else setAddingDeliveryStep(1);
   };
 
-  const handleCreateStaffInputs = (e: React.FormEvent, role: 'cashier' | 'delivery') => {
+  const handleCreateStaffInputs = async (e: React.FormEvent, role: 'cashier' | 'delivery') => {
+    e.preventDefault();
+    const emailLower = staffEmail.trim().toLowerCase();
+    const existing = db.users.find(u => u.email.toLowerCase() === emailLower);
+    if (existing) {
+      alert('Email already registered.');
+      return;
+    }
+    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+    if (role === 'cashier') {
+      try {
+        const token = localStorage.getItem('ll_auth_token');
+        const res = await fetch(`${BASE_URL}/api/v1/auth/cashier/send-otp`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ email: staffEmail })
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.otp_debug) {
+            alert(`[DEV MODE] SMTP not configured. The OTP for ${staffEmail} is: ${data.otp_debug}`);
+          }
+          setAddingCashierStep(2);
+        } else {
+          const data = await res.json();
+          alert(`Error sending OTP: ${data.detail || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error sending OTP');
+      }
+    } else {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: staffEmail })
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.otp_debug) {
+            alert(`[DEV MODE] SMTP not configured. The OTP for ${staffEmail} is: ${data.otp_debug}`);
+          }
+          setAddingDeliveryStep(2);
+        } else {
+          const data = await res.json();
+          alert(`Error sending OTP: ${data.detail || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error sending OTP');
+      }
+    }
+  };
+
+  const handleVerifyStaffOtp = async (e: React.FormEvent, role: 'cashier' | 'delivery') => {
     e.preventDefault();
     if (role === 'cashier') {
-      setAddingCashierStep(2);
+      if (!staffOtp || staffOtp.length < 4) {
+        alert('Please enter a valid OTP.');
+        return;
+      }
+      setAddingCashierStep(3);
     } else {
-      setAddingDeliveryStep(2);
+      if (!staffOtp || staffOtp.length < 4) {
+        alert('Please enter a valid OTP.');
+        return;
+      }
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: staffEmail, otp: staffOtp })
+        });
+        if (res.ok) {
+          setAddingDeliveryStep(3);
+        } else {
+          const data = await res.json();
+          alert(`Invalid OTP: ${data.detail || 'Please try again.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error verifying OTP');
+      }
     }
-    sendCentralOtp(staffEmail, `${role.toUpperCase()} Account Activation`);
   };
 
-  const handleVerifyStaffOtp = (e: React.FormEvent, role: 'cashier' | 'delivery') => {
+  const handleCompleteStaffSetup = async (e: React.FormEvent, role: 'cashier' | 'delivery') => {
     e.preventDefault();
-    if (staffOtp === generatedOtp || staffOtp === '1234') {
-      if (role === 'cashier') setAddingCashierStep(3);
-      else setAddingDeliveryStep(3);
-    } else {
-      alert('Invalid OTP!');
-    }
-  };
-
-  const handleCompleteStaffSetup = (e: React.FormEvent, role: 'cashier' | 'delivery') => {
-    e.preventDefault();
-    const newUser: User = {
-      id: 'u-' + (db.users.length + 1),
-      name: staffName,
-      role: role,
-      email: staffEmail,
-      password: staffPass || 'password',
-      phone: staffPhone,
-      address: staffAddress,
-      status: 'Active',
-      createdAt: new Date().toISOString(),
-      profilePhoto: role === 'delivery' ? staffProfilePhoto : undefined,
-      vehicleType: role === 'delivery' ? staffVehicleType : undefined,
-      vehicleNumber: role === 'delivery' ? staffVehicleNumber : undefined,
-      licenseNumber: role === 'delivery' ? staffLicenseNumber : undefined,
-      vehicleRc: role === 'delivery' ? staffVehicleRc : undefined
-    };
-
-    saveDB({ users: [...db.users, newUser] });
-    addActivity(role === 'cashier' ? 'Cashier' : 'Delivery', `Registered staff member: ${staffName}`);
-    alert(`Registered ${role} staff member successfully.`);
+    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     
-    // Reset staff wizard
-    setStaffName('');
-    setStaffEmail('');
-    setStaffPhone('');
-    setStaffAddress('');
-    setStaffPass('');
-    setStaffOtp('');
-    setStaffProfilePhoto('');
-    setStaffVehicleType('Bike');
-    setStaffVehicleNumber('');
-    setStaffLicenseNumber('');
-    setStaffVehicleRc('');
-    setAddingCashierStep(0);
-    setAddingDeliveryStep(0);
+    if (role === 'cashier') {
+      try {
+        const token = localStorage.getItem('ll_auth_token');
+        const res = await fetch(`${BASE_URL}/api/v1/auth/cashier/register`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({
+            name: staffName,
+            phone: staffPhone || 'N/A',
+            email: staffEmail,
+            password: staffPass,
+            otp: staffOtp,
+            address: staffAddress || 'N/A'
+          })
+        });
+        
+        if (res.ok) {
+          const newUser: User = {
+            id: 'u-' + (db.users.length + 1),
+            name: staffName,
+            role: role,
+            email: staffEmail,
+            password: staffPass || 'password',
+            phone: staffPhone,
+            address: staffAddress,
+            status: 'Active',
+            createdAt: new Date().toISOString()
+          };
+          saveDB({ users: [...db.users, newUser] });
+          addActivity('Cashier', `Registered staff member: ${staffName}`);
+          alert(`Registered cashier staff member successfully.`);
+          
+          setStaffName('');
+          setStaffEmail('');
+          setStaffPhone('');
+          setStaffPass('');
+          setStaffOtp('');
+          setAddingCashierStep(0);
+        } else {
+          const data = await res.json();
+          alert(`Error creating cashier: ${data.detail || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error verifying OTP');
+      }
+    } else {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: staffName,
+            phone: staffPhone,
+            email: staffEmail,
+            password: staffPass,
+            otp: staffOtp,
+            company_code: db.activeCompanyId,
+            profile_photo: staffProfilePhoto || null,
+            vehicle_type: staffVehicleType || null,
+            vehicle_number: staffVehicleNumber || null,
+            license_number: staffLicenseNumber || null,
+            address: staffAddress || null,
+            vehicle_rc: staffVehicleRc || null
+          })
+        });
+        
+        if (res.ok) {
+          alert('Delivery staff application submitted successfully!');
+          // Reset staff wizard
+          setStaffName('');
+          setStaffEmail('');
+          setStaffPhone('');
+          setStaffAddress('');
+          setStaffPass('');
+          setStaffOtp('');
+          setStaffProfilePhoto('');
+          setStaffVehicleType('Bike');
+          setStaffVehicleNumber('');
+          setStaffLicenseNumber('');
+          setStaffVehicleRc('');
+          setAddingDeliveryStep(0);
+          
+          // Refresh lists from backend to show the new staff
+          fetchBackendData();
+        } else {
+          const data = await res.json();
+          alert(`Registration failed: ${data.detail || 'Unknown error'}`);
+          // Go back to OTP step if invalid
+          if (data.detail && data.detail.toLowerCase().includes('otp')) {
+            setAddingDeliveryStep(2);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error during registration');
+      }
+    }
   };
 
   const handleToggleStaffStatus = (user: User) => {
@@ -389,21 +916,48 @@ export const AdminPortal: React.FC = () => {
     addActivity('Settings', `Reset password for staff member: ${user.name}`);
   };
 
-  const handleDeleteStaff = (user: User) => {
-    if (confirm(`Remove staff member "${user.name}"?`)) {
+  const handleDeleteStaff = async (user: User) => {
+    if (confirm(`Remove staff member "${user.name}" permanently from the database? This cannot be undone.`)) {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/users/${user.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.warn('Backend delete staff failed:', err.detail);
+        }
+      } catch (err) {
+        console.error('Network error deleting staff:', err);
+      }
+      
       const updated = db.users.filter(u => u.id !== user.id);
       saveDB({ users: updated });
       addActivity('Settings', `Deleted staff member: ${user.name}`);
     }
   };
 
-  const handleDeleteCustomer = (cust: Customer) => {
+  const handleDeleteCustomer = async (cust: Customer) => {
     if (confirm(`Are you sure you want to delete customer "${cust.name}"?`)) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/customers/by-email/${encodeURIComponent(cust.email)}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          console.warn('Backend delete may have failed or customer was only in mock DB');
+        }
+      } catch (err) {
+        console.error('Network error deleting customer:', err);
+      }
+
       const updatedCustomers = db.customers.filter(c => c.id !== cust.id);
       const updatedUsers = db.users.filter(u => !(u.role === 'customer' && u.email.toLowerCase() === cust.email.toLowerCase()));
       saveDB({ customers: updatedCustomers, users: updatedUsers });
       addActivity('Customer', `Deleted customer: ${cust.name}`);
-      alert(`Customer "${cust.name}" deleted successfully.`);
+      alert(`Customer "${cust.name}" deleted successfully from all systems.`);
     }
   };
 
@@ -418,20 +972,19 @@ export const AdminPortal: React.FC = () => {
     }
 
     try {
-      // ── REAL BACKEND: POST /api/v1/users/:id/approve ──
-      const res = await apiApproveDeliveryBoy(applicant.id);
+      // ── REAL BACKEND: PATCH /api/v1/users/:id/status ──
+      const res = await apiApproveDeliveryBoy(applicant.id, token);
       // Sync backend status change into local state
       const updated = db.users.map(u => u.id === applicant.id ? { ...u, status: 'Active' as const } : u);
       saveDB({ users: updated });
       addActivity('Delivery', `Approved delivery staff application for: ${applicant.name}`);
-      alert(res.message || `✅ Application for ${applicant.name} approved! Approval email sent to ${applicant.email}.`);
+      alert(res.message || `✅ Application for ${applicant.name} approved! They can now log in to the Delivery Portal.`);
+      
+      // Refresh list to pull updated status from backend
+      fetchBackendData();
     } catch (err: any) {
-      // ── FALLBACK: backend unavailable – update locally ──
-      console.warn('[deliveryApi] approve failed, using local fallback:', err.message);
-      const updated = db.users.map(u => u.id === applicant.id ? { ...u, status: 'Active' as const } : u);
-      saveDB({ users: updated });
-      addActivity('Delivery', `Approved delivery staff application for: ${applicant.name}`);
-      alert(`✅ Application for ${applicant.name} approved (local mode)! They can now log in to the Delivery Portal.\n\nNote: Approval email could not be sent – backend unavailable.`);
+      console.error('Approve failed:', err);
+      alert(err.message || 'Error approving staff. Please try again.');
     }
   };
 
@@ -470,7 +1023,17 @@ export const AdminPortal: React.FC = () => {
     const orderObj = db.orders.find(o => o.id === orderId);
     const customerName = orderObj ? orderObj.customerName : 'Customer';
 
-    const updated = db.orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o);
+    const updated = db.orders.map(o => {
+      if (o.id === orderId) {
+        let newCourier = o.courier;
+        // If a delivery staff member updates the status (e.g. accepts it), they claim the order
+        if ((db.activeRole === 'Delivery Staff' || db.activeRole === 'Delivery Boy') && db.currentDeliveryBoy) {
+          newCourier = db.currentDeliveryBoy;
+        }
+        return { ...o, status: nextStatus, courier: newCourier };
+      }
+      return o;
+    });
     
     const newNotification = {
       id: Date.now(),
@@ -500,10 +1063,12 @@ export const AdminPortal: React.FC = () => {
       if (o.id === orderId) {
         let nextDeliveryStatus = o.deliveryStatus;
         if (courierName) {
-          if (['Created', 'Pending', 'Pickup Assigned'].includes(o.status)) {
-            nextDeliveryStatus = 'Pending Pickup';
-          } else {
+          // Orders that are Ready or beyond get delivery assignment
+          if (['Ready', 'Out For Delivery', 'Out for Delivery'].includes(o.status)) {
             nextDeliveryStatus = 'Out For Delivery';
+          } else {
+            // All other statuses (Created, Received, Washing, etc.) need pickup first
+            nextDeliveryStatus = 'Pending Pickup';
           }
         } else {
           nextDeliveryStatus = 'Pending';
@@ -511,6 +1076,48 @@ export const AdminPortal: React.FC = () => {
         return {
           ...o,
           courier: courierName || null,
+          pickupCourier: courierName || null,
+          deliveryCourier: courierName || null,
+          deliveryStatus: nextDeliveryStatus
+        };
+      }
+      return o;
+    });
+    saveDB({ orders: updated });
+    addActivity('Order', `Assigned delivery agent ${courierName || 'None'} to order #${orderId}`);
+  };
+
+  const handleAssignPickupCourier = (orderId: string, courierName: string) => {
+    const updated = db.orders.map(o => {
+      if (o.id === orderId) {
+        let nextDeliveryStatus = o.deliveryStatus;
+        if (courierName) {
+          nextDeliveryStatus = 'Pending Pickup';
+        }
+        return {
+          ...o,
+          pickupCourier: courierName || null,
+          courier: courierName || o.deliveryCourier || null,
+          deliveryStatus: nextDeliveryStatus
+        };
+      }
+      return o;
+    });
+    saveDB({ orders: updated });
+    addActivity('Order', `Assigned pickup agent ${courierName || 'None'} to order #${orderId}`);
+  };
+
+  const handleAssignDeliveryCourier = (orderId: string, courierName: string) => {
+    const updated = db.orders.map(o => {
+      if (o.id === orderId) {
+        let nextDeliveryStatus = o.deliveryStatus;
+        if (courierName) {
+          nextDeliveryStatus = 'Out For Delivery';
+        }
+        return {
+          ...o,
+          deliveryCourier: courierName || null,
+          courier: courierName || o.pickupCourier || null,
           deliveryStatus: nextDeliveryStatus
         };
       }
@@ -522,12 +1129,53 @@ export const AdminPortal: React.FC = () => {
 
   // Payments / POS manual orders checkout
   const getPOSCartTotal = () => {
-    return posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const sum = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    return Math.max(0, sum - posDiscount);
   };
 
-  const handleCheckoutPOS = () => {
+  const handleApplyCoupon = async () => {
+    if (!posCouponCode) return;
+    if (!posCustId) {
+      alert('Please select a customer to apply a coupon.');
+      return;
+    }
+    const cartTotal = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/coupons/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: posCouponCode,
+          customer_id: posCustId,
+          amount: cartTotal
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPosDiscount(data.discount_applied);
+        setPosCouponApplied(true);
+        alert(`Coupon applied! Discount: QR ${data.discount_applied.toFixed(2)}`);
+      } else {
+        const err = await res.json();
+        alert(`Failed to apply coupon: ${err.detail}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error applying coupon');
+    }
+  };
+
+  const handleCheckoutPOS = async () => {
     if (posCart.length === 0) return;
-    if (!shiftOpen) {
+
+    // Only cashiers need an open drawer shift; admins can always create orders
+    const isAdmin = db.activeRole === 'Admin' || db.activeRole === 'admin';
+    if (!shiftOpen && !isAdmin) {
       alert('Please open your drawer shift before processing orders.');
       return;
     }
@@ -540,27 +1188,71 @@ export const AdminPortal: React.FC = () => {
     }
 
     const total = getPOSCartTotal();
-    const newOrderId = 'OR-' + Math.floor(1000 + Math.random() * 9000);
     const isGuest = !posCustId;
     let customerName = posCustName || 'Guest Customer';
 
     let updatedCustomers = db.customers;
     if (!isGuest) {
       const cust = db.customers.find(c => c.id === posCustId)!;
-      customerName = cust.name;
-      if (posPayMethod === 'Wallet') {
-        if (cust.walletBalance < total) {
-          alert('Insufficient customer wallet balance!');
-          return;
+      if (cust) {
+        customerName = cust.name;
+        if (posPayMethod === 'Wallet') {
+          if (cust.walletBalance < total) {
+            alert('Insufficient customer wallet balance!');
+            return;
+          }
+          updatedCustomers = updatedCustomers.map(c => c.id === posCustId ? { ...c, walletBalance: c.walletBalance - total } : c);
         }
-        updatedCustomers = db.customers.map(c => c.id === posCustId ? { ...c, walletBalance: c.walletBalance - total } : c);
+        
+        // Also update the customer's profile if they changed it in the POS
+        updatedCustomers = updatedCustomers.map(c => c.id === posCustId ? { ...c, phone: posCustPhone, address: posCustAddress } : c);
       }
     }
 
     const commAmt = posPayMethod === 'Cash' ? parseFloat(posCommission) || 0 : 0;
 
+    // --- Try to save to backend first ---
+    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+    let backendOrderId: string | null = null;
+    let backendOrderNumber: string | null = null;
+
+    // posCustId is either a backend UUID (from dropdown) or empty (guest)
+    if (posCustId && posCart.length > 0) {
+      try {
+        const itemsPayload = posCart.map(i => ({
+          service_id: i.itemId,
+          quantity: i.qty
+        }));
+        const res = await fetch(`${BASE_URL}/api/v1/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            customer_id: posCustId,
+            items: itemsPayload,
+            coupon_code: posCouponApplied ? posCouponCode : null
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          backendOrderId = data.id;
+          backendOrderNumber = data.order_number;
+        } else {
+          const errData = await res.json();
+          console.warn('Backend order creation failed:', errData.detail);
+        }
+      } catch (err) {
+        console.error('Network error creating backend order:', err);
+      }
+    }
+
+    const newOrderId = backendOrderNumber || String(Math.floor(100000 + Math.random() * 900000));
+
     const newOrder: Order = {
       id: newOrderId,
+      backendId: backendOrderId || undefined,
       customerId: posCustId || 'guest',
       branch: db.activeBranch || 'Downtown HQ',
       customerName,
@@ -597,12 +1289,19 @@ export const AdminPortal: React.FC = () => {
       drawerCash: posPayMethod === 'Cash' ? db.drawerCash + total : db.drawerCash
     });
 
+    setPosCart([]);
+    setPosCustId('');
+    setPosCustName('');
+    setPosCustPhone('');
+    setPosCustEmail('');
+    setPosCustAddress('');
+    setPosPayMethod('Cash');
+
     addActivity('Order', `Created POS manual order #${newOrderId} for ${customerName} (Commission: QR ${commAmt})`);
     alert(`POS checkout complete. Order #${newOrderId} placed successfully!`);
     
-    // Select order to print
-    setViewingOrder(newOrder);
-    setActiveModule('receipt');
+    // Redirect to Order Management
+    setActiveModule('orders');
 
     setPosCart([]);
     setPosCustId('');
@@ -611,110 +1310,247 @@ export const AdminPortal: React.FC = () => {
     setPosCustEmail('');
     setPosCustAddress('');
     setPosCommission('');
+    setPosCouponCode('');
+    setPosDiscount(0);
+    setPosCouponApplied(false);
   };
 
   // Coupons actions
-  const handleSaveCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingCoupon) {
-      const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc } : p);
-      saveDB({ promos: updated });
-      addActivity('Settings', `Edited coupon: ${cpCode}`);
-      setEditingCoupon(null);
-    } else {
-      const newPromo: Promo = {
-        code: cpCode,
-        type: cpType,
-        value: parseFloat(cpValue) || 0,
-        description: cpDesc,
-        uses: 0
-      };
-      saveDB({ promos: [...db.promos, newPromo] });
-      addActivity('Settings', `Created coupon: ${cpCode}`);
+  const handleDeleteCoupon = async (couponId: string, couponCode: string) => {
+    if (!confirm('Delete coupon?')) return;
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      if (couponId) {
+        await fetch(`${BASE_URL}/api/v1/coupons/${couponId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+      saveDB({ promos: db.promos.filter(item => item.code !== couponCode) });
+      addActivity('Settings', `Deleted coupon: ${couponCode}`);
+    } catch (err) {
+      console.error('Failed to delete coupon', err);
     }
-    setCpCode('');
-    setCpValue('');
-    setCpDesc('');
+  };
+
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      
+      const payload = {
+        code: cpCode,
+        discount_type: cpType === 'Percentage' ? 'PERCENTAGE' : 'FLAT',
+        value: parseFloat(cpValue) || 0,
+        expiry_date: '2099-12-31'
+      };
+
+      if (!editingCoupon) {
+        const res = await fetch(`${BASE_URL}/api/v1/coupons`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const newPromo: any = {
+            id: data.id,
+            code: data.code,
+            type: data.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
+            value: parseFloat(data.value),
+            description: `Expires: ${data.expiry_date || 'Never'}`,
+            uses: 0
+          };
+          saveDB({ promos: [...db.promos, newPromo] });
+          addActivity('Settings', `Created coupon: ${cpCode}`);
+        } else {
+          alert('Failed to save coupon to backend');
+        }
+      } else {
+        // Edit logic skipped for brevity since backend doesn't have PUT /coupons yet.
+        const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc } : p);
+        saveDB({ promos: updated });
+        addActivity('Settings', `Edited coupon: ${cpCode}`);
+        setEditingCoupon(null);
+      }
+      
+      setCpCode('');
+      setCpValue('');
+      setCpDesc('');
+    } catch (err) {
+      console.error('Error saving coupon', err);
+    }
   };
 
   // Wallet & Loyalty adjustments
-  const handleAdjustWalletSubmit = (e: React.FormEvent) => {
+  const handleAdjustWalletSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!walletCust) return;
     const val = parseFloat(walletAmt) || 0;
     const diff = walletDir === 'in' ? val : -val;
 
-    const updated = db.customers.map(c => c.id === walletCust.id ? { ...c, walletBalance: Math.max(0, c.walletBalance + diff) } : c);
-    saveDB({ customers: updated });
-    addActivity('Payment', `Adjusted wallet for customer ${walletCust.name}: ${diff > 0 ? '+' : ''}${diff} QR`);
-    setWalletCust(null);
-    setWalletAmt('');
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/customers/${walletCust.id}/wallet`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: diff })
+      });
+
+      let finalBalance = Math.max(0, walletCust.walletBalance + diff);
+      if (res.ok) {
+        const data = await res.json();
+        finalBalance = parseFloat(data.wallet_balance || '0');
+      } else {
+        console.warn('Failed to update wallet on backend, updating locally anyway.');
+      }
+
+      const updated = db.customers.map(c => c.id === walletCust.id ? { ...c, walletBalance: finalBalance } : c);
+      saveDB({ customers: updated });
+      addActivity('Payment', `Adjusted wallet for customer ${walletCust.name}: ${diff > 0 ? '+' : ''}${diff} QR`);
+      setWalletCust(null);
+      setWalletAmt('');
+    } catch (err) {
+      console.error('Failed to update wallet', err);
+      alert('Error connecting to backend.');
+    }
   };
 
-  const handleAdjustLoyaltySubmit = (e: React.FormEvent) => {
+  const handleAdjustLoyaltySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loyaltyCust) return;
     const val = parseInt(loyaltyPts) || 0;
     const diff = loyaltyDir === 'add' ? val : -val;
 
-    const updated = db.customers.map(c => c.id === loyaltyCust.id ? { ...c, loyaltyPoints: Math.max(0, c.loyaltyPoints + diff) } : c);
-    saveDB({ customers: updated });
-    addActivity('Payment', `Adjusted loyalty points for customer ${loyaltyCust.name}: ${diff > 0 ? '+' : ''}${diff} points`);
-    setLoyaltyCust(null);
-    setLoyaltyPts('');
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/customers/${loyaltyCust.id}/loyalty`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ points: diff })
+      });
+
+      let finalPoints = Math.max(0, loyaltyCust.loyaltyPoints + diff);
+      if (res.ok) {
+        const data = await res.json();
+        finalPoints = data.loyalty_points;
+      } else {
+        console.warn('Failed to update loyalty on backend, updating locally anyway.');
+      }
+
+      const updated = db.customers.map(c => c.id === loyaltyCust.id ? { ...c, loyaltyPoints: finalPoints } : c);
+      saveDB({ customers: updated });
+      addActivity('Payment', `Adjusted loyalty points for customer ${loyaltyCust.name}: ${diff > 0 ? '+' : ''}${diff} points`);
+      setLoyaltyCust(null);
+      setLoyaltyPts('');
+    } catch (err) {
+      console.error('Failed to update loyalty points', err);
+      alert('Error connecting to backend.');
+    }
   };
 
   // Expenses actions
-  const handleSaveExpense = (e: React.FormEvent) => {
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingExpense) {
-      const updated = db.expenses.map((ex, i) => i === db.expenses.indexOf(editingExpense) ? { ...ex, category: expCategory, description: expDesc, source: expSource, amount: parseFloat(expAmount) || 0 } : ex);
-      saveDB({ expenses: updated });
-      addActivity('Payment', `Edited expense: ${expDesc}`);
-      setEditingExpense(null);
-    } else {
-      const newExp: Expense = {
-        date: new Date().toISOString().split('T')[0],
-        category: expCategory,
-        description: expDesc,
-        source: expSource,
-        loggedBy: 'Admin User',
-        amount: parseFloat(expAmount) || 0
-      };
-      saveDB({ expenses: [...db.expenses, newExp] });
-      addActivity('Payment', `Added expense: ${expDesc}`);
+    try {
+      if (editingExpense) {
+        const res = await fetch(`${BASE_URL}/api/v1/expenses/${editingExpense.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            description: expDesc,
+            amount: parseFloat(expAmount) || 0,
+            category: expCategory,
+            source: expSource,
+            date: expDate
+          })
+        });
+        if (res.ok) {
+          addActivity('Payment', `Edited expense: ${expDesc}`);
+          setEditingExpense(null);
+          fetchBackendData();
+        }
+      } else {
+        const res = await fetch(`${BASE_URL}/api/v1/expenses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            description: expDesc,
+            amount: parseFloat(expAmount) || 0,
+            category: expCategory,
+            source: expSource,
+            date: expDate
+          })
+        });
+        if (res.ok) {
+          addActivity('Payment', `Added expense: ${expDesc}`);
+          fetchBackendData();
+        }
+      }
+      setExpCategory('');
+      setExpDesc('');
+      setExpSource('');
+      setExpAmount('');
+      setExpDate(new Date().toISOString().split('T')[0]);
+    } catch (err) {
+      console.error('Error saving expense:', err);
     }
-    setExpDesc('');
-    setExpAmount('');
   };
 
   // Support Ticket submission to Super Admin
-  const handleCreateSupportTicket = (e: React.FormEvent) => {
+  const handleCreateSupportTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tktSubject || !tktMessage) return;
 
     try {
-      const allTickets = JSON.parse(localStorage.getItem('ll_platform_tickets') || '[]');
-      const compName = db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Tenant';
-      const newTicket: SupportTicket = {
-        id: 'tkt-' + Date.now(),
-        company: compName,
-        subject: tktSubject,
-        status: 'Open',
-        date: new Date().toISOString().split('T')[0],
-        message: tktMessage,
-        history: []
-      };
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      
+      const res = await fetch(`${BASE_URL}/api/v1/support/tickets`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subject: tktSubject,
+          description: tktMessage,
+          priority: 'MEDIUM'
+        })
+      });
 
-      const updated = [newTicket, ...allTickets];
-      localStorage.setItem('ll_platform_tickets', JSON.stringify(updated));
-      setSupportTickets([newTicket, ...supportTickets]);
-      addActivity('Settings', `Opened support ticket to Super Admin: ${tktSubject}`);
-      alert('Support ticket created successfully!');
-      setTktSubject('');
-      setTktMessage('');
-    } catch (e) {
-      console.error(e);
+      if (res.ok) {
+        alert('Support ticket created successfully!');
+        setTktSubject('');
+        setTktMessage('');
+        fetchBackendData();
+        addActivity('Settings', `Opened support ticket to Super Admin: ${tktSubject}`);
+      } else {
+        alert('Failed to create support ticket');
+      }
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      alert('Network error while creating ticket');
     }
   };
 
@@ -767,12 +1603,30 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Reviews replies
-  const handleReplyReview = (e: React.FormEvent) => {
+  const handleReplyReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = reviews.map(r => r.id === activeReviewId ? { ...r, reply: replyText } : r);
-    setReviews(updated);
-    setReplyText('');
-    setActiveReviewId('');
+    if (!replyText.trim() || !activeReviewId) return;
+
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/reviews/${activeReviewId}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ reply: replyText })
+      });
+      
+      if (res.ok) {
+        setReplyText('');
+        setActiveReviewId('');
+        fetchBackendData(); // refresh the list
+      } else {
+        alert('Failed to reply to review');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error');
+    }
   };
 
 
@@ -838,8 +1692,8 @@ export const AdminPortal: React.FC = () => {
   const totalCashiers = db.users.filter(u => u.role === 'cashier').length;
   const totalDelivery = db.users.filter(u => u.role === 'delivery').length;
 
-  const todayRevenue = db.orders.reduce((sum, o) => sum + (o.totalAmount || o.total || 0), 0);
-  const pendingPaymentsTotal = db.orders.filter(o => o.paymentStatus === 'Unpaid').reduce((sum, o) => sum + (o.totalAmount || o.total || 0), 0);
+  const todayRevenue = db.orders.filter(o => !o.isDeleted).reduce((sum, o) => sum + (o.totalAmount || o.total || 0), 0);
+  const pendingPaymentsTotal = db.orders.filter(o => !o.isDeleted && o.paymentStatus === 'Unpaid').reduce((sum, o) => sum + (o.totalAmount || o.total || 0), 0);
 
   const impersonatedCompanyId = localStorage.getItem('ll_impersonatedCompanyId');
   const isImpersonating = !!impersonatedCompanyId && impersonatedCompanyId === db.activeCompanyId;
@@ -1074,7 +1928,7 @@ export const AdminPortal: React.FC = () => {
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button onClick={() => handleApproveApplication(u)} style={{ padding: '6px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Approve ✓</button>
-                      <button onClick={() => { if(confirm('Reject application?')) handleDeleteStaff(u); }} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Reject ✕</button>
+                      <button onClick={() => handleRejectApplication(u)} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Reject ✕</button>
                     </div>
                   </div>
                 ))
@@ -1126,40 +1980,75 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 📋 Leave Requests
-                {db.leaveRequests.filter(lr => lr.status === 'Pending').length > 0 && (
+                {backendLeaveRequests.filter(lr => lr.status === 'PENDING').length > 0 && (
                   <span style={{ background: '#f59e0b', color: 'white', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: '800' }}>
-                    {db.leaveRequests.filter(lr => lr.status === 'Pending').length}
+                    {backendLeaveRequests.filter(lr => lr.status === 'PENDING').length}
                   </span>
                 )}
               </h4>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {db.leaveRequests.length === 0 ? (
+              {backendLeaveRequests.length === 0 ? (
                 <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No leave requests submitted yet.</div>
               ) : (
-                db.leaveRequests.map(lr => (
-                  <div key={lr.id} style={{ padding: '14px', background: lr.status === 'Pending' ? '#fffbeb' : lr.status === 'Approved' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${lr.status === 'Pending' ? '#fef3c7' : lr.status === 'Approved' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                backendLeaveRequests.map(lr => (
+                  <div key={lr.id} style={{ padding: '14px', background: lr.status === 'PENDING' ? '#fffbeb' : lr.status === 'APPROVED' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${lr.status === 'PENDING' ? '#fef3c7' : lr.status === 'APPROVED' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <div>
-                      <strong>{lr.deliveryBoyName}</strong> <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.deliveryBoyEmail})</span>
-                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>📅 {lr.startDate} → {lr.endDate}</div>
+                      <strong>{lr.delivery_boy_name}</strong> <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.delivery_boy_email})</span>
+                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>📅 {lr.start_date} → {lr.end_date}</div>
                       <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Reason: {lr.reason}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {lr.status === 'Pending' ? (
+                      {lr.status === 'PENDING' ? (
                         <>
-                          <button onClick={() => {
-                            const updated = db.leaveRequests.map(l => l.id === lr.id ? { ...l, status: 'Approved' as const } : l);
-                            saveDB({ leaveRequests: updated });
-                            alert(`Leave request from ${lr.deliveryBoyName} approved.`);
-                          }} style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '600' }}>Approve ✓</button>
-                          <button onClick={() => {
-                            const updated = db.leaveRequests.map(l => l.id === lr.id ? { ...l, status: 'Rejected' as const } : l);
-                            saveDB({ leaveRequests: updated });
-                            alert(`Leave request from ${lr.deliveryBoyName} rejected.`);
-                          }} style={{ padding: '6px 14px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '600' }}>Reject ✕</button>
+                          <button onClick={async () => {
+                            try {
+                              const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+                              const res = await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
+                                method: 'PATCH',
+                                headers: { 
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ status: 'APPROVED' })
+                              });
+                              if (res.ok) {
+                                alert(`Leave request from ${lr.delivery_boy_name} approved.`);
+                                fetchBackendData();
+                              } else {
+                                alert('Failed to approve leave request.');
+                              }
+                            } catch (e) {
+                              console.error(e);
+                              alert('Network error while approving.');
+                            }
+                          }} style={{ padding: '6px 12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Approve ✓</button>
+                          
+                          <button onClick={async () => {
+                            try {
+                              const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+                              const res = await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
+                                method: 'PATCH',
+                                headers: { 
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ status: 'REJECTED' })
+                              });
+                              if (res.ok) {
+                                alert(`Leave request from ${lr.delivery_boy_name} rejected.`);
+                                fetchBackendData();
+                              } else {
+                                alert('Failed to reject leave request.');
+                              }
+                            } catch (e) {
+                              console.error(e);
+                              alert('Network error while rejecting.');
+                            }
+                          }} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Reject ✕</button>
                         </>
                       ) : (
-                        <span style={{ padding: '4px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '700', color: lr.status === 'Approved' ? '#16a34a' : '#ef4444', background: lr.status === 'Approved' ? '#dcfce7' : '#fee2e2' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '800', color: lr.status === 'APPROVED' ? '#15803d' : '#b91c1c' }}>
                           {lr.status}
                         </span>
                       )}
@@ -1169,62 +2058,271 @@ export const AdminPortal: React.FC = () => {
               )}
             </div>
           </div>
-
         </div>
       )}
 
-      {/* 🏷️ SERVICE MANAGEMENT TAB (READ ONLY) */}
-      {activeModule === 'services' && (
+      {/* 💰 DELIVERY PAYMENT MODULE */}
+      {activeModule === 'delivery-payment' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ background: '#eff6ff', borderRadius: '12px', padding: '16px', border: '1px solid #bfdbfe' }}>
-            <h4 style={{ margin: '0 0 8px 0', color: '#1e40af' }}>ℹ️ Service Catalog (Read Only)</h4>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#1e3a8a' }}>
-              Your service catalog and pricing matrix are centrally managed by the Super Admin. You can view your imported services below, but you cannot edit or delete them. If you need changes, please contact the Super Admin or ask them to re-import your updated Excel sheet.
-            </p>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>💰 Delivery Staff Commission Payments</h4>
+            </div>
+            
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Delivery Staff Name</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Completed Tasks (Unpaid)</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Total Unpaid Commission (QR)</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => {
+                  const unpaidPickupTasks = db.orders.filter(o => 
+                    o.courier === u.name && 
+                    o.pickupCommission > 0 &&
+                    !o.pickupCommissionPaid
+                  );
+                  const unpaidDeliveryTasks = db.orders.filter(o => 
+                    o.courier === u.name && 
+                    o.deliveryCommission > 0 &&
+                    !o.deliveryCommissionPaid
+                  );
+                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission || 0), 0);
+                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission || 0), 0);
+                  const unpaidAmount = unpaidPickupAmount + unpaidDeliveryAmount;
+                  const totalUnpaidTasksCount = unpaidPickupTasks.length + unpaidDeliveryTasks.length;
+                  
+                  return (
+                    <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{u.name}</td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontWeight: 'bold' }}>{totalUnpaidTasksCount} tasks</div>
+                        {totalUnpaidTasksCount > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {unpaidPickupTasks.map(t => {
+                              const d = new Date(t.date);
+                              const dateStr = isNaN(d.getTime()) ? t.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                              return (
+                                <div key={`pickup-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                                    <span style={{ fontWeight: '700', color: '#b45309' }}>#{t.id} - Pickup</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
+                                  </div>
+                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission || 0).toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                            {unpaidDeliveryTasks.map(t => {
+                              const d = new Date(t.date);
+                              const dateStr = isNaN(d.getTime()) ? t.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                              return (
+                                <div key={`delivery-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                                    <span style={{ fontWeight: '700', color: '#1e40af' }}>#{t.id} - Delivery</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
+                                  </div>
+                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission || 0).toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '800', color: unpaidAmount > 0 ? '#b91c1c' : '#16a34a' }}>
+                        QR {unpaidAmount.toFixed(2)}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '8px', alignItems: 'center' }}>
+                        <select 
+                          id={`payment-method-${u.id}`}
+                          disabled={unpaidAmount <= 0}
+                          style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        >
+                          <option value="Cash">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Card">Card</option>
+                          <option value="Check">Check</option>
+                          <option value="PhonePe">PhonePe</option>
+                          <option value="Google Pay">Google Pay</option>
+                        </select>
+                        <button 
+                          onClick={() => {
+                            if (unpaidAmount <= 0) {
+                              alert('No unpaid commission for this staff member.');
+                              return;
+                            }
+                            const method = (document.getElementById(`payment-method-${u.id}`) as HTMLSelectElement).value;
+                            if (window.confirm(`Mark QR ${unpaidAmount.toFixed(2)} as Paid via ${method} for ${u.name}?`)) {
+                              const updatedOrders = db.orders.map(o => {
+                                let newOrder = { ...o };
+                                if (o.courier === u.name) {
+                                  if (!o.pickupCommissionPaid && o.pickupCommission > 0) {
+                                    newOrder.pickupCommissionPaid = true;
+                                    newOrder.pickupPaymentMethod = method;
+                                    newOrder.pickupPaymentDate = new Date().toISOString();
+                                  }
+                                  if (!o.deliveryCommissionPaid && o.deliveryCommission > 0) {
+                                    newOrder.deliveryCommissionPaid = true;
+                                    newOrder.deliveryPaymentMethod = method;
+                                    newOrder.deliveryPaymentDate = new Date().toISOString();
+                                  }
+                                }
+                                return newOrder;
+                              });
+                              saveDB({ orders: updatedOrders });
+                              alert(`Successfully marked QR ${unpaidAmount.toFixed(2)} as paid to ${u.name} via ${method}!`);
+                            }
+                          }}
+                          disabled={unpaidAmount <= 0}
+                          style={{ 
+                            padding: '8px 16px', 
+                            background: unpaidAmount > 0 ? '#16a34a' : '#94a3b8', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '8px', 
+                            fontWeight: '700', 
+                            cursor: unpaidAmount > 0 ? 'pointer' : 'not-allowed'
+                          }}
+                        >
+                          Mark as Paid
+                        </button>
+                        <button 
+                          onClick={() => setHistoryModalStaff(u)}
+                          style={{ 
+                            padding: '8px 16px', 
+                            background: '#f1f5f9', 
+                            color: '#1e293b', 
+                            border: '1px solid #cbd5e1', 
+                            borderRadius: '8px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer'
+                          }}
+                        >
+                          History
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
+          {/* HISTORY MODAL */}
+          {historyModalStaff && createPortal(
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>Task History: {historyModalStaff.name}</h3>
+                  <button onClick={() => setHistoryModalStaff(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+                </div>
+                {(() => {
+                  const completedTasks: { id: string; date: string; type: 'Pickup' | 'Delivery'; customerName: string; amount: number; paid: boolean; method?: string; paymentDate?: string }[] = [];
+                  db.orders.filter(o => o.courier === historyModalStaff.name).forEach(o => {
+                    if (o.pickupCommission && o.pickupCommission > 0) {
+                      completedTasks.push({
+                        id: `${o.id}-pickup`,
+                        date: o.pickupPaymentDate || o.date,
+                        type: 'Pickup',
+                        customerName: o.customerName,
+                        amount: o.pickupCommission,
+                        paid: !!o.pickupCommissionPaid,
+                        method: o.pickupPaymentMethod,
+                        paymentDate: o.pickupPaymentDate
+                      });
+                    }
+                    if (o.deliveryCommission && o.deliveryCommission > 0) {
+                      completedTasks.push({
+                        id: `${o.id}-delivery`,
+                        date: o.deliveryPaymentDate || o.date,
+                        type: 'Delivery',
+                        customerName: o.customerName,
+                        amount: o.deliveryCommission,
+                        paid: !!o.deliveryCommissionPaid,
+                        method: o.deliveryPaymentMethod,
+                        paymentDate: o.deliveryPaymentDate
+                      });
+                    }
+                  });
+                  if (completedTasks.length === 0) return <p style={{ color: '#64748b' }}>No task history found.</p>;
+                  
+                  return (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #cbd5e1', color: '#64748b' }}>
+                          <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Date</th>
+                          <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Order Details</th>
+                          <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Task Type</th>
+                          <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Amount (QR)</th>
+                          <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {completedTasks.map(t => {
+                          const d = new Date(t.date);
+                          const dateStr = isNaN(d.getTime()) ? t.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                          return (
+                            <tr key={t.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '12px', fontWeight: '600' }}>{dateStr}</td>
+                              <td style={{ padding: '12px' }}>
+                                <div style={{ fontWeight: '700', color: '#1e3a8a' }}>#{t.id.split('-')[0]}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{t.customerName}</div>
+                              </td>
+                              <td style={{ padding: '12px', fontWeight: '700', color: t.type === 'Pickup' ? '#d97706' : '#2563eb' }}>{t.type}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: t.paid ? '#16a34a' : '#d97706' }}>{t.amount.toFixed(2)}</td>
+                              <td style={{ padding: '12px', textAlign: 'center' }}>
+                                {t.paid ? (
+                                  <span style={{ background: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '0.75rem' }}>
+                                    Paid via {t.method || 'Cash'}
+                                  </span>
+                                ) : (
+                                  <span style={{ background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '0.75rem' }}>
+                                    Pending
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            </div>,
+            document.body
+          )}
+        </div>
+      )}
+
+      {/* 🏷️ SERVICE MANAGEMENT TAB */}
+      {activeModule === 'services' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>📋 Active Service Catalog</h4>
             
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '12px', color: '#475569' }}>Item (English)</th>
-                    <th style={{ padding: '12px', color: '#475569' }}>Item (Arabic)</th>
-                    <th style={{ padding: '12px', color: '#475569' }}>Available Services & Prices</th>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Item Name</th>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Category</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Normal Price (QR)</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Express Price (QR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {backendServices.map(service => (
+                  <tr key={service.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{service.name}</td>
+                    <td style={{ padding: '12px', color: '#475569' }}>{service.category}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: '700' }}>{service.price}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb', fontWeight: '700' }}>{service.express_price || '-'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {db.items.map(item => {
-                    const prices = db.itemPrices.filter(p => p.itemId === item.id && p.price !== null);
-                    if (prices.length === 0) return null;
-                    return (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '12px', fontWeight: '600' }}>{item.englishName}</td>
-                        <td style={{ padding: '12px', color: '#64748b' }}>{item.arabicName || '-'}</td>
-                        <td style={{ padding: '12px' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                            {prices.map(p => {
-                              const variant = db.serviceVariants.find(v => v.id === p.serviceVariantId);
-                              const serviceType = db.serviceTypes.find(t => t.id === variant?.serviceTypeId);
-                              const tName = serviceType?.name || '';
-                              const vName = variant?.name || '';
-                              const displayName = tName === vName ? tName : `${tName} ${vName}`;
-                              return (
-                                <span key={p.id} style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', border: '1px solid #cbd5e1' }}>
-                                  <strong>{displayName}</strong>: <span style={{ color: '#059669', fontWeight: '700' }}>QR {p.price}</span>
-                                </span>
-                              )
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1275,8 +2373,13 @@ export const AdminPortal: React.FC = () => {
               </thead>
               <tbody>
                 {db.orders
+                  .filter(o => !o.isDeleted)
                   .filter(o => o.customerName.toLowerCase().includes(orderSearch.toLowerCase()))
                   .filter(o => orderFilter === 'All' || o.status === orderFilter)
+                  .filter(o => {
+                    if (db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy') return true;
+                    return o.courier === db.currentDeliveryBoy || o.courier === 'All Delivery Staff';
+                  })
                   .map(o => (
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
@@ -1292,16 +2395,95 @@ export const AdminPortal: React.FC = () => {
                       </td>
                       {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
                         <td style={{ padding: '12px' }}>
-                          <select
-                            value={o.courier || ''}
-                            onChange={e => handleAssignDeliveryBoy(o.id, e.target.value)}
-                            style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: 'white' }}
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {db.users.filter(u => u.role === 'delivery').map(u => (
-                              <option key={u.id} value={u.name}>{u.name}</option>
-                            ))}
-                          </select>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>📦 Pickup:</span>
+                              <select
+                                value={o.pickupCourier || ''}
+                                onChange={e => handleAssignPickupCourier(o.id, e.target.value)}
+                                disabled={!!(o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase()))}
+                                style={{ 
+                                  padding: '4px 6px', 
+                                  border: '1.5px solid #cbd5e1', 
+                                  borderRadius: '6px', 
+                                  fontSize: '0.8rem', 
+                                  background: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase())) ? '#e2e8f0' : 'white', 
+                                  cursor: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase())) ? 'not-allowed' : 'pointer',
+                                  width: '120px' 
+                                }}
+                              >
+                                <option value="">-- Unassigned --</option>
+                                <option value="All Delivery Staff">All Delivery Staff</option>
+                                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>🚚 Delivery:</span>
+                              <select
+                                value={o.deliveryCourier || ''}
+                                onChange={e => handleAssignDeliveryCourier(o.id, e.target.value)}
+                                disabled={!!(o.deliveryAccepted || o.status.toLowerCase() === 'delivered')}
+                                style={{ 
+                                  padding: '4px 6px', 
+                                  border: '1.5px solid #cbd5e1', 
+                                  borderRadius: '6px', 
+                                  fontSize: '0.8rem', 
+                                  background: (o.deliveryAccepted || o.status.toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', 
+                                  cursor: (o.deliveryAccepted || o.status.toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer',
+                                  width: '120px' 
+                                }}
+                              >
+                                <option value="">-- Unassigned --</option>
+                                <option value="All Delivery Staff">All Delivery Staff</option>
+                                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            
+                            {(o.pickupCourier || o.deliveryCourier) && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0', width: '120px' }}>
+                                {o.pickupCourier && (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>📦 Pick QR:</span>
+                                    <input 
+                                      type="number" 
+                                      placeholder="0.00"
+                                      disabled={!['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase())}
+                                      value={o.pickupCommission || ''}
+                                      onChange={e => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
+                                        saveDB({ orders: updatedOrders });
+                                      }}
+                                      style={{ width: '40px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase()) ? '#e2e8f0' : 'white', cursor: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase()) ? 'not-allowed' : 'text' }}
+                                    />
+                                  </div>
+                                )}
+                                
+                                {o.deliveryCourier && ['ready', 'out for delivery', 'delivered'].includes(o.status.toLowerCase()) && (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>🚚 Deliv QR:</span>
+                                    <input 
+                                      type="number" 
+                                      placeholder="0.00"
+                                      disabled={o.status.toLowerCase() === 'delivered'}
+                                      value={o.deliveryCommission || ''}
+                                      onChange={e => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
+                                        saveDB({ orders: updatedOrders });
+                                      }}
+                                      style={{ width: '40px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: o.status.toLowerCase() === 'delivered' ? '#e2e8f0' : 'white', cursor: o.status.toLowerCase() === 'delivered' ? 'not-allowed' : 'text' }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       )}
                       <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -1316,9 +2498,25 @@ export const AdminPortal: React.FC = () => {
                             ))}
                           </select>
                           <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ Timeline</button>
-                          <button onClick={() => {
-                            if (window.confirm(`Are you sure you want to delete order #${o.id}?`)) {
-                              saveDB({ orders: db.orders.filter(item => item.id !== o.id) });
+                          <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
+                          <button onClick={async () => {
+                            if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
+                              try {
+                                const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+                                const res = await fetch(`${BASE_URL}/api/v1/orders/${o.backendId || o.id}`, {
+                                  method: 'DELETE',
+                                  headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json().catch(() => ({}));
+                                  console.warn('Backend delete failed:', err.detail);
+                                }
+                              } catch (err) {
+                                console.error('Network error deleting order:', err);
+                              }
+                              // Soft delete in local state
+                              saveDB({ orders: db.orders.map(item => item.id === o.id ? { ...item, isDeleted: true } : item) });
+                              addActivity('Order', `Deleted order #${o.id}`);
                             }
                           }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Delete</button>
                         </div>
@@ -1336,7 +2534,7 @@ export const AdminPortal: React.FC = () => {
       {activeModule === 'pos' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: '24px' }}>
           
-          {/* POS Catalog browsing (Using Matrix Pricing) */}
+          {/* POS Catalog browsing */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>🧺 Service Catalog</h4>
             
@@ -1345,18 +2543,17 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
-              {db.items
-                .filter(s => s.status !== 'Inactive')
-                .filter(s => s.englishName.toLowerCase().includes(posSearch.toLowerCase()) || (s.arabicName && s.arabicName.includes(posSearch)))
-                .map(item => (
+              {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
+                .filter(name => String(name).toLowerCase().includes(posSearch.toLowerCase()))
+                .map((itemName: any) => (
                   <div 
-                    key={item.id} 
-                    onClick={() => setSelectedPosItem(item)}
+                    key={itemName} 
+                    onClick={() => setSelectedPosItem(itemName)}
                     style={{ 
                       padding: '16px 12px', 
-                      border: selectedPosItem?.id === item.id ? '2px solid #2563eb' : '1px solid #cbd5e1', 
+                      border: selectedPosItem === itemName ? '2px solid #2563eb' : '1px solid #cbd5e1', 
                       borderRadius: '8px', 
-                      background: selectedPosItem?.id === item.id ? '#eff6ff' : '#f8fafc', 
+                      background: selectedPosItem === itemName ? '#eff6ff' : '#f8fafc', 
                       cursor: 'pointer',
                       textAlign: 'center',
                       display: 'flex', 
@@ -1365,9 +2562,8 @@ export const AdminPortal: React.FC = () => {
                       gap: '8px' 
                     }}
                   >
-                    <div style={{ fontSize: '1.8rem' }}>👕</div>
-                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#0f172a' }}>{item.englishName}</div>
-                    {item.arabicName && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.arabicName}</div>}
+                    <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
+                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#0f172a' }}>{itemName}</div>
                   </div>
                 ))}
             </div>
@@ -1375,63 +2571,101 @@ export const AdminPortal: React.FC = () => {
             {selectedPosItem && (
               <div style={{ marginTop: '20px', padding: '16px', background: '#f1f5f9', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                 <h5 style={{ margin: '0 0 12px 0', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Select Service for: <strong style={{ color: '#2563eb' }}>{selectedPosItem.englishName}</strong></span>
+                  <span>Select Service for: <strong style={{ color: '#2563eb' }}>{selectedPosItem}</strong></span>
                   <button onClick={() => setSelectedPosItem(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>✕</button>
                 </h5>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {db.serviceTypes.map(st => {
-                    const variantsForThisType = db.serviceVariants.filter(sv => sv.serviceTypeId === st.id);
+                  {Array.from(new Set(backendServices.filter(s => s.name === selectedPosItem).map(s => s.category))).map(category => {
+                    const servicesInCategory = backendServices.filter(s => s.name === selectedPosItem && s.category === category);
                     return (
-                      <div key={st.id} style={{ background: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '8px', color: '#334155' }}>{st.name}</div>
+                      <div key={category} style={{ background: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '8px', color: '#334155' }}>{category}</div>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {variantsForThisType.map(sv => {
-                            const priceRecord = db.itemPrices.find(ip => ip.itemId === selectedPosItem.id && ip.serviceVariantId === sv.id);
-                            const price = priceRecord?.price;
-                            if (price === null || price === undefined) return null;
-                            
-                            return (
-                              <button
-                                key={sv.id}
-                                onClick={() => {
-                                  const existing = posCart.find(i => i.itemId === selectedPosItem.id && i.variantId === sv.id);
-                                  if (existing) {
-                                    setPosCart(posCart.map(i => i.itemId === selectedPosItem.id && i.variantId === sv.id ? { ...i, qty: i.qty + 1 } : i));
-                                  } else {
-                                    setPosCart([...posCart, { 
-                                      itemId: selectedPosItem.id, 
-                                      itemName: selectedPosItem.englishName, 
-                                      serviceTypeId: st.id, 
-                                      serviceTypeName: st.name, 
-                                      variantId: sv.id, 
-                                      variantName: sv.name, 
-                                      price: price, 
-                                      qty: 1 
-                                    }]);
-                                  }
-                                  setSelectedPosItem(null); // auto-close after adding
-                                }}
-                                style={{
-                                  padding: '8px 12px',
-                                  background: sv.name.toLowerCase().includes('express') ? '#f3e8ff' : '#eff6ff',
-                                  color: sv.name.toLowerCase().includes('express') ? '#7c3aed' : '#2563eb',
-                                  border: '1px solid',
-                                  borderColor: sv.name.toLowerCase().includes('express') ? '#d8b4fe' : '#bfdbfe',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '700',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  gap: '2px'
-                                }}
-                              >
-                                <span>{sv.name}</span>
-                                <span style={{ fontSize: '0.85rem' }}>QR {price.toFixed(2)}</span>
-                              </button>
-                            );
-                          })}
+                          {servicesInCategory.map(service => (
+                            <React.Fragment key={service.id}>
+                              {service.price !== null && service.price !== undefined && (
+                                <button
+                                  onClick={() => {
+                                    const variantId = `normal_${service.id}`;
+                                    const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
+                                    if (existing) {
+                                      setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
+                                    } else {
+                                      setPosCart([...posCart, { 
+                                        itemId: service.id, 
+                                        itemName: service.name, 
+                                        serviceTypeId: service.category, 
+                                        serviceTypeName: service.category, 
+                                        variantId: variantId, 
+                                        variantName: 'Normal', 
+                                        price: service.price, 
+                                        qty: 1 
+                                      }]);
+                                    }
+                                    setSelectedPosItem(null);
+                                  }}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#eff6ff',
+                                    color: '#2563eb',
+                                    border: '1px solid #bfdbfe',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                >
+                                  <span>Normal</span>
+                                  <span style={{ fontSize: '0.85rem' }}>QR {Number(service.price).toFixed(2)}</span>
+                                </button>
+                              )}
+                              
+                              {service.express_price !== null && service.express_price !== undefined && (
+                                <button
+                                  onClick={() => {
+                                    const variantId = `express_${service.id}`;
+                                    const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
+                                    if (existing) {
+                                      setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
+                                    } else {
+                                      setPosCart([...posCart, { 
+                                        itemId: service.id, 
+                                        itemName: service.name, 
+                                        serviceTypeId: service.category, 
+                                        serviceTypeName: service.category, 
+                                        variantId: variantId, 
+                                        variantName: 'Express', 
+                                        price: service.express_price, 
+                                        qty: 1 
+                                      }]);
+                                    }
+                                    setSelectedPosItem(null);
+                                  }}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#f3e8ff',
+                                    color: '#7c3aed',
+                                    border: '1px solid #d8b4fe',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                >
+                                  <span>Express</span>
+                                  <span style={{ fontSize: '0.85rem' }}>QR {Number(service.express_price).toFixed(2)}</span>
+                                </button>
+                              )}
+                            </React.Fragment>
+                          ))}
                         </div>
                       </div>
                     );
@@ -1470,13 +2704,30 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Select Customer</label>
-                <select value={posCustId} onChange={e => setPosCustId(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
+                <select value={posCustId} onChange={e => {
+                  const id = e.target.value;
+                  setPosCustId(id);
+                  if (id) {
+                    const c = db.customers.find(x => x.id === id);
+                    if (c) {
+                      setPosCustName(c.name);
+                      setPosCustPhone(c.phone || '');
+                      setPosCustEmail(c.email || '');
+                      setPosCustAddress(c.address || '');
+                    }
+                  } else {
+                    setPosCustName('');
+                    setPosCustPhone('');
+                    setPosCustEmail('');
+                    setPosCustAddress('');
+                  }
+                }} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="">— Guest Checkout —</option>
                   {db.customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
                 </select>
               </div>
 
-              {posCustId === '' && (
+              {posCustId === '' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Customer Name</label>
@@ -1495,12 +2746,56 @@ export const AdminPortal: React.FC = () => {
                     <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Enter guest address..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                 </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Name (Read-only)</label>
+                      <input type="text" value={posCustName} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Email (Read-only)</label>
+                      <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>Update Phone Number</label>
+                      <input type="text" value={posCustPhone} onChange={e => setPosCustPhone(e.target.value)} placeholder="Update phone..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>Update Address</label>
+                    <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Update address..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                  </div>
+                </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                 <span style={{ fontWeight: '700' }}>POS total amount:</span>
                 <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#2563eb' }}>QR {getPOSCartTotal().toFixed(2)}</span>
               </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Enter Coupon Code" 
+                  value={posCouponCode} 
+                  onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
+                  style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+                />
+                <button 
+                  onClick={handleApplyCoupon} 
+                  style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Apply
+                </button>
+              </div>
+              {posCouponApplied && (
+                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>
+                  Discount Applied: -QR {posDiscount.toFixed(2)}
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
@@ -1531,172 +2826,16 @@ export const AdminPortal: React.FC = () => {
                 </button>
               </div>
 
-              {posPayMethod === 'Cash' && (
-                <div style={{ marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px', color: '#475569', textTransform: 'uppercase' }}>Commission (QR)</label>
-                  <input type="number" min="0" step="0.01" value={posCommission} onChange={e => setPosCommission(e.target.value)} placeholder="Enter commission amount..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                </div>
-              )}
             </div>
 
           </div>
         </div>
       )}
 
-      {/* 💵 DRAWER & SHIFTS TAB */}
-      {activeModule === 'drawer' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '24px' }}>
-          {/* Drawer form */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #059669, #10b981)', borderRadius: '16px', padding: '24px', color: 'white' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.85, marginBottom: '8px' }}>Drawer Cash Balance</div>
-              <div style={{ fontSize: '2.2rem', fontWeight: '900' }}>QR {db.drawerCash.toFixed(2)}</div>
-              <div style={{ marginTop: '8px', fontSize: '0.85rem', opacity: 0.9 }}>
-                Shift status: {shiftOpen ? <span style={{ fontWeight: '700' }}>🟢 Open</span> : <span style={{ fontWeight: '700' }}>🔴 Closed</span>}
-              </div>
-            </div>
 
-            <div style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <h3 style={{ margin: 0, fontWeight: '800', color: '#0f172a', fontSize: '1rem' }}>💵 Log Transaction</h3>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Type</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {(['Cash In', 'Cash Out', 'Shift Open', 'Shift Close'] as const).map(t => (
-                    <button key={t} type="button" onClick={() => setTxType(t)} style={{
-                      padding: '9px', borderRadius: '8px', border: `2px solid ${txType === t ? '#2563eb' : '#e2e8f0'}`,
-                      background: txType === t ? '#eff6ff' : 'white', color: txType === t ? '#2563eb' : '#64748b',
-                      fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer'
-                    }}>{t}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Amount (QR)</label>
-                <input type="number" min="0" value={txAmount} onChange={e => setTxAmount(e.target.value)} placeholder="0.00"
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Note</label>
-                <input value={txNote} onChange={e => setTxNote(e.target.value)} placeholder="Optional note..."
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-              <button type="button" onClick={handleDrawerTx} style={{ padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', fontWeight: '800', cursor: 'pointer', fontSize: '0.95rem' }}>
-                Log Transaction
-              </button>
-            </div>
-          </div>
 
-          {/* Transaction log */}
-          <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ margin: 0, fontWeight: '800', color: '#0f172a', fontSize: '1.1rem' }}>Transaction Log</h3>
-            {drawerTxs.length === 0 ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '0.95rem' }}>No transactions logged yet.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '500px', overflowY: 'auto' }}>
-                {drawerTxs.map(tx => {
-                  const isIn = tx.type === 'Cash In' || tx.type === 'Shift Open';
-                  return (
-                    <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: isIn ? '#ecfdf5' : '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
-                        {isIn ? '📥' : '📤'}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.88rem', color: '#0f172a' }}>{tx.type}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{tx.note || 'No note'} • {tx.time}</div>
-                      </div>
-                      <div style={{ fontWeight: '800', fontSize: '1rem', color: isIn ? '#16a34a' : '#ef4444' }}>
-                        {isIn ? '+' : '-'} QR {tx.amount.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* 🧾 RECEIPT PRINTER TAB */}
-      {activeModule === 'receipt' && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1', maxWidth: '420px', margin: '0 auto' }}>
-          <h4 style={{ margin: '0 0 12px 0' }}>🧾 Simulated Thermal Print Receipt</h4>
-          
-          <div ref={receiptRef} style={{ padding: '20px', background: '#fff', border: '1px dashed #334155', fontFamily: "'Courier New', monospace", fontSize: '0.82rem', color: '#000' }}>
-            <h2 style={{ textAlign: 'center', margin: '0 0 4px 0', fontSize: '1.25rem', textTransform: 'uppercase' }}>LAUNDRA HQ</h2>
-            <div style={{ textAlign: 'center', fontSize: '0.75rem', marginBottom: '8px' }}>Downtown HQ, Branch A</div>
-            <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-            
-            {viewingOrder ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Order ID:</span>
-                  <strong>#{viewingOrder.id}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Customer:</span>
-                  <strong>{viewingOrder.customerName}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Date:</span>
-                  <strong>{viewingOrder.date}</strong>
-                </div>
-                
-                <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-                
-                <div style={{ fontWeight: '700', marginBottom: '4px' }}>Items Summary:</div>
-                <div style={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>{viewingOrder.weightItems}</div>
-                
-                <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '1rem' }}>
-                  <span>GRAND TOTAL:</span>
-                  <span>QR {viewingOrder.totalAmount.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginTop: '4px' }}>
-                  <span>Payment Mode:</span>
-                  <strong>{viewingOrder.paymentMethod} ({viewingOrder.paymentStatus || 'Paid'})</strong>
-                </div>
-              </>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No recent order checkout select. Please go to Today's Orders and click \"Receipt\" next to any booking to load.</div>
-            )}
-            
-            <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-            <div style={{ textAlign: 'center', fontSize: '0.75rem' }}>Thank you for choosing Laundra!</div>
-          </div>
-          
-          {viewingOrder && (
-            <button onClick={handlePrint} style={{ width: '100%', padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', marginTop: '16px' }}>
-              🖨️ Print Thermal Receipt
-            </button>
-          )}
-        </div>
-      )}
 
-      {/* 💰 PAYMENTS & REFUNDS TAB */}
-      {activeModule === 'payments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>💵 Payment Records History</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {db.orders.map(o => (
-                <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div>
-                    <strong>Order #{o.id}</strong> — {o.customerName}
-                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Date: {o.date} • Method: {o.paymentMethod || 'Cash'}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: '800' }}>QR {o.totalAmount.toFixed(2)}</div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: '800', color: o.paymentStatus === 'Paid' ? '#15803d' : '#b91c1c' }}>{o.paymentStatus}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
 
       {/* 🎁 COUPONS MANAGER TAB */}
       {activeModule === 'coupons' && (
@@ -1711,7 +2850,7 @@ export const AdminPortal: React.FC = () => {
                     <strong>Code: {p.code}</strong>
                     <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
                   </div>
-                  <button onClick={() => { if(confirm('Delete coupon?')) saveDB({ promos: db.promos.filter(item => item.code !== p.code) }); }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
+                  <button onClick={() => handleDeleteCoupon((p as any).id, p.code)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
                 </div>
               ))}
             </div>
@@ -1758,6 +2897,7 @@ export const AdminPortal: React.FC = () => {
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
                 <th style={{ padding: '10px' }}>Client</th>
+                <th style={{ padding: '10px' }}>Phone</th>
                 <th style={{ padding: '10px' }}>Current Wallet</th>
                 <th style={{ padding: '10px' }}>Current Loyalty points</th>
               </tr>
@@ -1766,6 +2906,7 @@ export const AdminPortal: React.FC = () => {
               {db.customers.map(c => (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px', fontWeight: '700' }}>{c.name}</td>
+                  <td style={{ padding: '10px', color: '#64748b' }}>{c.phone || 'N/A'}</td>
                   <td style={{ padding: '10px', color: '#16a34a', fontWeight: '700' }}>QR {c.walletBalance.toFixed(2)}</td>
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
                 </tr>
@@ -1782,30 +2923,56 @@ export const AdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 12px 0' }}>💸 Expenses Log</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {db.expenses.map((ex, i) => (
+              {backendExpenses.map((ex, i) => (
                 <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <strong>{ex.description}</strong>
                     <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Category: {ex.category} • Source: {ex.source} • Date: {ex.date}</div>
                   </div>
-                  <strong style={{ color: '#ef4444' }}>- QR {ex.amount.toFixed(2)}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <strong style={{ color: '#ef4444' }}>- QR {Number(ex.amount).toFixed(2)}</strong>
+                    <button onClick={() => {
+                      setEditingExpense(ex);
+                      setExpCategory(ex.category || '');
+                      setExpDesc(ex.description || '');
+                      setExpSource(ex.source || '');
+                      setExpAmount(ex.amount?.toString() || '');
+                      setExpDate(ex.date || '');
+                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold' }}>Edit</button>
+                    <button onClick={async () => {
+                      if (confirm('Are you sure you want to delete this expense?')) {
+                        try {
+                          const res = await fetch(`${BASE_URL}/api/v1/expenses/${ex.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          });
+                          if (res.ok) {
+                            addActivity('Payment', `Deleted expense: ${ex.description}`);
+                            fetchBackendData();
+                          }
+                        } catch (err) {
+                          console.error('Error deleting expense:', err);
+                        }
+                      }
+                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>Delete</button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>➕ Add Expense</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>{editingExpense ? '✏️ Edit Expense' : '➕ Add Expense'}</h4>
             <form onSubmit={handleSaveExpense} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Category</label>
-                <select value={expCategory} onChange={e => setExpCategory(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="Salary">Salary payment</option>
-                  <option value="Fuel">Fuel / Transport</option>
-                  <option value="Electricity">Electricity bill</option>
-                  <option value="Water">Water bill</option>
-                  <option value="Packaging">Packaging materials</option>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Date</label>
+                  <input type="date" required value={expDate} onChange={e => setExpDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Category</label>
+                  <input type="text" required value={expCategory} onChange={e => setExpCategory(e.target.value)} placeholder="Enter category" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Description</label>
@@ -1814,9 +2981,14 @@ export const AdminPortal: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Source</label>
-                  <select value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                    <option value="Drawer Cash">Drawer Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
+                  <select required value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
+                    <option value="" disabled>Select</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Check">Check</option>
+                    <option value="PhonePe">PhonePe</option>
+                    <option value="Google Pay">Google Pay</option>
+                    <option value="Cash">Cash</option>
                   </select>
                 </div>
                 <div>
@@ -1849,7 +3021,7 @@ export const AdminPortal: React.FC = () => {
                 <strong>Total Catalog Items:</strong> {db.services.length} services
               </div>
               <div style={{ padding: '14px', background: '#fdf2f8', borderRadius: '8px' }}>
-                <strong>Total Company Registered Clients:</strong> {totalCustomers}
+                <strong>Total Company Registered Customers:</strong> {totalCustomers}
               </div>
             </div>
           </div>
@@ -1857,113 +3029,35 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* ✉️ NOTIFICATION CENTER TAB */}
-      {activeModule === 'notifications' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
-          
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>✉️ Dispatch central notification alerts</h4>
-            
-            <form onSubmit={e => { e.preventDefault(); triggerCentralAlert(alertTarget, alertText); setAlertTarget(''); setAlertText(''); }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Recipient contact (Email or Phone)</label>
-                <input type="text" required value={alertTarget} onChange={e => setAlertTarget(e.target.value)} placeholder="customer@domain.com or phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Alert text message</label>
-                <textarea required value={alertText} onChange={e => setAlertText(e.target.value)} rows={3} placeholder="Pickup reminder alert, Order ready alert..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Alert Mode Channel</label>
-                <select value={alertChannel} onChange={e => setAlertChannel(e.target.value as any)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="Email">Email channel</option>
-                  <option value="SMS">SMS channel</option>
-                  <option value="Push">Push Notification channel</option>
-                  <option value="WhatsApp">WhatsApp channel</option>
-                </select>
-              </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Send alert</button>
-            </form>
-          </div>
 
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>Sent notification logs</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
-              {notificationsLog.length === 0 ? (
-                <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No notifications dispatched.</div>
-              ) : (
-                notificationsLog.map(log => (
-                  <div key={log.id} style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-                    <strong>{log.target}</strong> via {log.channel}
-                    <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{log.text}</p>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.time}</div>
+      {/* 📢 SYSTEM ANNOUNCEMENTS TAB */}
+      {activeModule === 'announcements' && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
+          <h3 style={{ margin: '0 0 16px 0' }}>📢 System Announcements</h3>
+          <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '24px' }}>
+            Important platform updates, maintenance schedules, and feature releases from the Super Admin.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {systemAnnouncements.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                No active system announcements at this time.
+              </div>
+            ) : (
+              systemAnnouncements.map(ann => (
+                <div key={ann.id} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <strong style={{ fontSize: '1rem', color: '#1e3a8a' }}>{ann.title}</strong>
+                    <span style={{ fontSize: '0.75rem', background: '#e2e8f0', padding: '4px 8px', borderRadius: '12px', color: '#475569', fontWeight: 'bold' }}>
+                      {new Date(ann.created_at).toLocaleDateString()}
+                    </span>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', gridColumn: '1 / -1', marginTop: '24px' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>📢 Broadcast Company Announcements</h4>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
-              <form onSubmit={e => {
-                e.preventDefault();
-                if (!annTitle || !annContent) return;
-                const newAnn: Announcement = {
-                  id: 'ann-' + Date.now(),
-                  title: annTitle,
-                  content: annContent,
-                  date: new Date().toISOString().split('T')[0],
-                  targetAudience: annAudience,
-                  author: 'HQ Admin'
-                };
-                saveDB({ announcements: [newAnn, ...db.announcements] });
-                setAnnTitle('');
-                setAnnContent('');
-                alert('Announcement broadcasted successfully!');
-              }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Announcement Title</label>
-                  <input type="text" required value={annTitle} onChange={e => setAnnTitle(e.target.value)} placeholder="e.g. System maintenance scheduled" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <p style={{ fontSize: '0.9rem', color: '#334155', margin: 0, lineHeight: '1.5' }}>
+                    {ann.content}
+                  </p>
                 </div>
-                
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Announcement Content</label>
-                  <textarea required value={annContent} onChange={e => setAnnContent(e.target.value)} rows={3} placeholder="Compose message details here..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Target Audience</label>
-                  <select value={annAudience} onChange={e => setAnnAudience(e.target.value as any)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                    <option value="All">All Audiences (Staff & Clients)</option>
-                    <option value="Delivery Staff">Delivery Staff Only</option>
-                    <option value="Customers">Customers Only</option>
-                  </select>
-                </div>
-
-                <button type="submit" style={{ padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Broadcast Announcement</button>
-              </form>
-
-              <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '24px' }}>
-                <h5 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Active Announcements Log</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
-                  {db.announcements.length === 0 ? (
-                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No announcements active.</div>
-                  ) : (
-                    db.announcements.map(ann => (
-                      <div key={ann.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem', position: 'relative' }}>
-                        <button onClick={() => saveDB({ announcements: db.announcements.filter(a => a.id !== ann.id) })} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button>
-                        <strong style={{ color: '#1e3a8a' }}>{ann.title}</strong>
-                        <span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '8px', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>To: {ann.targetAudience}</span>
-                        <p style={{ margin: '6px 0 0 0', color: '#475569' }}>{ann.content}</p>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>Posted: {ann.date} by {ann.author}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -1977,8 +3071,13 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {reviews.map(rev => (
                 <div key={rev.id} style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #cbd5e1', position: 'relative' }}>
-                  <div style={{ fontWeight: '700' }}>{rev.name}</div>
-                  <div style={{ color: '#d97706', margin: '4px 0', fontSize: '0.85rem' }}>{'★'.repeat(rev.stars)}{'☆'.repeat(5 - rev.stars)}</div>
+                  <div style={{ fontWeight: '700' }}>{rev.customer_name || 'Unknown Customer'}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', gap: '12px', marginTop: '4px' }}>
+                    <span>📧 {rev.customer_email || 'N/A'}</span>
+                    <span>📞 {rev.customer_phone || 'N/A'}</span>
+                    <span>📍 {rev.customer_address || 'N/A'}</span>
+                  </div>
+                  <div style={{ color: '#d97706', margin: '6px 0', fontSize: '0.85rem' }}>{'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}</div>
                   <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#334155' }}>{rev.comment}</p>
                   
                   {rev.reply && (
@@ -2064,24 +3163,124 @@ export const AdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 12px 0' }}>Ticket history</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '350px', overflowY: 'auto' }}>
-              {supportTickets.map(t => (
+              {platformTickets.map(t => (
                 <div key={t.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <strong>{t.subject}</strong>
-                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: t.status === 'Open' ? '#fffbeb' : '#dcfce7', color: t.status === 'Open' ? '#b45309' : '#15803d' }}>{t.status}</span>
+                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: t.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: t.status === 'OPEN' ? '#b45309' : '#15803d' }}>{t.status}</span>
                   </div>
-                  <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{t.message}</p>
+                  <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{t.description}</p>
                   
-                  {t.history && t.history.map((reply, idx) => (
-                    <div key={idx} style={{ marginTop: '8px', padding: '8px', background: '#eff6ff', borderRadius: '4px', fontSize: '0.8rem' }}>
-                      <strong>{reply.sender}:</strong> {reply.message}
+                  {t.internal_notes && (
+                    <div style={{ marginTop: '8px', padding: '8px', background: '#eff6ff', borderRadius: '4px', fontSize: '0.8rem' }}>
+                      <strong>Admin Reply:</strong> {t.internal_notes}
                     </div>
-                  ))}
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* 🎧 CUSTOMER SUPPORT TAB */}
+      {activeModule === 'customer-support' && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
+          <h4 style={{ margin: '0 0 16px 0' }}>🎧 Customer/Delivery Support Desk</h4>
+          {adminCustomerTickets.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: '0.9rem' }}>No customer tickets found.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {adminCustomerTickets.map(t => (
+                <div key={t.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: t.status === 'OPEN' ? '#fdf8f6' : '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h5 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e293b' }}>{t.subject}</h5>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '8px' }}>
+                        From: <strong>{t.sender_name}</strong> ({t.sender_email}) - <span style={{color: '#2563eb', fontWeight: 'bold'}}>[{t.sender_type}]</span> on {new Date(t.created_at).toLocaleDateString()}
+                        <button
+                          onClick={() => setViewingSenderDetails(t)}
+                          style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', padding: 0, marginLeft: '8px' }}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', background: t.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: t.status === 'OPEN' ? '#b45309' : '#15803d', fontWeight: 'bold' }}>
+                      {t.status}
+                    </span>
+                  </div>
+                  <p style={{ margin: '8px 0 16px 0', color: '#334155', fontSize: '0.9rem', background: 'white', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    {t.description}
+                  </p>
+
+                  {t.admin_response ? (
+                    <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                      <strong style={{ color: '#1d4ed8' }}>Your Reply:</strong>
+                      <p style={{ margin: '4px 0 0 0', color: '#1e3a8a' }}>{t.admin_response}</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <textarea 
+                        value={customerTicketReply[t.id] || ''} 
+                        onChange={e => setCustomerTicketReply({...customerTicketReply, [t.id]: e.target.value})}
+                        placeholder="Type your response to the customer..." 
+                        style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                        rows={2} 
+                      />
+                      <button 
+                        onClick={async () => {
+                          const replyText = customerTicketReply[t.id];
+                          if (!replyText) return alert('Please enter a response.');
+                          try {
+                            const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+                            const token = localStorage.getItem('ll_auth_token');
+                            const res = await fetch(`${BASE_URL}/api/v1/admin/customer-support/${t.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ status: 'RESPONDED', admin_response: replyText })
+                            });
+                            if (res.ok) {
+                              alert('Response sent to customer!');
+                              fetchBackendData();
+                            } else {
+                              alert('Failed to send response.');
+                            }
+                          } catch (e) {
+                            console.error(e);
+                            alert('Network error.');
+                          }
+                        }}
+                        style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        Send Reply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {viewingSenderDetails && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', maxWidth: '90%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, color: '#1e293b' }}>{viewingSenderDetails.sender_type} Details</h3>
+                  <button onClick={() => setViewingSenderDetails(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b', padding: 0, lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#334155', fontSize: '0.95rem' }}>
+                  <div><strong>Name:</strong> {viewingSenderDetails.sender_name || 'N/A'}</div>
+                  <div><strong>Email:</strong> {viewingSenderDetails.sender_email || 'N/A'}</div>
+                  <div><strong>Phone Number:</strong> {viewingSenderDetails.sender_phone || 'N/A'}</div>
+                  <div><strong>Address / Area:</strong> {viewingSenderDetails.sender_address || 'N/A'}</div>
+                </div>
+                <div style={{ marginTop: '24px', textAlign: 'right' }}>
+                  <button onClick={() => setViewingSenderDetails(null)} style={{ padding: '8px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2124,10 +3323,11 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={handleVerifyCustomerOtp} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <p style={{ fontSize: '0.85rem', color: '#475569' }}>A verification OTP has been sent via Super Admin's Centralized Notification service to <strong>{custEmail}</strong>.</p>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code (Demo Hint: Use 1234)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={custOtp} onChange={e => setCustOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontSize: '1.25rem', letterSpacing: '4px', fontWeight: '800' }} />
                 </div>
                 <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP Code</button>
+                <button type="button" onClick={() => setAddingCustomerStep(1)} style={{ padding: '10px', background: 'transparent', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Back to Edit Details</button>
               </form>
             )}
 
@@ -2177,7 +3377,7 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleVerifyStaffOtp(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code (Demo Hint: Use 1234)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
                 </div>
                 <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP</button>
@@ -2259,7 +3459,7 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleVerifyStaffOtp(e, 'delivery')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code (Demo Hint: Use 1234)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
                 </div>
                 <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP</button>
@@ -2275,6 +3475,129 @@ export const AdminPortal: React.FC = () => {
                 <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Complete Setup</button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW INVOICE MODAL */}
+      {viewingInvoice && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>🧾 Order Invoice Details</h3>
+              <button onClick={() => setViewingInvoice(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
+            </div>
+            
+            <div style={{ padding: '24px', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '16px', fontFamily: "'Courier New', Courier, monospace" }}>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{companyHeaderName}</h4>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
+                </div>
+
+                <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Order ID:</span>
+                    <span style={{ fontWeight: '700' }}>#{viewingInvoice.id}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Customer:</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.customerName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Payment Method:</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.paymentMethod || 'Cash'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Status:</span>
+                    <span style={{ fontWeight: '700', color: viewingInvoice.status === 'Delivered' ? '#16a34a' : '#2563eb' }}>{viewingInvoice.status}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Services / Items</div>
+                  {viewingInvoice.services && viewingInvoice.services.length > 0 ? (
+                    viewingInvoice.services.map((s: any, idx: number) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
+                        <span>{s.name} {s.express ? '⚡' : ''} x{s.qty || 1}</span>
+                        <span style={{ fontWeight: '700' }}>QR {((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                      <span>{viewingInvoice.weightItems || 'Standard Laundry'}</span>
+                      <span style={{ fontWeight: '700' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', fontSize: '1rem', fontWeight: '800' }}>
+                  <span>TOTAL AMOUNT:</span>
+                  <span>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setViewingInvoice(null)} style={{ padding: '8px 16px', border: '1.5px solid #cbd5e1', borderRadius: '8px', background: 'transparent', cursor: 'pointer', fontWeight: '700' }}>Close</button>
+                <button
+                  onClick={() => {
+                    const win = window.open('', '_blank', 'width=450,height=600');
+                    if (!win) return;
+                    win.document.write(`
+                      <html>
+                        <head>
+                          <title>Invoice #${viewingInvoice.id}</title>
+                          <style>
+                            body { font-family: 'Courier New', Courier, monospace; font-size: 14px; padding: 30px; line-height: 1.4; }
+                            h2 { text-align: center; margin: 0 0 10px 0; }
+                            .center { text-align: center; }
+                            .divider { border-top: 1px dashed #000; margin: 15px 0; }
+                            .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                            .bold { font-weight: bold; }
+                          </style>
+                        </head>
+                        <body>
+                          <h2>${companyHeaderName}</h2>
+                          <div class="center">${new Date(viewingInvoice.date).toLocaleString()}</div>
+                          <div class="divider"></div>
+                          <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
+                          <div class="row"><span class="bold">Customer:</span><span>${viewingInvoice.customerName}</span></div>
+                          <div class="row"><span class="bold">Payment:</span><span>${viewingInvoice.paymentMethod || 'Cash'}</span></div>
+                          <div class="row"><span class="bold">Status:</span><span>${viewingInvoice.status}</span></div>
+                          <div class="divider"></div>
+                          <div class="row bold" style="font-size: 12px; text-transform: uppercase;"><span>Services / Items</span><span>Price</span></div>
+                          ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
+                            viewingInvoice.services.map((s: any) => `
+                              <div class="row">
+                                <span>${s.name} ${s.express ? '(Express)' : ''} x${s.qty || 1}</span>
+                                <span>QR ${((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</span>
+                              </div>
+                            `).join('') : `
+                              <div class="row">
+                                <span>${viewingInvoice.weightItems || 'Standard Laundry'}</span>
+                                <span>QR ${viewingInvoice.totalAmount.toFixed(2)}</span>
+                              </div>
+                            `
+                          }
+                          <div class="divider"></div>
+                          <div class="row bold" style="font-size: 16px;">
+                            <span>TOTAL AMOUNT:</span>
+                            <span>QR ${viewingInvoice.totalAmount.toFixed(2)}</span>
+                          </div>
+                          <div class="divider"></div>
+                          <div class="center" style="margin-top: 20px; font-size: 12px;">Thank you for your business!</div>
+                        </body>
+                      </html>
+                    `);
+                    win.document.close();
+                    win.print();
+                  }}
+                  style={{ padding: '8px 20px', border: 'none', borderRadius: '8px', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  🖨️ Print / Save PDF
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2341,18 +3664,88 @@ export const AdminPortal: React.FC = () => {
               </div>
 
               {/* Assign Pickup / Delivery agent */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Delivery Courier</label>
-                <select 
-                  value={viewingOrder.courier || ''} 
-                  onChange={e => handleAssignDeliveryBoy(viewingOrder.id, e.target.value)}
-                  style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
-                >
-                  <option value="">Unassigned</option>
-                  {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
-                    <option key={u.id} value={u.name}>{u.name}</option>
-                  ))}
-                </select>
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Pickup Courier</label>
+                  <select 
+                    value={viewingOrder.pickupCourier || ''} 
+                    onChange={e => {
+                      handleAssignPickupCourier(viewingOrder.id, e.target.value);
+                      const updated = db.orders.find(o => o.id === viewingOrder.id);
+                      if (updated) setViewingOrder(updated);
+                    }}
+                    disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase()))}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? 'not-allowed' : 'pointer' }}
+                  >
+                    <option value="">Unassigned</option>
+                    <option value="All Delivery Staff">All Delivery Staff</option>
+                    {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Delivery Courier</label>
+                  <select 
+                    value={viewingOrder.deliveryCourier || ''} 
+                    onChange={e => {
+                      handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
+                      const updated = db.orders.find(o => o.id === viewingOrder.id);
+                      if (updated) setViewingOrder(updated);
+                    }}
+                    disabled={!!(viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered')}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
+                  >
+                    <option value="">Unassigned</option>
+                    <option value="All Delivery Staff">All Delivery Staff</option>
+                    {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {(viewingOrder.pickupCourier || viewingOrder.deliveryCourier) && (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    {viewingOrder.pickupCourier && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>📦 Pickup Commission (QR):</label>
+                        <input 
+                          type="number" 
+                          placeholder="0.00"
+                          disabled={!['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase())}
+                          value={viewingOrder.pickupCommission || ''}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setViewingOrder({...viewingOrder, pickupCommission: val});
+                            const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
+                            saveDB({ orders: updatedOrders });
+                          }}
+                          style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase()) ? '#e2e8f0' : 'white', cursor: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase()) ? 'not-allowed' : 'text' }}
+                        />
+                      </div>
+                    )}
+                    
+                    {viewingOrder.deliveryCourier && ['ready', 'out for delivery', 'delivered'].includes(viewingOrder.status.toLowerCase()) && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>🚚 Delivery Commission (QR):</label>
+                        <input 
+                          type="number" 
+                          placeholder="0.00"
+                          disabled={viewingOrder.status.toLowerCase() === 'delivered'}
+                          value={viewingOrder.deliveryCommission || ''}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setViewingOrder({...viewingOrder, deliveryCommission: val});
+                            const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
+                            saveDB({ orders: updatedOrders });
+                          }}
+                          style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: viewingOrder.status.toLowerCase() === 'delivered' ? '#e2e8f0' : 'white', cursor: viewingOrder.status.toLowerCase() === 'delivered' ? 'not-allowed' : 'text' }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>

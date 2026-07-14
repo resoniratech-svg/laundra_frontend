@@ -12,6 +12,35 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   const navigate = useNavigate();
   const { db, saveDB } = useDatabase();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [companyName, setCompanyName] = useState<string>('');
+
+  React.useEffect(() => {
+    const loadAdminCompany = async () => {
+      const token = localStorage.getItem('ll_auth_token');
+      if (token) {
+        try {
+          const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+          const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.tenant_id) {
+              const compRes = await fetch(`${BASE_URL}/api/v1/companies/public`);
+              if (compRes.ok) {
+                const comps = await compRes.json();
+                const matched = comps.find((c: any) => c.id === data.tenant_id);
+                if (matched) setCompanyName(matched.name);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load company for admin portal', e);
+        }
+      }
+    };
+    loadAdminCompany();
+  }, []);
 
   // Role checking
   const role = db.activeRole;
@@ -64,10 +93,10 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
 
     // Role-based restrictions
     if (role === 'Delivery Staff' || role === 'Delivery Boy') {
-      return ['orders'].includes(moduleId);
+      return ['orders', 'announcements'].includes(moduleId);
     }
-    if (role === 'Cashier') {
-      return ['dashboard', 'pos', 'customers', 'orders', 'payments', 'wallet-loyalty', 'drawer', 'receipt'].includes(moduleId);
+    if (db.activeRole === 'Cashier' || db.activeRole === 'cashier') {
+      return ['dashboard', 'pos', 'customers', 'orders', 'wallet-loyalty', 'announcements'].includes(moduleId);
     }
 
     return true;
@@ -79,20 +108,19 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     'customers': 'Customer Management',
     'cashiers': 'Cashier Management',
     'delivery-staff': 'Delivery Staff Management',
+    'delivery-payment': 'Delivery Payment Module',
     'services': 'Service Management',
-    'orders': 'Order Management',
-    'payments': 'Payments Catalog',
+    'orders': 'Order Management Engine',
     'coupons': 'Coupons Management',
-    'wallet-loyalty': 'Wallet & Loyalty Program',
+    'wallet-loyalty': 'Customer Wallet & Loyalty Rewards',
     'expenses': 'Expenses Manager',
-    'reports': 'Business Reports',
-    'notifications': 'Central Notifications Center',
+    'reports': 'Business Reports Engine',
+    'announcements': 'Company Announcements',
     'reviews': 'Customer Reviews',
     'settings': 'Company Settings',
+    'customer-support': 'Customer/Delivery Support',
     'audit-logs': 'Audit Activity Logs',
-    'support': 'Platform Help & Support',
-    'drawer': 'Drawer Shifts Management',
-    'receipt': 'Thermal Receipt Simulator'
+    'support': 'Platform Help & Support'
   };
 
   const currentTitle = titleMap[activeModule] || 'Manager Desk';
@@ -101,20 +129,19 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     { id: 'pos', label: 'POS / New Order', icon: '🛒' },
+    { id: 'orders', label: 'Order Management', icon: '📦' },
     { id: 'customers', label: 'Customer Management', icon: '👥' },
     { id: 'cashiers', label: 'Cashier Management', icon: '💳' },
     { id: 'delivery-staff', label: 'Delivery Staff', icon: '🚚' },
+    { id: 'delivery-payment', label: 'Delivery Payments', icon: '💰' },
     { id: 'services', label: 'Service Management', icon: '🏷️' },
-    { id: 'orders', label: 'Order Management', icon: '🧺' },
-    { id: 'payments', label: 'Payments & Refunds', icon: '💰' },
     { id: 'coupons', label: 'Coupons Manager', icon: '🎁' },
     { id: 'wallet-loyalty', label: 'Wallet & Loyalty', icon: '💳' },
-    { id: 'drawer', label: 'Drawer & Shifts', icon: '💵' },
-    { id: 'receipt', label: 'Receipt Printer', icon: '🧾' },
     { id: 'expenses', label: 'Expenses Book', icon: '💸' },
     { id: 'reports', label: 'Business Reports', icon: '📊' },
-    { id: 'notifications', label: 'Notification Center', icon: '✉️' },
+    { id: 'announcements', label: 'Announcements', icon: '📢' },
     { id: 'reviews', label: 'Customer Reviews', icon: '⭐' },
+    { id: 'customer-support', label: 'Customer/Delivery Support', icon: '🎧' },
     { id: 'audit-logs', label: 'Audit Activity Logs', icon: '📜' },
     { id: 'support', label: 'Help & Support', icon: '🎫' }
   ];
@@ -215,42 +242,93 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
         
         {/* Sidebar Panel */}
         <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0, position: 'sticky', top: '24px', height: 'calc(100vh - 48px)' }}>
-          <div className="sidebar-brand" style={{ padding: '0 20px 16px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px' }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#1e3a8a', display: 'block' }}>{brandName}</span>
-            <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569', display: 'block', marginTop: '4px' }}>🏢 {activeComp?.name || 'Laundra Corp'}</span>
+          <div className="sidebar-brand" style={{ padding: '0 20px 20px 20px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e3a8a', display: 'block', lineHeight: '1.3' }}>
+              {companyName || activeComp?.name || 'Company Name'}
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {brandName}
+            </span>
           </div>
 
           <div className="sidebar-menu-wrapper" style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
             <ul className="sidebar-menu" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {menuItems
-                .filter(item => isAllowed(item.id))
-                .map(item => (
-                  <li 
-                    key={item.id}
-                    onClick={() => onModuleChange(item.id)} 
-                    className={`sidebar-menu-item ${activeModule === item.id ? 'active' : ''}`}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      fontWeight: '700',
-                      color: activeModule === item.id ? '#2563eb' : '#475569',
-                      background: activeModule === item.id ? '#eff6ff' : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    <span>{item.icon}</span> <span>{item.label}</span>
-                    {item.id === 'delivery-staff' && db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length > 0 && (
-                      <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
-                        {db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length}
-                      </span>
-                    )}
-                  </li>
-                ))}
+              {(() => {
+                const unreadAnnouncements = db.notifications.filter(n => n.unread && n.text.includes('📢')).length;
+                const unreadSupport = db.notifications.filter(n => n.unread && n.text.includes('🎫')).length;
+
+                // Reactive DB context count states
+                const unrepliedReviewsCount = db.unreadReviewsCount || 0;
+                const unresolvedSupportCount = db.unresolvedSupportCount || 0;
+
+                return menuItems
+                  .filter(item => isAllowed(item.id))
+                  .map(item => (
+                    <li 
+                      key={item.id}
+                      onClick={() => {
+                        onModuleChange(item.id);
+                        if (item.id === 'announcements') {
+                          const updated = db.notifications.map(n => n.text.includes('📢') ? { ...n, unread: false } : n);
+                          saveDB({ notifications: updated });
+                        }
+                        if (item.id === 'support') {
+                          const updated = db.notifications.map(n => n.text.includes('🎫') ? { ...n, unread: false } : n);
+                          saveDB({ notifications: updated });
+                        }
+                        if (item.id === 'reviews') {
+                          const updated = db.notifications.map(n => n.text.includes('⭐') ? { ...n, unread: false } : n);
+                          saveDB({ notifications: updated });
+                        }
+                        if (item.id === 'customer-support') {
+                          const updated = db.notifications.map(n => n.text.includes('🎧') ? { ...n, unread: false } : n);
+                          saveDB({ notifications: updated });
+                        }
+                      }} 
+                      className={`sidebar-menu-item ${activeModule === item.id ? 'active' : ''}`}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        fontWeight: '700',
+                        color: activeModule === item.id ? '#2563eb' : '#475569',
+                        background: activeModule === item.id ? '#eff6ff' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <span>{item.icon}</span> <span>{item.label}</span>
+                      {item.id === 'delivery-staff' && db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length > 0 && (
+                        <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
+                          {db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length}
+                        </span>
+                      )}
+                      {item.id === 'announcements' && unreadAnnouncements > 0 && (
+                        <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
+                          {unreadAnnouncements}
+                        </span>
+                      )}
+                      {item.id === 'support' && unreadSupport > 0 && (
+                        <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
+                          {unreadSupport}
+                        </span>
+                      )}
+                      {item.id === 'reviews' && unrepliedReviewsCount > 0 && (
+                        <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
+                          {unrepliedReviewsCount}
+                        </span>
+                      )}
+                      {item.id === 'customer-support' && unresolvedSupportCount > 0 && (
+                        <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800', marginLeft: 'auto' }}>
+                          {unresolvedSupportCount}
+                        </span>
+                      )}
+                    </li>
+                  ));
+              })()}
             </ul>
           </div>
 

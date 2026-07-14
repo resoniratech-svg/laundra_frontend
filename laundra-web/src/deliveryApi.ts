@@ -105,6 +105,98 @@ export async function apiRegisterDeliveryBoy(
 export async function apiApproveDeliveryBoy(
   userId: string,
   token?: string
-): Promise<ApproveResponse> {
-  return httpPost(`/api/v1/users/${userId}/approve`, {}, token);
+): Promise<{ message: string }> {
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  
+  const res = await fetch(`${BASE_URL}/api/v1/users/${userId}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({}),
+  });
+  
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.detail || data?.message || `HTTP ${res.status} - ${res.statusText}`;
+    throw new Error(msg);
+  }
+  
+  return { message: data.message || "Application for delivery boy approved! They can now log in to the Delivery Portal." };
+}
+
+export async function apiRejectDeliveryBoy(
+  userId: string,
+  token?: string
+): Promise<{ message: string }> {
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  
+  const res = await fetch(`${BASE_URL}/api/v1/users/${userId}/reject`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({}),
+  });
+  
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.detail || data?.message || `HTTP ${res.status} - ${res.statusText}`;
+    throw new Error(msg);
+  }
+  
+  return { message: data.message || "Application rejected successfully." };
+}
+
+export async function apiSendOrderOtp(
+  orderId: string,
+  action: 'pickup' | 'delivery',
+  token?: string
+): Promise<{ message: string }> {
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  
+  const res = await fetch(`${BASE_URL}/api/v1/orders/${orderId}/send-otp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ action }),
+  });
+  
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.detail || data?.message || `HTTP ${res.status} - ${res.statusText}`;
+    throw new Error(msg);
+  }
+  
+  return { message: data.message || "OTP sent successfully." };
+}
+
+export async function apiVerifyOrderOtp(
+  orderId: string,
+  action: 'pickup' | 'delivery',
+  otp: string,
+  token?: string
+): Promise<any> {
+  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  
+  const res = await fetch(`${BASE_URL}/api/v1/orders/${orderId}/verify-otp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ action, otp }),
+  });
+  
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.detail || data?.message || `HTTP ${res.status} - ${res.statusText}`;
+    throw new Error(msg);
+  }
+  
+  return data;
 }
