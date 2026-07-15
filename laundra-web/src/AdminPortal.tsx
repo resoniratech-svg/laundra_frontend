@@ -1312,12 +1312,7 @@ export const AdminPortal: React.FC = () => {
   const handleCheckoutPOS = async () => {
     if (posCart.length === 0) return;
 
-    // Only cashiers need an open drawer shift; admins can always create orders
-    const isAdmin = db.activeRole === 'Admin' || db.activeRole === 'admin';
-    if (!shiftOpen && !isAdmin) {
-      alert('Please open your drawer shift before processing orders.');
-      return;
-    }
+
 
     const currentMonth = new Date().toISOString().substring(0, 7);
     const monthlyOrdersCount = db.orders.filter(o => o.date.startsWith(currentMonth)).length;
@@ -2699,81 +2694,10 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* ➕ MANUAL ORDER / POS TAB */}
       {activeModule === 'pos' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: '24px' }}>
-          
           {/* POS Catalog browsing */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            
-            {/* Drawer Shift Banner for Cashiers */}
-            {db.activeRole === 'Cashier' && (
-              !shiftOpen ? (
-                <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '12px', padding: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ flex: 1, minWidth: '200px' }}>
-                    <strong style={{ color: '#d97706', display: 'block', fontSize: '0.9rem' }}>🔒 Cash Drawer Shift is Closed</strong>
-                    <span style={{ fontSize: '0.78rem', color: '#b45309' }}>You must open your cash drawer shift with a starting float before processing POS checkout orders.</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>Float:</span>
-                    <input 
-                      type="number" 
-                      placeholder="QR 100" 
-                      value={txAmount} 
-                      onChange={e => setTxAmount(e.target.value)} 
-                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '90px', fontSize: '0.82rem' }} 
-                    />
-                    <button 
-                      onClick={() => {
-                        const amt = parseFloat(txAmount) || 0;
-                        saveDB({ drawerCash: amt });
-                        setShiftOpen(true);
-                        localStorage.setItem('ll_cashier_shift', 'open');
-                        const tx = {
-                          id: 'tx-' + Date.now(),
-                          type: 'Shift Open' as const,
-                          amount: amt,
-                          note: 'Opened shift drawer',
-                          time: new Date().toLocaleTimeString()
-                        };
-                        setDrawerTxs(prev => [tx, ...prev]);
-                        setTxAmount('');
-                        alert('Cash drawer shift opened successfully!');
-                      }}
-                      style={{ padding: '8px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}
-                    >
-                      🔑 Open Shift
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ flex: 1, minWidth: '200px' }}>
-                    <strong style={{ color: '#15803d', display: 'block', fontSize: '0.9rem' }}>🟢 Cash Drawer Shift is Open</strong>
-                    <span style={{ fontSize: '0.78rem', color: '#166534' }}>Current Drawer Cash: <strong>QR {db.drawerCash ? db.drawerCash.toFixed(2) : '0.00'}</strong>. You are ready to process orders.</span>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setShiftOpen(false);
-                      localStorage.setItem('ll_cashier_shift', 'closed');
-                      const tx = {
-                        id: 'tx-' + Date.now(),
-                        type: 'Shift Close' as const,
-                        amount: db.drawerCash || 0,
-                        note: 'Closed shift drawer',
-                        time: new Date().toLocaleTimeString()
-                      };
-                      setDrawerTxs(prev => [tx, ...prev]);
-                      alert('Cash drawer shift closed successfully!');
-                    }}
-                    style={{ padding: '8px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}
-                  >
-                    🔒 Close Shift
-                  </button>
-                </div>
-              )
-            )}
-
             <h4 style={{ margin: '0 0 16px 0' }}>🧺 Service Catalog</h4>
             
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
