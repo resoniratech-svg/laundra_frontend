@@ -653,63 +653,21 @@ export const AdminPortal: React.FC = () => {
     setAddingCustomerStep(1);
   };
 
-  const handleCreateCustomerInputs = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${BASE_URL}/api/v1/customers/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email: custEmail, phone: custPhone })
-      });
-      if (res.ok) {
-        setAddingCustomerStep(2);
-        alert(`OTP has been sent to ${custEmail}`);
-      } else {
-        const data = await res.json();
-        alert(`Failed to send OTP: ${data.detail || 'Unknown error'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Network error while sending OTP');
-    }
-  };
-
-  const handleVerifyCustomerOtp = async (e: React.FormEvent) => {
+  const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/customers/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email: custEmail, otp: custOtp })
-      });
-
-      if (res.ok) {
-        setAddingCustomerStep(3);
-      } else {
-        const data = await res.json();
-        alert(`Failed to verify OTP: ${data.detail || 'Unknown error'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Network error verifying OTP');
-    }
-  };
-
-  const handleCompleteCustomerSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
+      const defaultPass = "customer123";
       const res = await fetch(`${BASE_URL}/api/v1/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           name: custName,
-          email: custEmail,
+          email: custEmail.trim() || null,
           phone: custPhone,
           address: custAddress,
-          otp: custOtp,
-          password: custPass
+          otp: "",
+          password: defaultPass
         })
       });
 
@@ -737,7 +695,7 @@ export const AdminPortal: React.FC = () => {
         name: custName,
         role: 'customer',
         email: custEmail,
-        password: custPass,
+        password: defaultPass,
         phone: custPhone,
         address: custAddress,
         status: 'Active',
@@ -752,7 +710,7 @@ export const AdminPortal: React.FC = () => {
       addActivity('Customer', `Manual registration verified for customer: ${custName}`);
       alert(`Customer ${custName} registered successfully!`);
       
-      // Reset wizard
+      // Reset form
       setCustName('');
       setCustEmail('');
       setCustPhone('');
@@ -3449,62 +3407,34 @@ export const AdminPortal: React.FC = () => {
 
       {/* ─── MODALS ──────────────────────────────────────────────────────────── */}
 
-      {/* ADD CUSTOMER MODAL (WIZARD OTP FLOW) */}
+      {/* ADD CUSTOMER MODAL */}
       {addingCustomerStep > 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
             <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Customer (Wizard Step {addingCustomerStep}/3)</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Customer</h3>
               <button onClick={() => setAddingCustomerStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
-            {/* Step 1: Inputs */}
-            {addingCustomerStep === 1 && (
-              <form onSubmit={handleCreateCustomerInputs} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                  <input type="text" required value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
-                  <input type="email" required value={custEmail} onChange={e => setCustEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone *</label>
-                  <input type="text" required value={custPhone} onChange={e => setCustPhone(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
-                  <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Next: Send OTP</button>
-              </form>
-            )}
-
-            {/* Step 2: OTP Verification */}
-            {addingCustomerStep === 2 && (
-              <form onSubmit={handleVerifyCustomerOtp} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ fontSize: '0.85rem', color: '#475569' }}>A verification OTP has been sent via Super Admin's Centralized Notification service to <strong>{custEmail}</strong>.</p>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
-                  <input type="text" required value={custOtp} onChange={e => setCustOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontSize: '1.25rem', letterSpacing: '4px', fontWeight: '800' }} />
-                </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP Code</button>
-                <button type="button" onClick={() => setAddingCustomerStep(1)} style={{ padding: '10px', background: 'transparent', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Back to Edit Details</button>
-              </form>
-            )}
-
-            {/* Step 3: Password creation */}
-            {addingCustomerStep === 3 && (
-              <form onSubmit={handleCompleteCustomerSetup} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ fontSize: '0.85rem', color: '#475569' }}>Verification successful. Please configure a login password for the customer.</p>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Create Password</label>
-                  <input type="password" required value={custPass} onChange={e => setCustPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Complete Registration</button>
-              </form>
-            )}
+            <form onSubmit={handleCreateCustomer} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
+                <input type="text" required value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address</label>
+                <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone *</label>
+                <input type="text" required value={custPhone} onChange={e => setCustPhone(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
+                <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Create Customer</button>
+            </form>
           </div>
         </div>
       )}
