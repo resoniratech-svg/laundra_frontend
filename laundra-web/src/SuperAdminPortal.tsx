@@ -1275,7 +1275,6 @@ export const SuperAdminPortal: React.FC = () => {
               {[
                 { title: 'Total Companies', value: totalCompaniesCount, icon: '🏢', bg: '#f0f9ff', text: '#0369a1' },
                 { title: 'Active / Suspended', value: `${activeCompaniesCount} / ${suspendedCompaniesCount}`, icon: '⚡', bg: '#ecfdf5', text: '#047857' },
-                { title: 'Trial Duration active', value: freeTrialCompaniesCount, icon: '🎁', bg: '#fef3c7', text: '#b45309' },
                 { title: 'Expired Subscriptions', value: expiredSubsCount, icon: '⚠️', bg: '#fef2f2', text: '#b91c1c' },
                 { title: 'Total Company Admins', value: totalAdmins, icon: '👤', bg: '#faf5ff', text: '#6b21a8' },
                 { title: 'Total Cashiers', value: totalCashiers, icon: '💳', bg: '#f0fdfa', text: '#0f766e' },
