@@ -223,7 +223,13 @@ export const CustomerPortal: React.FC = () => {
   }, [db.activeCompanyId]);
 
   // Sidebar Menu State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'support' | 'reviews' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'support' | 'reviews' | 'profile'>(() => {
+    return (localStorage.getItem('ll_active_customer_tab') as any) || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ll_active_customer_tab', activeTab);
+  }, [activeTab]);
 
   // Customer profile details
   const [profName, setProfName] = useState('');

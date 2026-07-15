@@ -78,7 +78,13 @@ export const SuperAdminPortal: React.FC = () => {
     | 'security'
     | 'backup-restore'
     | 'system-health'
-  >('dashboard');
+  >(() => {
+    return (localStorage.getItem('ll_active_super_admin_tab') as any) || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ll_active_super_admin_tab', activeTab);
+  }, [activeTab]);
 
   // Sub-tabs states
   const [companyMgmtSub, setCompanyMgmtSub] = useState<'companies' | 'admins' | 'monitoring' | 'services'>('companies');

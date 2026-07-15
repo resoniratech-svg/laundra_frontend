@@ -41,7 +41,13 @@ export const DeliveryPortal: React.FC = () => {
   const [tempRegDetails, setTempRegDetails] = useState<any>(null);
 
   // Active Tab for Web Dashboard
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'earnings' | 'attendance' | 'profile' | 'support' | 'announcements'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'earnings' | 'attendance' | 'profile' | 'support' | 'announcements'>(() => {
+    return (localStorage.getItem('ll_active_delivery_tab') as any) || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ll_active_delivery_tab', activeTab);
+  }, [activeTab]);
 
   // Tasks Sub-tab
   const [tasksSubTab, setTasksSubTab] = useState<'pickups' | 'deliveries'>('pickups');
