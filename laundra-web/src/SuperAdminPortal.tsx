@@ -226,6 +226,10 @@ export const SuperAdminPortal: React.FC = () => {
   };
 
   useEffect(() => {
+    // Clear any leftover impersonation states when loading the Super Admin portal
+    localStorage.removeItem('ll_impersonatedCompanyId');
+    localStorage.removeItem('ll_active_workspace');
+    localStorage.removeItem('ll_activerole');
     fetchBackendData();
   }, [token]);
 
@@ -1388,8 +1392,8 @@ export const SuperAdminPortal: React.FC = () => {
                   <button onClick={() => setShowWizard(true)} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Company</button>
                 </div>
 
-                <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
                         <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company Name</th>
@@ -1497,70 +1501,183 @@ export const SuperAdminPortal: React.FC = () => {
         {/* ─── 3. SUBSCRIPTION MANAGEMENT TAB ─── */}
         {activeTab === 'sub-mgmt' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* View: Renewals */}
-            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: '960px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Subscription Type</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Start Date</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>End Date</th>
-                      <th style={{ padding: '12px 16px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Actions</th>
+                      <th style={{ padding: '14px 20px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Company</th>
+                      <th style={{ padding: '14px 20px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Subscription Type</th>
+                      <th style={{ padding: '14px 20px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>Start Date</th>
+                      <th style={{ padding: '14px 20px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>End Date</th>
+                      <th style={{ padding: '14px 20px', fontSize: '0.8rem', fontWeight: '800', color: '#64748b', textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {backendCompanies.map(c => (
-                      <React.Fragment key={c.id}>
-                        <tr style={{ borderBottom: c.subscription ? 'none' : '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '16px', fontWeight: '700' }}>{c.name}</td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '700', color: '#334155' }}>{c.subscription?.tier || 'None'}</td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b' }}>{c.subscription?.startDate || 'N/A'}</td>
-                          <td style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b' }}>{c.subscription?.expiresAt || 'N/A'}</td>
-                          <td style={{ padding: '16px', textAlign: 'center' }}>
-                            {c.subscription && (
-                              <div style={{ display: 'inline-flex', gap: '8px' }}>
-                                <button
-                                  onClick={() => {
-                                    setRenewComp(c);
-                                    setRenewNewEndDate(c.subscription?.expiresAt || '');
-                                    setRenewAmount(c.subscription?.price ?? 0);
-                                  }}
-                                  style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: 'none', background: '#dcfce7', color: '#15803d', cursor: 'pointer' }}
-                                >🔄 Renew</button>
-                                <button
-                                  onClick={() => {
-                                    setEditSubCompany(c);
-                                    setEsPlanName(c.subscription?.tier || '');
-                                    setEsPrice(c.subscription?.price ?? 0);
-                                    setEsMaxAdmins(c.subscription?.maxAdmins ?? 1);
-                                    setEsMaxCashiers(c.subscription?.maxCashiers ?? 0);
-                                    setEsMaxDelivery(c.subscription?.maxDeliveryStaff ?? 0);
-                                    setEsMaxCustomers(c.subscription?.maxCustomers ?? 100);
-                                    setEsMaxOrders(c.subscription?.maxOrdersPerMonth ?? 100);
-                                  }}
-                                  style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: 'none', background: '#dbeafe', color: '#1d4ed8', cursor: 'pointer' }}
-                                >✏️ Edit</button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                        {c.subscription && (
-                          <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                            <td colSpan={5} style={{ padding: '12px 16px', fontSize: '0.8rem', color: '#475569' }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-                                <div><strong>Price:</strong> QR {c.subscription.price ?? 'N/A'}</div>
-                                <div><strong>Max Admins:</strong> {c.subscription.maxAdmins ?? 'N/A'}</div>
-                                <div><strong>Max Cashiers:</strong> {c.subscription.maxCashiers ?? 'N/A'}</div>
-                                <div><strong>Max Deliveries:</strong> {c.subscription.maxDeliveryStaff ?? 'N/A'}</div>
-                                <div><strong>Max Customers:</strong> {c.subscription.maxCustomers ?? 'N/A'}</div>
-                                <div><strong>Max Monthly Orders:</strong> {c.subscription.maxOrdersPerMonth ?? 'N/A'}</div>
-                              </div>
+                    {backendCompanies.map(c => {
+                      const tierName = c.subscription?.tier ? c.subscription.tier.toUpperCase() : 'NONE';
+                      const isPremium = tierName.includes('MASTER') || tierName.includes('PREMIUM') || tierName.includes('PRIMIUM');
+                      return (
+                        <React.Fragment key={c.id}>
+                          <tr style={{ borderBottom: c.subscription ? 'none' : '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '18px 20px', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '1.1rem' }}>🏢</span> {c.name}
+                            </td>
+                            <td style={{ padding: '18px 20px', fontSize: '0.85rem' }}>
+                              {c.subscription ? (
+                                <span style={{ 
+                                  padding: '4px 10px', 
+                                  borderRadius: '12px', 
+                                  fontSize: '0.72rem', 
+                                  fontWeight: '800', 
+                                  background: isPremium ? '#fffbeb' : '#eff6ff', 
+                                  color: isPremium ? '#b45309' : '#1d4ed8', 
+                                  border: isPremium ? '1px solid #fde68a' : '1px solid #bfdbfe',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  {isPremium ? '⭐' : '🔹'} {c.subscription.tier}
+                                </span>
+                              ) : (
+                                <span style={{ 
+                                  padding: '4px 10px', 
+                                  borderRadius: '12px', 
+                                  fontSize: '0.72rem', 
+                                  fontWeight: '800', 
+                                  background: '#f1f5f9', 
+                                  color: '#64748b', 
+                                  border: '1px solid #cbd5e1',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  ⚪ None
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '18px 20px', fontSize: '0.85rem', color: '#475569', fontWeight: '600' }}>
+                              📅 {c.subscription?.startDate || 'N/A'}
+                            </td>
+                            <td style={{ padding: '18px 20px', fontSize: '0.85rem', color: '#475569', fontWeight: '600' }}>
+                              📅 {c.subscription?.expiresAt || 'N/A'}
+                            </td>
+                            <td style={{ padding: '18px 20px', textAlign: 'center' }}>
+                              {c.subscription && (
+                                <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                  <button
+                                    onClick={() => {
+                                      setRenewComp(c);
+                                      setRenewNewEndDate(c.subscription?.expiresAt || '');
+                                      setRenewAmount(c.subscription?.price ?? 0);
+                                    }}
+                                    style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '8px', border: '1px solid #86efac', background: '#ecfdf5', color: '#047857', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  >🔄 Renew</button>
+                                  <button
+                                    onClick={() => {
+                                      setEditSubCompany(c);
+                                      setEsPlanName(c.subscription?.tier || '');
+                                      setEsPrice(c.subscription?.price ?? 0);
+                                      setEsMaxAdmins(c.subscription?.maxAdmins ?? 1);
+                                      setEsMaxCashiers(c.subscription?.maxCashiers ?? 0);
+                                      setEsMaxDelivery(c.subscription?.maxDeliveryStaff ?? 0);
+                                      setEsMaxCustomers(c.subscription?.maxCustomers ?? 100);
+                                      setEsMaxOrders(c.subscription?.maxOrdersPerMonth ?? 100);
+                                    }}
+                                    style={{ padding: '6px 14px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '8px', border: '1px solid #93c5fd', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  >✏️ Edit</button>
+                                </div>
+                              )}
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
+                          {c.subscription && (
+                            <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                              <td colSpan={5} style={{ padding: '12px 20px', fontSize: '0.8rem', color: '#475569' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#ecfdf5', 
+                                    color: '#047857', 
+                                    fontWeight: '700',
+                                    border: '1px solid #a7f3d0',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    💵 Price: QR {c.subscription.price ?? 'N/A'}
+                                  </span>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#f1f5f9', 
+                                    color: '#475569', 
+                                    fontWeight: '700',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    👥 Max Admins: {c.subscription.maxAdmins ?? 'N/A'}
+                                  </span>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#f1f5f9', 
+                                    color: '#475569', 
+                                    fontWeight: '700',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    💼 Max Cashiers: {c.subscription.maxCashiers ?? 'N/A'}
+                                  </span>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#f1f5f9', 
+                                    color: '#475569', 
+                                    fontWeight: '700',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    🚚 Max Deliveries: {c.subscription.maxDeliveryStaff ?? 'N/A'}
+                                  </span>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#f1f5f9', 
+                                    color: '#475569', 
+                                    fontWeight: '700',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    👤 Max Customers: {c.subscription.maxCustomers ?? 'N/A'}
+                                  </span>
+                                  <span style={{ 
+                                    padding: '5px 12px', 
+                                    borderRadius: '8px', 
+                                    background: '#f0f9ff', 
+                                    color: '#0369a1', 
+                                    fontWeight: '700',
+                                    border: '1px solid #e0f2fe',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    📦 Max Monthly Orders: {c.subscription.maxOrdersPerMonth ?? 'N/A'}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1602,40 +1719,80 @@ export const SuperAdminPortal: React.FC = () => {
                       const tier = c.subscription?.tier || 'No Subscription';
                       const price = c.subscription?.price ?? 0;
                       const revenue = price.toFixed(2);
+                      const startDate = c.subscription?.startDate;
+                      const endDate = c.subscription?.expiresAt;
                       return (
-                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                           <div>
-                            <strong style={{ fontSize: '0.9rem' }}>{c.name}</strong>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Subscription: {tier}</div>
+                            <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{c.name}</strong>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', fontWeight: '600' }}>Subscription: <span style={{ color: '#2563eb' }}>{tier}</span></div>
+                            {c.subscription && (
+                              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', display: 'flex', gap: '8px' }}>
+                                <span>📅 Start: <strong>{startDate}</strong></span>
+                                <span>•</span>
+                                <span>📅 End: <strong>{endDate}</strong></span>
+                              </div>
+                            )}
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: '800', color: '#2563eb' }}>QR {revenue}</div>
+                            <div style={{ fontWeight: '800', color: '#10b981', fontSize: '1.05rem' }}>QR {revenue}</div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <div style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-                  <h3 style={{ margin: '0 0 16px 0' }}>SaaS Monthly Recurring Revenue</h3>
+                <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>SaaS Subscription Revenue</h3>
                   <div style={{ fontSize: '2rem', fontWeight: '900', color: '#059669', marginBottom: '10px' }}>
                     QR {backendCompanies.reduce((sum, c) => sum + (c.subscription?.price ?? 0), 0).toFixed(2)}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Calculated from paid pricing plan tiers active.</div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: '1.4' }}>Calculated from the total value of active subscription periods (Start Date to End Date).</div>
                 </div>
               </div>
             )}
 
 
             {reportsSub === 'stats' && (
-              <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-                <h3 style={{ margin: '0 0 16px 0' }}>👥 Order & Customer Statistics</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem' }}>
-                  <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px' }}>
-                    <strong>Total Registered Customers:</strong> {totalCustomers}
+                  <div style={{ padding: '18px 24px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Customers</div>
+                      <div style={{ fontSize: '2rem', fontWeight: '950', color: '#1e40af', marginTop: '4px' }}>{totalCustomers}</div>
+                    </div>
+                    <span style={{ fontSize: '2.5rem' }}>👥</span>
                   </div>
-                  <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px' }}>
-                    <strong>Total Placed Orders:</strong> {totalOrders}
+                  <div style={{ padding: '18px 24px', background: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Orders</div>
+                      <div style={{ fontSize: '2rem', fontWeight: '950', color: '#065f46', marginTop: '4px' }}>{totalOrders}</div>
+                    </div>
+                    <span style={{ fontSize: '2.5rem' }}>📦</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
+                  <h3 style={{ margin: '0 0 18px 0', fontSize: '1.15rem', color: '#0f172a' }}>🏢 Company-wise Statistics</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {backendCompanies.map(c => (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{c.name}</strong>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                            ID: {c.id}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <span style={{ padding: '6px 14px', background: '#eff6ff', color: '#1e40af', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            👥 Customers: {c.customer_count ?? 0}
+                          </span>
+                          <span style={{ padding: '6px 14px', background: '#ecfdf5', color: '#065f46', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '800', border: '1px solid #a7f3d0', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            📦 Orders: {c.order_count ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1915,93 +2072,101 @@ export const SuperAdminPortal: React.FC = () => {
       {/* ─── MODAL: EDIT COMPANY DETAILS ─── */}
       {editingCompanyDetails && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '840px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', padding: '20px 24px', color: 'white', position: 'relative', flexShrink: 0 }}>
               <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Edit Company Details</h3>
               <button onClick={() => setEditingCompanyDetails(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
-            <form onSubmit={handleEditCompanySubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Name</label>
-                <input type="text" required value={editCompName} onChange={e => setEditCompName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
+            <form onSubmit={handleEditCompanySubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                
+                {/* Left Column: Editable Form Fields */}
+                <div style={{ flex: '1 1 380px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Name</label>
+                    <input type="text" required value={editCompName} onChange={e => setEditCompName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                  </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Status</label>
-                <select value={editCompStatus} onChange={e => setEditCompStatus(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                  <option value="ACTIVE">Active</option>
-                  <option value="SUSPENDED">Suspended</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
-                <input type="text" value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-              </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Status</label>
+                    <select value={editCompStatus} onChange={e => setEditCompStatus(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }}>
+                      <option value="ACTIVE">Active</option>
+                      <option value="SUSPENDED">Suspended</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
+                    <input type="text" value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                  </div>
 
-              
-              <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a' }}>Admin Details</h4>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Name</label>
-                  <input type="text" value={editAdminName} onChange={e => setEditAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Phone</label>
-                  <input type="text" value={editAdminPhone} onChange={e => setEditAdminPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Email</label>
-                <input type="text" readOnly disabled value={editAdminEmail} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed', boxSizing: 'border-box' }} />
-              </div>
-
-              {/* Subscription Plan Details (read-only) */}
-              {editSubPlanName && (
-                <>
-                  <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a' }}>📋 Subscription Plan Details</h4>
-                  <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.82rem' }}>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Plan Name</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPlanName || 'N/A'}</div>
+                  <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>Admin Details</h4>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Name</label>
+                      <input type="text" value={editAdminName} onChange={e => setEditAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Price (QR)</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPrice !== null ? `QR ${editSubPrice}` : 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Start Date</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubStartDate || 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>End Date</div>
-                      <div style={{ fontWeight: '700', color: '#dc2626' }}>{editSubEndDate || 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Admins</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxAdmins ?? 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Cashiers</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCashiers ?? 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Deliveries</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxDelivery ?? 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Customers</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCustomers ?? 'N/A'}</div>
-                    </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Monthly Orders</div>
-                      <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxOrders ?? 'N/A'}</div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Phone</label>
+                      <input type="text" value={editAdminPhone} onChange={e => setEditAdminPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
                   </div>
-                </>
-              )}
+                  
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Email</label>
+                    <input type="text" readOnly disabled value={editAdminEmail} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
 
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '6px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {/* Right Column: Read-only Subscription Plan Details */}
+                {editSubPlanName && (
+                  <div style={{ flex: '1 1 340px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>📋 Subscription Plan Details</h4>
+                    <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.82rem', border: '1px solid #e2e8f0', flex: 1 }}>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Plan Name</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPlanName || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Price (QR)</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubPrice !== null ? `QR ${editSubPrice}` : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Start Date</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubStartDate || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>End Date</div>
+                        <div style={{ fontWeight: '700', color: '#dc2626' }}>{editSubEndDate || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Admins</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxAdmins ?? 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Cashiers</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCashiers ?? 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Deliveries</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxDelivery ?? 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Customers</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxCustomers ?? 'N/A'}</div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Max Monthly Orders</div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{editSubMaxOrders ?? 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Form Actions Footer */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '6px', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexShrink: 0 }}>
                 <button type="button" onClick={() => setEditingCompanyDetails(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
                 <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#0284c7', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Save Changes</button>
               </div>

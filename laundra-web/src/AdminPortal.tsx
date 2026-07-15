@@ -238,6 +238,90 @@ export const AdminPortal: React.FC = () => {
       if (servicesRes.ok) {
         const sData = await servicesRes.json();
         setBackendServices(sData);
+
+        // Sync with DatabaseContext
+        const companyId = db.activeCompanyId;
+        if (companyId) {
+          const syncedItems: any[] = [];
+          const syncedServiceTypes: any[] = [];
+          const syncedServiceVariants: any[] = [];
+          const syncedItemPrices: any[] = [];
+
+          const otherItems = db.items.filter((i: any) => i.companyId !== companyId);
+          const otherServiceTypes = db.serviceTypes.filter((st: any) => st.companyId !== companyId);
+          const companyTypeIds = db.serviceTypes.filter((st: any) => st.companyId === companyId).map((st: any) => st.id);
+          const otherServiceVariants = db.serviceVariants.filter((sv: any) => !companyTypeIds.includes(sv.serviceTypeId));
+          const otherItemPrices = db.itemPrices.filter((ip: any) => ip.companyId !== companyId);
+
+          const itemMap = new Map();
+          const typeMap = new Map();
+
+          sData.forEach((s: any) => {
+            const itemKey = s.name.trim().toLowerCase();
+            let itemId = itemMap.get(itemKey);
+            if (!itemId) {
+              itemId = `item-${companyId}-${itemKey.replace(/\s+/g, '-')}`;
+              itemMap.set(itemKey, itemId);
+              syncedItems.push({
+                id: itemId,
+                companyId,
+                englishName: s.name,
+                arabicName: s.name,
+                status: 'Active'
+              });
+            }
+
+            const catKey = s.category.trim().toLowerCase();
+            let typeId = typeMap.get(catKey);
+            if (!typeId) {
+              typeId = `st-${companyId}-${catKey.replace(/\s+/g, '-')}`;
+              typeMap.set(catKey, typeId);
+              syncedServiceTypes.push({
+                id: typeId,
+                companyId,
+                name: s.category
+              });
+
+              syncedServiceVariants.push({
+                id: `sv-${typeId}-normal`,
+                serviceTypeId: typeId,
+                name: 'Normal'
+              });
+              syncedServiceVariants.push({
+                id: `sv-${typeId}-express`,
+                serviceTypeId: typeId,
+                name: 'Express'
+              });
+            }
+
+            if (s.price !== null && s.price !== undefined) {
+              syncedItemPrices.push({
+                id: `ip-${itemId}-normal`,
+                companyId,
+                itemId,
+                serviceVariantId: `sv-${typeId}-normal`,
+                price: parseFloat(s.price)
+              });
+            }
+
+            if (s.express_price !== null && s.express_price !== undefined) {
+              syncedItemPrices.push({
+                id: `ip-${itemId}-express`,
+                companyId,
+                itemId,
+                serviceVariantId: `sv-${typeId}-express`,
+                price: parseFloat(s.express_price)
+              });
+            }
+          });
+
+          saveDB({
+            items: [...otherItems, ...syncedItems],
+            serviceTypes: [...otherServiceTypes, ...syncedServiceTypes],
+            serviceVariants: [...otherServiceVariants, ...syncedServiceVariants],
+            itemPrices: [...otherItemPrices, ...syncedItemPrices]
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to fetch backend services:', err);
@@ -989,34 +1073,89 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Service Management actions
-  const handleSaveService = (e: React.FormEvent) => {
+  const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingService) {
-      const updated = db.services.map(s => s.id === editingService.id ? { ...s, name: sName, category: sCategory, price: parseFloat(sPrice) || 0, expressSurcharge: parseFloat(sExpressSurcharge) || 50, image: sImage || undefined } : s);
-      saveDB({ services: updated });
-      addActivity('Settings', `Edited catalog service: ${sName}`);
-      setEditingService(null);
-    } else {
-      const newServ: Service = {
-        id: 's-' + (db.services.length + 1),
-        name: sName,
-        category: sCategory,
-        price: parseFloat(sPrice) || 0,
-        expressSurcharge: parseFloat(sExpressSurcharge) || 50,
-        active: true,
-        image: sImage || undefined
-      };
-      saveDB({ services: [...db.services, newServ] });
-      addActivity('Settings', `Added catalog service: ${sName}`);
-      setAddingService(false);
+    const token = localStorage.getItem('ll_auth_token');
+    const companyId = db.activeCompanyId;
+    if (!companyId) {
+      alert('Active company not found');
+      return;
     }
-    setSName('');
-    setSPrice('');
-    setSImage('');
-    setSExpressSurcharge('50');
+
+    try {
+      if (editingService) {
+        const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services/${editingService.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: sName,
+            category: sCategory,
+            price: parseFloat(sPrice) || 0,
+            express_price: sExpressSurcharge ? parseFloat(sExpressSurcharge) : null
+          })
+        });
+        if (res.ok) {
+          alert('Service updated successfully!');
+          setEditingService(null);
+          fetchBackendData();
+        } else {
+          alert(await res.text());
+        }
+      } else {
+        const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: sName,
+            category: sCategory,
+            price: parseFloat(sPrice) || 0,
+            express_price: sExpressSurcharge ? parseFloat(sExpressSurcharge) : null
+          })
+        });
+        if (res.ok) {
+          alert('Service added successfully!');
+          setAddingService(false);
+          fetchBackendData();
+        } else {
+          alert(await res.text());
+        }
+      }
+      setSName('');
+      setSPrice('');
+      setSCategory('Wash & Fold');
+      setSExpressSurcharge('');
+    } catch (err) {
+      alert('Failed to save service catalog item');
+    }
   };
 
-  // removed handleDeleteService
+  const handleDeleteService = async (serviceId: string) => {
+    if (!window.confirm('Are you sure you want to delete this service?')) return;
+    const token = localStorage.getItem('ll_auth_token');
+    const companyId = db.activeCompanyId;
+    if (!companyId) return;
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services/${serviceId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('Service deleted successfully!');
+        fetchBackendData();
+      } else {
+        alert(await res.text());
+      }
+    } catch (err) {
+      alert('Failed to delete service');
+    }
+  };
 
   // Order Management actions
   const handleUpdateOrderStatus = (orderId: string, nextStatus: Order['status']) => {
@@ -2289,26 +2428,68 @@ export const AdminPortal: React.FC = () => {
       {activeModule === 'services' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>📋 Active Service Catalog</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ margin: 0 }}>📋 Active Service Catalog</h4>
+              <button 
+                onClick={() => {
+                  setAddingService(true);
+                  setEditingService(null);
+                  setSName('');
+                  setSCategory('Wash & Fold');
+                  setSPrice('');
+                  setSExpressSurcharge('');
+                }}
+                style={{ padding: '6px 14px', fontSize: '0.8rem', fontWeight: '700', borderRadius: '8px', border: 'none', background: '#0284c7', color: 'white', cursor: 'pointer' }}
+              >
+                ➕ Add Service Item
+              </button>
+            </div>
             
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700', width: '80px' }}>Sl No</th>
                   <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Item Name</th>
                   <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Category</th>
                   <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Normal Price (QR)</th>
                   <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Express Price (QR)</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700', width: '150px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {backendServices.map(service => (
-                  <tr key={service.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{service.name}</td>
-                    <td style={{ padding: '12px', color: '#475569' }}>{service.category}</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: '700' }}>{service.price}</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb', fontWeight: '700' }}>{service.express_price || '-'}</td>
-                  </tr>
-                ))}
+                {[...backendServices]
+                  .sort((a, b) => {
+                    const nameCompare = (a.name || '').localeCompare(b.name || '');
+                    if (nameCompare !== 0) return nameCompare;
+                    return (a.category || '').localeCompare(b.category || '');
+                  })
+                  .map((service, index) => (
+                    <tr key={service.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px', color: '#64748b', fontWeight: '700' }}>{index + 1}</td>
+                      <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{service.name}</td>
+                      <td style={{ padding: '12px', color: '#475569' }}>{service.category}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: '700' }}>{service.price}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb', fontWeight: '700' }}>{service.express_price || '-'}</td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => {
+                              setEditingService(service);
+                              setSName(service.name);
+                              setSCategory(service.category);
+                              setSPrice(service.price.toString());
+                              setSExpressSurcharge(service.express_price ? service.express_price.toString() : '');
+                            }}
+                            style={{ padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}
+                          >✏️ Edit</button>
+                          <button 
+                            onClick={() => handleDeleteService(service.id)}
+                            style={{ padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
+                          >🗑️ Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -2533,6 +2714,7 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
               {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
                 .filter(name => String(name).toLowerCase().includes(posSearch.toLowerCase()))
+                .sort((a, b) => String(a).localeCompare(String(b)))
                 .map((itemName: any) => (
                   <div 
                     key={itemName} 
