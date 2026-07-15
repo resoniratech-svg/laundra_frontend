@@ -1150,7 +1150,7 @@ export const SuperAdminPortal: React.FC = () => {
       <aside style={{ width: '270px', background: '#ffffff', color: '#1e293b', display: 'flex', flexDirection: 'column', padding: '24px 0', borderRight: '1px solid #e2e8f0', boxShadow: '2px 0 8px rgba(0,0,0,0.02)', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
         <div style={{ padding: '0 24px 20px', borderBottom: '1px solid #f1f5f9' }}>
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🪐</span> Laundra SaaS
+            <span>{platformLogo}</span> {platformName}
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Platform Super Admin</p>
         </div>
