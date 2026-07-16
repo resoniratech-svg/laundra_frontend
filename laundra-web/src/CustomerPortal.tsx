@@ -907,7 +907,7 @@ export const CustomerPortal: React.FC = () => {
             </div>
 
             {/* Notifications & Announcements Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
               
               {/* Notifications Card */}
               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
@@ -1012,7 +1012,7 @@ export const CustomerPortal: React.FC = () => {
 
         {/* 💳 WALLET & LOYALTY TAB */}
         {activeTab === 'wallet' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1fr', gap: '24px' }}>
             
             <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
               <h4>💼 Wallet balance details</h4>
@@ -1038,7 +1038,7 @@ export const CustomerPortal: React.FC = () => {
 
         {/* 🎫 SUPPORT DESK TAB */}
         {activeTab === 'support' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1fr', gap: '24px' }}>
             
             <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
               <h4>🎫 Raise Support Ticket</h4>
