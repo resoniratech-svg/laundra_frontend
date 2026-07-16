@@ -1148,7 +1148,13 @@ export const AdminPortal: React.FC = () => {
         if ((db.activeRole === 'Delivery Staff' || db.activeRole === 'Delivery Boy') && db.currentDeliveryBoy) {
           newCourier = db.currentDeliveryBoy;
         }
-        return { ...o, status: nextStatus, courier: newCourier };
+        const isDelivered = nextStatus.toLowerCase() === 'delivered';
+        return { 
+          ...o, 
+          status: nextStatus, 
+          courier: newCourier, 
+          deliveredDate: isDelivered ? new Date().toISOString().split('T')[0] : o.deliveredDate 
+        };
       }
       return o;
     });
@@ -2515,7 +2521,8 @@ export const AdminPortal: React.FC = () => {
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
                   <th style={{ padding: '12px' }}>Order ID</th>
                   <th style={{ padding: '12px' }}>Customer</th>
-                  <th style={{ padding: '12px' }}>Date</th>
+                  <th style={{ padding: '12px' }}>Order Date</th>
+                  <th style={{ padding: '12px' }}>Delivery Date</th>
                   <th style={{ padding: '12px' }}>Total Amount</th>
                   <th style={{ padding: '12px' }}>status</th>
                   {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>Assigned Courier</th>}
@@ -2536,6 +2543,7 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
                       <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
+                      <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || 'Not Delivered'}</td>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#1e3a8a' }}>QR {o.totalAmount.toFixed(2)}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{
