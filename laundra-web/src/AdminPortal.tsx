@@ -153,6 +153,7 @@ export const AdminPortal: React.FC = () => {
   const [showCustDropdown, setShowCustDropdown] = useState(false);
   // Removed posCategory
   const [posCommission, setPosCommission] = useState<string>('');
+  const [customPOSAmount, setCustomPOSAmount] = useState<string>('');
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
   const [posCouponCode, setPosCouponCode] = useState('');
   const [posDiscount, setPosDiscount] = useState(0);
@@ -1235,6 +1236,10 @@ export const AdminPortal: React.FC = () => {
 
   // Payments / POS manual orders checkout
   const getPOSCartTotal = () => {
+    if (customPOSAmount !== '') {
+      const val = parseFloat(customPOSAmount);
+      if (!isNaN(val)) return val;
+    }
     const sum = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     return Math.max(0, sum - posDiscount);
   };
@@ -1397,6 +1402,7 @@ export const AdminPortal: React.FC = () => {
     setPosCustEmail('');
     setPosCustAddress('');
     setPosPayMethod('Cash');
+    setCustomPOSAmount('');
 
     addActivity('Order', `Created POS manual order #${newOrderId} for ${customerName} (Commission: QR ${commAmt})`);
     alert(`POS checkout complete. Order #${newOrderId} placed successfully!`);
@@ -1411,6 +1417,7 @@ export const AdminPortal: React.FC = () => {
     setPosCustEmail('');
     setPosCustAddress('');
     setPosCommission('');
+    setCustomPOSAmount('');
     setPosCouponCode('');
     setPosDiscount(0);
     setPosCouponApplied(false);
@@ -2987,7 +2994,17 @@ export const AdminPortal: React.FC = () => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                 <span style={{ fontWeight: '700' }}>POS total amount:</span>
-                <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#2563eb' }}>QR {getPOSCartTotal().toFixed(2)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b' }}>QR</span>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={customPOSAmount} 
+                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount).toFixed(2)}
+                    onChange={e => setCustomPOSAmount(e.target.value)} 
+                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
