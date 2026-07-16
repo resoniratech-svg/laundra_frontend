@@ -2537,7 +2537,8 @@ export const AdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {db.orders
+                {[...db.orders]
+                  .reverse()
                   .filter(o => !o.isDeleted)
                   .filter(o => o.customerName.toLowerCase().includes(orderSearch.toLowerCase()))
                   .filter(o => orderFilter === 'All' || o.status === orderFilter)
