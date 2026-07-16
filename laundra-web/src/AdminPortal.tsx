@@ -3752,7 +3752,10 @@ export const AdminPortal: React.FC = () => {
             <div style={{ padding: '24px', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '16px', fontFamily: "'Courier New', Courier, monospace" }}>
                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{companyHeaderName}</h4>
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{activeComp?.name || 'laundry'}</h4>
+                  {activeComp?.address && (
+                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', fontStyle: 'italic' }}>{activeComp.address}</div>
+                  )}
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
                 </div>
 
@@ -3789,6 +3792,12 @@ export const AdminPortal: React.FC = () => {
                     <span style={{ color: '#64748b' }}>Status:</span>
                     <span style={{ fontWeight: '700', color: viewingInvoice.status === 'Delivered' ? '#16a34a' : '#2563eb' }}>{viewingInvoice.status}</span>
                   </div>
+                  {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: '#64748b' }}>Discount Amount:</span>
+                      <span style={{ fontWeight: '700', color: '#ef4444' }}>QR {viewingInvoice.discount.toFixed(2)}</span>
+                    </div>
+                  ) : null}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Company Addr:</span>
                     <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{activeComp.address || 'N/A'}</span>
@@ -3852,8 +3861,8 @@ export const AdminPortal: React.FC = () => {
                         </head>
                         <body>
                           <h2>${activeComp.name || 'Laundry'}</h2>
+                          ${activeComp.address ? `<div class="center" style="font-size: 12px; font-style: italic;">${activeComp.address}</div>` : ''}
                           <div class="center">Company Tel: ${activeComp.phone || 'N/A'}</div>
-                          <div class="center">Company Addr: ${activeComp.address || 'N/A'}</div>
                           <div class="divider"></div>
                           <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
                           <div class="row"><span class="bold">Order Date:</span><span>${viewingInvoice.date}</span></div>
@@ -3863,6 +3872,9 @@ export const AdminPortal: React.FC = () => {
                           <div class="row"><span class="bold">Customer Addr:</span><span>${custAddr}</span></div>
                           <div class="row"><span class="bold">Payment:</span><span>${viewingInvoice.paymentMethod || 'Cash'}</span></div>
                           <div class="row"><span class="bold">Status:</span><span>${viewingInvoice.status}</span></div>
+                          ${viewingInvoice.discount && viewingInvoice.discount > 0 ? `
+                            <div class="row"><span class="bold">Discount Amount:</span><span>QR ${viewingInvoice.discount.toFixed(2)}</span></div>
+                          ` : ''}
                           <div class="divider"></div>
                           <div class="row bold" style="font-size: 12px; text-transform: uppercase;"><span>Services / Items</span><span>Price</span></div>
                           ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
