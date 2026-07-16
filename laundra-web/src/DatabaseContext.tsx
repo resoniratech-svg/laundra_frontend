@@ -479,8 +479,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [itemPrices, setItemPricesState] = useState<ItemPrice[]>([]);
   const [customers, setCustomersState] = useState<Customer[]>(DEFAULT_CUSTOMERS);
   const [orders, setOrdersState] = useState<Order[]>(() => {
-    // IDs of dummy/seed orders that must never appear in production
-    const DUMMY_ORDER_IDS = new Set(['OR-8839', 'OR-8841', 'OR-8842']);
+    // IDs of dummy/seed orders that must never appear in production (supports all prefix/padding variations)
+    const DUMMY_ORDER_IDS = new Set([
+      'OR-8839', 'OR-8841', 'OR-8842',
+      '008839', '008841', '008842',
+      '8839', '8841', '8842'
+    ]);
     const purgeDummies = (arr: any[]): any[] => arr.filter((o: any) => !DUMMY_ORDER_IDS.has(o.id));
 
     // Read synchronously from localStorage so orders survive page refresh without any async race

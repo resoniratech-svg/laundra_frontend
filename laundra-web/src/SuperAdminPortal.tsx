@@ -2212,6 +2212,8 @@ export const SuperAdminPortal: React.FC = () => {
                   <>
                     <div><strong>Company Name:</strong> {viewingCompanyProfile.name}</div>
                     <div><strong>Company Address:</strong> {viewingCompanyProfile.address || 'N/A'}</div>
+                    <div><strong>Company Phone Number:</strong> {viewingCompanyProfile.phone || 'N/A'}</div>
+                    <div><strong>Alternate Phone Number:</strong> {(viewingCompanyProfile as any).shop_contact_no || 'N/A'}</div>
 
                     <div><strong>Admin Phone Number:</strong> {profileAdmin?.phone || 'N/A'}</div>
                     <div><strong>Admin Gmail:</strong> {profileAdmin?.email || viewingCompanyProfile.email || 'N/A'}</div>
