@@ -154,6 +154,7 @@ export interface Company {
   adminEmail: string;
   status: 'Active' | 'Suspended';
   phone?: string;
+  shop_contact_no?: string;
   address?: string;
   gstNumber?: string;
   businessType?: string;

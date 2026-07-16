@@ -647,7 +647,7 @@ export const SuperAdminPortal: React.FC = () => {
         body: JSON.stringify({
           name: editCompName,
           phone: editCompPhone,
-          alt_phone: editCompAltPhone,
+          shop_contact_no: editCompAltPhone,
           address: editCompAddress,
           area: editCompArea,
           gst_number: editCompGst,
@@ -1456,7 +1456,7 @@ export const SuperAdminPortal: React.FC = () => {
                                 setEditCompAddress(c.address || '');
                                 setEditCompArea(c.area || '');
                                 setEditCompPhone(c.phone || '');
-                                setEditCompAltPhone((c as any).alt_phone || '');
+                                setEditCompAltPhone((c as any).shop_contact_no || '');
                                 setEditCompGst(c.gst_number || '');
                                 setEditCompBusinessType(c.business_type || 'Dry Cleaners');
                                 setEditCompStatus(c.status || 'ACTIVE');

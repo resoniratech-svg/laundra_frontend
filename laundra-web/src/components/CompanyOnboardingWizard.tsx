@@ -60,6 +60,26 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
     }
   }, [customStartDate, customEndDate]);
 
+  // Fetch company details if resuming setup or companyId is already created
+  useEffect(() => {
+    if (companyId && token) {
+      fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('Failed to fetch company details');
+      })
+      .then(data => {
+        if (data.name) setCompName(data.name);
+        if (data.address) setCompAddress(data.address);
+        if (data.phone) setCompPhone(data.phone);
+        if (data.shop_contact_no) setCompAltPhone(data.shop_contact_no);
+      })
+      .catch(err => console.error('Failed to load company details for onboarding wizard:', err));
+    }
+  }, [companyId, token]);
+
   
   // Step 6 data
   const [features, setFeatures] = useState<Record<string, boolean>>({
@@ -76,20 +96,30 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies`, {
-        method: 'POST',
+      const url = companyId 
+        ? `${BASE_URL}/api/v1/saas-admin/companies/${companyId}`
+        : `${BASE_URL}/api/v1/saas-admin/companies`;
+      const method = companyId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: compName,
           address: compAddress,
           phone: compPhone,
-          alt_phone: compAltPhone
+          shop_contact_no: compAltPhone
         })
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setCompanyId(data.id);
-      addAuditLog('ONBOARDING_STEP1', `Created company record for ${compName}`);
+      
+      if (!companyId) {
+        setCompanyId(data.id);
+        addAuditLog('ONBOARDING_STEP1', `Created company record for ${compName}`);
+      } else {
+        addAuditLog('ONBOARDING_STEP1', `Updated company record for ${compName}`);
+      }
       
       // Skipping company email OTP (user request: only verify admin email)
       setStep(3);
@@ -294,7 +324,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               <input required type="email" placeholder="Admin Email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} style={inputStyle} />
               <input required placeholder="Admin Phone" value={adminPhone} onChange={e => setAdminPhone(e.target.value)} style={inputStyle} />
               <input required type="password" placeholder="Temporary Password" value={adminPass} onChange={e => setAdminPass(e.target.value)} style={inputStyle} />
-              <button disabled={loading} type="submit" style={btnStyle}>{loading ? 'Sending OTP...' : 'Next Step →'}</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(1)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button disabled={loading} type="submit" style={{ ...btnStyle, flex: 2, marginTop: 0 }}>{loading ? 'Sending OTP...' : 'Next Step →'}</button>
+              </div>
             </form>
           )}
 
@@ -304,7 +337,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               <p>An OTP was sent to <strong>{adminEmail}</strong>.</p>
               <input required placeholder="Enter 6-digit OTP" value={adminOtp} onChange={e => setAdminOtp(e.target.value)} style={inputStyle} />
               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>We will assign a subscription before fully creating the admin due to backend constraints.</div>
-              <button type="submit" style={btnStyle}>Next Step →</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(3)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button type="submit" style={{ ...btnStyle, flex: 2, marginTop: 0 }}>Next Step →</button>
+              </div>
             </form>
           )}
 
@@ -353,7 +389,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
                   <input type="number" value={customOrders} onChange={e => setCustomOrders(parseInt(e.target.value) || 1)} style={inputStyle} />
                 </div>
               </div>
-              <button disabled={loading} type="submit" style={btnStyle}>{loading ? 'Assigning...' : 'Assign & Create Admin →'}</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(3)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button disabled={loading} type="submit" style={{ ...btnStyle, flex: 2, marginTop: 0 }}>{loading ? 'Assigning...' : 'Assign & Create Admin →'}</button>
+              </div>
             </form>
           )}
 
@@ -362,7 +401,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               <h3>6. Import Service Catalog (Optional)</h3>
               <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Upload an Excel file (.xlsx) with columns: Category, Name, Price, Description, Is Active</p>
               <input type="file" accept=".xlsx, .xls" onChange={e => setFile(e.target.files?.[0] || null)} style={{ padding: '10px' }} />
-              <button disabled={loading} type="submit" style={btnStyle}>{loading ? 'Importing...' : 'Skip / Next Step →'}</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(5)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button disabled={loading} type="submit" style={{ ...btnStyle, flex: 2, marginTop: 0 }}>{loading ? 'Importing...' : 'Skip / Next Step →'}</button>
+              </div>
             </form>
           )}
 
@@ -375,7 +417,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
                 <p><strong>Plan:</strong> {customPlanName || 'Custom'} (QR {customPrice})</p>
 
               </div>
-              <button onClick={() => setStep(9)} style={btnStyle}>Looks Good, Continue →</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(7)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button onClick={() => setStep(9)} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>Looks Good, Continue →</button>
+              </div>
             </div>
           )}
 
@@ -384,9 +429,12 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               <div style={{ fontSize: '3rem' }}>🎉</div>
               <h3>Tenant Environment Ready!</h3>
               <p style={{ color: '#64748b', textAlign: 'center' }}>The isolated tenant environment for {compName} has been successfully provisioned.</p>
-              <button onClick={handleStep9} disabled={loading} style={{ ...btnStyle, width: 'auto', padding: '12px 32px' }}>
-                {loading ? 'Activating...' : 'Activate Company'}
-              </button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px', width: '100%' }}>
+                <button type="button" onClick={() => setStep(8)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button onClick={handleStep9} disabled={loading} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>
+                  {loading ? 'Activating...' : 'Activate Company'}
+                </button>
+              </div>
             </div>
           )}
 

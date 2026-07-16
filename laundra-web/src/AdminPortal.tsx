@@ -3750,7 +3750,7 @@ export const AdminPortal: React.FC = () => {
         const invoiceCompName = activeComp?.name || 'Laundry';
         const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
         const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
-        const invoiceCompAltPhone = ((activeComp as any)?.alt_phone && (activeComp as any).alt_phone !== 'N/A') ? (activeComp as any).alt_phone : '';
+        const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
         // Combined phone display: e.g. "+97450123456, +974501234123"
         const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
         return (
