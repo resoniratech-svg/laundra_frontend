@@ -3870,11 +3870,11 @@ export const AdminPortal: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Customer Phone:</span>
-                    <span style={{ fontWeight: '700' }}>{db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || viewingInvoice.phone || 'N/A'}</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.phone || db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || 'N/A'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Customer Addr:</span>
-                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{db.customers.find(c => c.id === viewingInvoice.customerId)?.address || viewingInvoice.address || 'N/A'}</span>
+                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{viewingInvoice.address || db.customers.find(c => c.id === viewingInvoice.customerId)?.address || 'N/A'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Payment Method:</span>
@@ -3886,19 +3886,19 @@ export const AdminPortal: React.FC = () => {
                   </div>
                   {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: '#64748b' }}>Discount Amount:</span>
+                      <span style={{ color: '#64748b' }}>Discount Applied:</span>
                       <span style={{ fontWeight: '700', color: '#ef4444' }}>QR {viewingInvoice.discount.toFixed(2)}</span>
                     </div>
                   ) : null}
                   {invoiceCompAddr && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: '#64748b' }}>Company Addr:</span>
+                      <span style={{ color: '#64748b' }}>Shop Address:</span>
                       <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{invoiceCompAddr}</span>
                     </div>
                   )}
                   {invoiceCompPhone && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#64748b' }}>Company Admin Tel:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: '#64748b' }}>Shop Phone:</span>
                       <span style={{ fontWeight: '700' }}>{invoiceCompPhone}</span>
                     </div>
                   )}
@@ -3909,8 +3909,8 @@ export const AdminPortal: React.FC = () => {
                   {viewingInvoice.services && viewingInvoice.services.length > 0 ? (
                     viewingInvoice.services.map((s: any, idx: number) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
-                        <span>{s.name} {s.express ? '⚡' : ''} x{s.qty || 1}</span>
-                        <span style={{ fontWeight: '700' }}>QR {((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</span>
+                        <span>{s.name} x{s.qty || 1}</span>
+                        <span style={{ fontWeight: '700' }}>QR {((s.price) * (s.qty || 1)).toFixed(2)}</span>
                       </div>
                     ))
                   ) : (
@@ -3922,8 +3922,8 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '6px', fontSize: '0.88rem', color: '#64748b', fontWeight: 'bold' }}>
-                    <span>DISCOUNT APPLIED:</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #cbd5e1', paddingBottom: '6px', marginBottom: '6px', fontSize: '0.85rem' }}>
+                    <span>Discount:</span>
                     <span>-QR {viewingInvoice.discount.toFixed(2)}</span>
                   </div>
                 ) : null}
@@ -3940,8 +3940,8 @@ export const AdminPortal: React.FC = () => {
                   onClick={() => {
                     const win = window.open('', '_blank', 'width=450,height=600');
                     if (!win) return;
-                    const custPhone = db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || viewingInvoice.phone || 'N/A';
-                    const custAddr = db.customers.find(c => c.id === viewingInvoice.customerId)?.address || viewingInvoice.address || 'N/A';
+                    const custPhone = viewingInvoice.phone || db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || 'N/A';
+                    const custAddr = viewingInvoice.address || db.customers.find(c => c.id === viewingInvoice.customerId)?.address || 'N/A';
                     win.document.write(`
                       <html>
                         <head>

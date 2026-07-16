@@ -751,6 +751,8 @@ export const CustomerPortal: React.FC = () => {
           <div class="divider"></div>
           <div class="row"><span class="bold">Order ID:</span><span>#${order.id}</span></div>
           <div class="row"><span class="bold">Customer:</span><span>${order.customerName}</span></div>
+          <div class="row"><span class="bold">Customer Tel:</span><span>${order.phone || customer.phone || 'N/A'}</span></div>
+          <div class="row"><span class="bold">Customer Addr:</span><span>${order.address || customer.address || 'N/A'}</span></div>
           <div class="row"><span class="bold">Payment:</span><span>${order.paymentMethod || 'Cash'}</span></div>
           <div class="row"><span class="bold">Status:</span><span>${order.status}</span></div>
           <div class="divider"></div>
@@ -1491,6 +1493,14 @@ export const CustomerPortal: React.FC = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Customer:</span>
                     <span style={{ fontWeight: '700' }}>{viewingInvoice.customerName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Customer Phone:</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.phone || customer.phone || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Customer Addr:</span>
+                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{viewingInvoice.address || customer.address || 'N/A'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Payment Method:</span>
