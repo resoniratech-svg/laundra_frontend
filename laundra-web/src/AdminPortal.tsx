@@ -248,6 +248,8 @@ export const AdminPortal: React.FC = () => {
 
   // Fetch backend services, customers, and users
   const fetchBackendData = async () => {
+    let allCustomers = db.customers;
+    let allServices = backendServices;
     try {
       const servicesRes = await fetch(`${BASE_URL}/api/v1/services`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -255,6 +257,7 @@ export const AdminPortal: React.FC = () => {
       if (servicesRes.ok) {
         const sData = await servicesRes.json();
         setBackendServices(sData);
+        allServices = sData;
 
         // Sync with DatabaseContext
         const companyId = db.activeCompanyId;
@@ -375,12 +378,76 @@ export const AdminPortal: React.FC = () => {
           notes: '',
           qrStatus: 'Active QR' as const
         }));
+        allCustomers = mapped;
         if (mapped.length > 0) {
           saveDB({ customers: mapped });
         }
       }
     } catch (err) {
       console.error('Failed to fetch backend customers:', err);
+    }
+
+    try {
+      const ordersRes = await fetch(`${BASE_URL}/api/v1/orders`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (ordersRes.ok) {
+        const oData = await ordersRes.json();
+        const mappedOrders = oData.map((o: any) => {
+          const matchedCustomer = allCustomers.find((c: any) => c.id === o.customer_id);
+          const customerName = matchedCustomer ? matchedCustomer.name : 'Walk-in / Guest';
+          const customerPhone = matchedCustomer ? matchedCustomer.phone : '';
+          const customerAddress = matchedCustomer ? matchedCustomer.address : '';
+
+          let displayStatus = 'Created';
+          if (o.status === 'RECEIVED') displayStatus = 'Received';
+          else if (o.status === 'WASHING') displayStatus = 'Washing';
+          else if (o.status === 'IRONING') displayStatus = 'Ironing';
+          else if (o.status === 'READY') displayStatus = 'Ready';
+          else if (o.status === 'DELIVERED') displayStatus = 'Delivered';
+          else if (o.status === 'CANCELLED') displayStatus = 'Cancelled';
+
+          const totalQty = o.items ? o.items.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) : 0;
+
+          const mappedServices = o.items ? o.items.map((item: any) => {
+            const matchedService = allServices.find((s: any) => s.id === item.service_id);
+            return {
+              serviceId: item.service_id,
+              name: matchedService ? matchedService.name : `Service (Qty: ${item.quantity})`,
+              qty: item.quantity,
+              price: parseFloat(item.price || '0')
+            };
+          }) : [];
+
+          return {
+            id: o.order_number || String(o.id).substring(0, 8),
+            backendId: o.id,
+            customerId: o.customer_id,
+            customerName: customerName,
+            branch: 'Downtown HQ',
+            date: o.created_at ? o.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            weightItems: `${totalQty} Items`,
+            quantity: totalQty,
+            planType: o.is_express ? 'Express' : 'One-time / Daily',
+            paymentMethod: o.payment_method || 'CASH',
+            paymentStatus: o.payment_status === 'PAID' ? 'Paid' : 'Unpaid',
+            status: displayStatus,
+            courier: o.delivery_boy_name || null,
+            deliveryStatus: o.status === 'DELIVERED' ? 'Delivered' : 'Pending',
+            phone: customerPhone,
+            address: o.pickup_address || customerAddress,
+            services: mappedServices,
+            totalAmount: parseFloat(o.total_amount || '0'),
+            total: parseFloat(o.total_amount || '0'),
+            frequency: o.is_express ? 'Express' : 'One-time / Daily',
+            deliveryOtp: ''
+          };
+        });
+        
+        saveDB({ orders: mappedOrders });
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend orders:', err);
     }
 
     try {
