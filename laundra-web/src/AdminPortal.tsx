@@ -1810,11 +1810,45 @@ export const AdminPortal: React.FC = () => {
   };
 
   // QR share WhatsApp
-  const handleShareQR = (cust: Customer) => {
+  const handleShareQR = async (cust: Customer) => {
     addActivity('Customer', `Shared QR Code for customer: ${cust.name}`);
     const updated = db.customers.map(c => c.id === cust.id ? { ...c, qrStatus: 'Shared via WhatsApp' as const } : c);
     saveDB({ customers: updated });
-    window.open(`https://api.whatsapp.com/send?text=Scan this secure link to access your customer laundry portal: ${window.location.origin}/customer?login=${cust.id}`);
+
+    const portalUrl = `${window.location.origin}/customer?login=${cust.id}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+    const message = `Hi ${cust.name}! Here is your secure QR code to access your laundry portal. Scan the image or use this link: ${portalUrl}`;
+
+    try {
+      // Fetch QR code image as blob
+      const response = await fetch(qrImageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `QR_${cust.name.replace(/\s+/g, '_')}.png`, { type: 'image/png' });
+
+      // Try Web Share API (works on mobile Chrome/Safari — opens WhatsApp with image)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `${cust.name} - Customer QR Code`,
+          text: message,
+          files: [file],
+        });
+      } else {
+        // Desktop fallback: download the QR image + open WhatsApp with link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `QR_${cust.name.replace(/\s+/g, '_')}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        // Also open WhatsApp with the link
+        setTimeout(() => {
+          window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`);
+        }, 500);
+      }
+    } catch (err) {
+      // Final fallback: just open WhatsApp with link
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`);
+    }
   };
 
   const handleDisableQR = (cust: Customer) => {
@@ -4394,9 +4428,21 @@ export const AdminPortal: React.FC = () => {
 
               {qrCust.qrStatus !== 'Disabled' ? (
                 <>
-                  <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                    <button onClick={() => handleShareQR(qrCust)} style={{ flex: 1, padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Share via WhatsApp</button>
-                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/customer?login=${qrCust.id}`); alert('Link copied to clipboard!'); }} style={{ padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🔗 Copy Link</button>
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button onClick={() => handleShareQR(qrCust)} style={{ flex: 1, padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.82rem' }}>📲 Share QR via WA</button>
+                    <button onClick={async () => {
+                      const portalUrl = `${window.location.origin}/customer?login=${qrCust.id}`;
+                      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+                      const res = await fetch(qrImageUrl);
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `QR_${qrCust.name.replace(/\s+/g, '_')}.png`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }} style={{ padding: '10px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>⬇ Download QR</button>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/customer?login=${qrCust.id}`); alert('Link copied!'); }} style={{ padding: '10px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem' }}>🔗 Copy Link</button>
                   </div>
                   <button onClick={() => handleDisableQR(qrCust)} style={{ width: '100%', padding: '10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🚨 Disable Lost QR</button>
                 </>
