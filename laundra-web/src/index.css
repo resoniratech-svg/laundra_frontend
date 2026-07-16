@@ -2125,3 +2125,13 @@ input:checked + .express-badge {
 .danger-btn:hover {
   background: #fef2f2;
 }
+
+/* Hide up/down arrows in numeric inputs */
+input.no-spinners::-webkit-outer-spin-button,
+input.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spinners {
+  -moz-appearance: textfield;
+}

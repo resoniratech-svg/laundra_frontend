@@ -2553,6 +2553,7 @@ export const AdminPortal: React.FC = () => {
                                 }}
                               >
                                 <option value="">-- Unassigned --</option>
+                                <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
                                 {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
@@ -2577,6 +2578,7 @@ export const AdminPortal: React.FC = () => {
                                 }}
                               >
                                 <option value="">-- Unassigned --</option>
+                                <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
                                 {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
@@ -2584,9 +2586,9 @@ export const AdminPortal: React.FC = () => {
                               </select>
                             </div>
                             
-                            {(o.pickupCourier || o.deliveryCourier) && (
+                            {((o.pickupCourier && o.pickupCourier !== 'Store') || (o.deliveryCourier && o.deliveryCourier !== 'Store')) && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0', width: '120px' }}>
-                                {o.pickupCourier && (
+                                {o.pickupCourier && o.pickupCourier !== 'Store' && (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
                                     <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>📦 Pick QR:</span>
                                     <input 
@@ -2604,7 +2606,7 @@ export const AdminPortal: React.FC = () => {
                                   </div>
                                 )}
                                 
-                                {o.deliveryCourier && ['ready', 'out for delivery', 'delivered'].includes(o.status.toLowerCase()) && (
+                                {o.deliveryCourier && o.deliveryCourier !== 'Store' && ['ready', 'out for delivery', 'delivered'].includes(o.status.toLowerCase()) && (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
                                     <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>🚚 Deliv QR:</span>
                                     <input 
@@ -2889,63 +2891,63 @@ export const AdminPortal: React.FC = () => {
                       ✕
                     </button>
                   )}
-                </div>
 
-                {/* Dropdown list of filtered customers */}
-                {showCustDropdown && (
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', zIndex: 100, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
-                    
-                    {/* Guest Checkout option */}
-                    <div 
-                      onClick={() => {
-                        setPosCustId('');
-                        setPosCustName('');
-                        setPosCustPhone('');
-                        setPosCustEmail('');
-                        setPosCustAddress('');
-                        setPosCustomerSearch('');
-                        setShowCustDropdown(false);
-                      }}
-                      style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#1e293b', fontWeight: '700', background: posCustId === '' ? '#f0f9ff' : 'transparent' }}
-                    >
-                      — Guest Checkout —
-                    </div>
+                  {/* Dropdown list of filtered customers */}
+                  {showCustDropdown && (
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', zIndex: 100, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                      
+                      {/* Guest Checkout option */}
+                      <div 
+                        onClick={() => {
+                          setPosCustId('');
+                          setPosCustName('');
+                          setPosCustPhone('');
+                          setPosCustEmail('');
+                          setPosCustAddress('');
+                          setPosCustomerSearch('');
+                          setShowCustDropdown(false);
+                        }}
+                        style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#1e293b', fontWeight: '700', background: posCustId === '' ? '#f0f9ff' : 'transparent' }}
+                      >
+                        — Guest Checkout —
+                      </div>
 
-                    {/* Filtered list */}
-                    {db.customers
-                      .filter(c => 
+                      {/* Filtered list */}
+                      {db.customers
+                        .filter(c => 
+                          c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
+                          (c.phone && c.phone.includes(posCustomerSearch))
+                        )
+                        .map(c => (
+                          <div 
+                            key={c.id}
+                            onClick={() => {
+                              setPosCustId(c.id);
+                              setPosCustName(c.name);
+                              setPosCustPhone(c.phone || '');
+                              setPosCustEmail(c.email || '');
+                              setPosCustAddress(c.address || '');
+                              setPosCustomerSearch(`${c.name} (${c.phone || 'No Phone'})`);
+                              setShowCustDropdown(false);
+                            }}
+                            style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#334155', background: posCustId === c.id ? '#eff6ff' : 'transparent' }}
+                          >
+                            <div style={{ fontWeight: '700' }}>{c.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>📞 {c.phone || 'N/A'} {c.email ? `| ✉️ ${c.email}` : ''}</div>
+                          </div>
+                        ))}
+                        
+                      {db.customers.filter(c => 
                         c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
                         (c.phone && c.phone.includes(posCustomerSearch))
-                      )
-                      .map(c => (
-                        <div 
-                          key={c.id}
-                          onClick={() => {
-                            setPosCustId(c.id);
-                            setPosCustName(c.name);
-                            setPosCustPhone(c.phone || '');
-                            setPosCustEmail(c.email || '');
-                            setPosCustAddress(c.address || '');
-                            setPosCustomerSearch(`${c.name} (${c.phone || 'No Phone'})`);
-                            setShowCustDropdown(false);
-                          }}
-                          style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#334155', background: posCustId === c.id ? '#eff6ff' : 'transparent' }}
-                        >
-                          <div style={{ fontWeight: '700' }}>{c.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>📞 {c.phone || 'N/A'} {c.email ? `| ✉️ ${c.email}` : ''}</div>
+                      ).length === 0 && (
+                        <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
+                          No customers found
                         </div>
-                      ))}
-                      
-                    {db.customers.filter(c => 
-                      c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
-                      (c.phone && c.phone.includes(posCustomerSearch))
-                    ).length === 0 && (
-                      <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
-                        No customers found
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {posCustId === '' ? (
@@ -3000,6 +3002,7 @@ export const AdminPortal: React.FC = () => {
                     type="number" 
                     step="0.01" 
                     value={customPOSAmount} 
+                    className="no-spinners"
                     placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount).toFixed(2)}
                     onChange={e => setCustomPOSAmount(e.target.value)} 
                     style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
@@ -3885,6 +3888,7 @@ export const AdminPortal: React.FC = () => {
                     style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? 'not-allowed' : 'pointer' }}
                   >
                     <option value="">Unassigned</option>
+                    <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
                     {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
@@ -3905,6 +3909,7 @@ export const AdminPortal: React.FC = () => {
                     style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
                   >
                     <option value="">Unassigned</option>
+                    <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
                     {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
@@ -3912,9 +3917,9 @@ export const AdminPortal: React.FC = () => {
                   </select>
                 </div>
 
-                {(viewingOrder.pickupCourier || viewingOrder.deliveryCourier) && (
+                {((viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store') || (viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store')) && (
                   <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    {viewingOrder.pickupCourier && (
+                    {viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>📦 Pickup Commission (QR):</label>
                         <input 
@@ -3933,8 +3938,8 @@ export const AdminPortal: React.FC = () => {
                       </div>
                     )}
                     
-                    {viewingOrder.deliveryCourier && ['ready', 'out for delivery', 'delivered'].includes(viewingOrder.status.toLowerCase()) && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                    {viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && ['ready', 'out for delivery', 'delivered'].includes(viewingOrder.status.toLowerCase()) && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' ? '1px solid #e2e8f0' : 'none', paddingTop: viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' ? '8px' : '0' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>🚚 Delivery Commission (QR):</label>
                         <input 
                           type="number" 
