@@ -58,6 +58,10 @@ export const CustomerPortal: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const urlLoginId = params.get('login');
     if (urlLoginId) {
+      const currentActiveId = localStorage.getItem('ll_active_customer_id');
+      if (urlLoginId !== currentActiveId) {
+        localStorage.removeItem('ll_auth_token');
+      }
       localStorage.setItem('ll_active_customer_id', urlLoginId);
       if (db.activeCompanyId) {
         localStorage.setItem(`ll_${db.activeCompanyId}_active_customer_id`, urlLoginId);
