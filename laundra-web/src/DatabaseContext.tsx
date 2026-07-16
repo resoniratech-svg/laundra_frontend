@@ -341,6 +341,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return parsed.map((c: any) => ({
           ...c,
           status: c.status || 'Active',
+          phone: c.phone || (c.id === 'comp-default' ? '+974 5555 1234' : undefined),
+          address: c.address || (c.id === 'comp-default' ? 'Industrial Area, St 10, Doha, Qatar' : undefined),
           subscription: c.subscription || {
             tier: 'Premium',
             status: 'Active',
@@ -397,6 +399,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       createdAt: new Date().toISOString().split('T')[0],
       adminEmail: 'admin@laundra.com',
       status: 'Active',
+      phone: '+974 5555 1234',
+      address: 'Industrial Area, St 10, Doha, Qatar',
       subscription: {
         tier: 'Premium',
         status: 'Active',
