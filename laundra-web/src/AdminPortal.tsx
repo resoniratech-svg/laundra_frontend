@@ -671,15 +671,17 @@ export const AdminPortal: React.FC = () => {
         })
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         alert(`Failed to create customer: ${data.detail || 'Unknown error'}`);
         return;
       }
 
-      // Backend created successfully, update mock DB
+      // Backend created successfully, update mock DB using real database ID
+      const realId = data.id;
+
       const newCust: Customer = {
-        id: 'cust-' + Math.floor(10000 + Math.random() * 90000),
+        id: realId,
         name: custName,
         email: custEmail,
         phone: custPhone,
@@ -691,7 +693,7 @@ export const AdminPortal: React.FC = () => {
       };
 
       const newUser: User = {
-        id: 'u-' + (db.users.length + 1),
+        id: realId,
         name: custName,
         role: 'customer',
         email: custEmail,
