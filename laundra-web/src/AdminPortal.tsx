@@ -149,6 +149,7 @@ export const AdminPortal: React.FC = () => {
   const [posCustAddress, setPosCustAddress] = useState('');
   const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [posSearch, setPosSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
   const [showCustDropdown, setShowCustDropdown] = useState(false);
   // Removed posCategory
@@ -2705,157 +2706,165 @@ export const AdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>🧺 Service Catalog</h4>
             
-            {!selectedPosItem ? (
-              <>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-                  <input type="text" value={posSearch} onChange={e => setPosSearch(e.target.value)} placeholder="🔍 Search item (e.g. Shirt)..." style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
-                  {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
-                    .filter(name => String(name).toLowerCase().includes(posSearch.toLowerCase()))
-                    .sort((a, b) => String(a).localeCompare(String(b)))
-                    .map((itemName: any) => (
-                      <div 
-                        key={itemName} 
-                        onClick={() => setSelectedPosItem(itemName)}
-                        style={{ 
-                          padding: '16px 12px', 
-                          border: '1px solid #cbd5e1', 
-                          borderRadius: '8px', 
-                          background: '#f8fafc', 
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          alignItems: 'center',
-                          gap: '8px',
-                          transition: 'transform 0.1s, border-color 0.1s'
-                        }}
-                      >
-                        <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                        <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#0f172a' }}>{itemName}</div>
-                      </div>
-                    ))}
-                </div>
-              </>
-            ) : (
-              <div style={{ padding: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
-                  <button 
-                    onClick={() => setSelectedPosItem(null)} 
-                    style={{ padding: '6px 12px', background: '#cbd5e1', color: '#1e293b', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
+            {/* Category Filter Tabs at the top */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {(['Pressing', 'Wash & Press', 'Dry Cleaning'] as const).map(cat => {
+                const isActive = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setActiveCategory(cat);
+                      setSelectedPosItem(null);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      border: isActive ? 'none' : '1px solid #cbd5e1',
+                      background: isActive ? '#2563eb' : '#f8fafc',
+                      color: isActive ? 'white' : '#1e293b',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      transition: 'all 0.2s',
+                      boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
+                    }}
                   >
-                    ⬅️ Back to Catalog
+                    {cat === 'Pressing' ? '💨 Pressing' : cat === 'Wash & Press' ? '🧺 Wash & Clean' : '✨ Dry Cleaning'}
                   </button>
-                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a' }}>
-                    Select Service for: <strong style={{ color: '#2563eb' }}>{selectedPosItem}</strong>
-                  </span>
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
-                  {Array.from(new Set(backendServices.filter(s => s.name === selectedPosItem).map(s => s.category))).map(category => {
-                    const servicesInCategory = backendServices.filter(s => s.name === selectedPosItem && s.category === category);
-                    return (
-                      <div key={category} style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '800', fontSize: '0.9rem', marginBottom: '10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          🛠️ {category}
-                        </div>
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                          {servicesInCategory.map(service => (
-                            <React.Fragment key={service.id}>
-                              {service.price !== null && service.price !== undefined && (
-                                <button
-                                  onClick={() => {
-                                    const variantId = `normal_${service.id}`;
-                                    const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
-                                    if (existing) {
-                                      setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
-                                    } else {
-                                      setPosCart([...posCart, { 
-                                        itemId: service.id, 
-                                        itemName: service.name, 
-                                        serviceTypeId: service.category, 
-                                        serviceTypeName: service.category, 
-                                        variantId: variantId, 
-                                        variantName: 'Normal', 
-                                        price: service.price, 
-                                        qty: 1 
-                                      }]);
-                                    }
-                                    setSelectedPosItem(null);
-                                  }}
-                                  style={{
-                                    padding: '10px 16px',
-                                    background: '#eff6ff',
-                                    color: '#2563eb',
-                                    border: '1.5px solid #bfdbfe',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.8rem',
-                                    fontWeight: '800',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    boxShadow: '0 1px 2px rgba(37,99,235,0.05)'
-                                  }}
-                                >
-                                  <span>Normal Option</span>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>QR {Number(service.price).toFixed(2)}</span>
-                                </button>
-                              )}
-                              
-                              {service.express_price !== null && service.express_price !== undefined && (
-                                <button
-                                  onClick={() => {
-                                    const variantId = `express_${service.id}`;
-                                    const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
-                                    if (existing) {
-                                      setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
-                                    } else {
-                                      setPosCart([...posCart, { 
-                                        itemId: service.id, 
-                                        itemName: service.name, 
-                                        serviceTypeId: service.category, 
-                                        serviceTypeName: service.category, 
-                                        variantId: variantId, 
-                                        variantName: 'Express', 
-                                        price: service.express_price, 
-                                        qty: 1 
-                                      }]);
-                                    }
-                                    setSelectedPosItem(null);
-                                  }}
-                                  style={{
-                                    padding: '10px 16px',
-                                    background: '#f3e8ff',
-                                    color: '#7c3aed',
-                                    border: '1.5px solid #d8b4fe',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.8rem',
-                                    fontWeight: '800',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    boxShadow: '0 1px 2px rgba(124,58,237,0.05)'
-                                  }}
-                                >
-                                  <span>Express Option</span>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>QR {Number(service.express_price).toFixed(2)}</span>
-                                </button>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                value={posSearch} 
+                onChange={e => setPosSearch(e.target.value)} 
+                placeholder="🔍 Search item (e.g. Shirt)..." 
+                style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '14px', maxHeight: '420px', overflowY: 'auto' }}>
+              {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
+                .filter(name => {
+                  const matchesSearch = String(name).toLowerCase().includes(posSearch.toLowerCase());
+                  const hasActiveService = backendServices.some(s => s.name === name && s.category === activeCategory);
+                  return matchesSearch && hasActiveService;
+                })
+                .sort((a, b) => String(a).localeCompare(String(b)))
+                .map((itemName: any) => {
+                  const service = backendServices.find(s => s.name === itemName && s.category === activeCategory);
+                  const hasNormal = service && service.price !== null && service.price !== undefined;
+                  const hasExpress = service && service.express_price !== null && service.express_price !== undefined;
+
+                  return (
+                    <div 
+                      key={itemName} 
+                      style={{ 
+                        padding: '16px 12px', 
+                        border: '1.5px solid #cbd5e1', 
+                        borderRadius: '12px', 
+                        background: '#ffffff', 
+                        textAlign: 'center',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center',
+                        gap: '10px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
+                      <div style={{ fontWeight: '800', fontSize: '0.85rem', color: '#0f172a', marginBottom: '4px' }}>{itemName}</div>
+                      
+                      <div style={{ display: 'flex', gap: '6px', width: '100%', marginTop: 'auto' }}>
+                        {hasNormal ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const variantId = `normal_${service.id}`;
+                              const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
+                              if (existing) {
+                                setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setPosCart([...posCart, { 
+                                  itemId: service.id, 
+                                  itemName: service.name, 
+                                  serviceTypeId: service.category, 
+                                  serviceTypeName: service.category, 
+                                  variantId: variantId, 
+                                  variantName: 'Normal', 
+                                  price: service.price, 
+                                  qty: 1 
+                                }]);
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '6px 4px',
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              border: '1px solid #bfdbfe',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Normal<br/>QR {parseFloat(service.price).toFixed(1)}
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1, padding: '6px 4px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                        )}
+
+                        {hasExpress ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const variantId = `express_${service.id}`;
+                              const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
+                              if (existing) {
+                                setPosCart(posCart.map(i => i.itemId === service.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setPosCart([...posCart, { 
+                                  itemId: service.id, 
+                                  itemName: service.name, 
+                                  serviceTypeId: service.category, 
+                                  serviceTypeName: service.category, 
+                                  variantId: variantId, 
+                                  variantName: 'Express', 
+                                  price: service.express_price, 
+                                  qty: 1 
+                                }]);
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '6px 4px',
+                              background: '#faf5ff',
+                              color: '#7c3aed',
+                              border: '1px solid #e9d5ff',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Express<br/>QR {parseFloat(service.express_price).toFixed(1)}
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1, padding: '6px 4px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
 
           {/* POS Cart details & client info */}
