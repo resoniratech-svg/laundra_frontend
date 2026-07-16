@@ -481,7 +481,26 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [serviceVariants, setServiceVariantsState] = useState<ServiceVariant[]>([]);
   const [itemPrices, setItemPricesState] = useState<ItemPrice[]>([]);
   const [customers, setCustomersState] = useState<Customer[]>(DEFAULT_CUSTOMERS);
-  const [orders, setOrdersState] = useState<Order[]>(DEFAULT_ORDERS);
+  const [orders, setOrdersState] = useState<Order[]>(() => {
+    // Read synchronously from localStorage so orders survive page refresh without any async race
+    const compId = localStorage.getItem('ll_active_company_id') || 'comp-default';
+    const saved = localStorage.getItem(`ll_${compId}_orders`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_e) { /* fall through */ }
+    }
+    // Fallback: check the universal backup key (handles company-id mismatch scenario)
+    const backup = localStorage.getItem('ll_orders_latest_backup');
+    if (backup) {
+      try {
+        const parsed = JSON.parse(backup);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_e) { /* fall through */ }
+    }
+    return DEFAULT_ORDERS;
+  });
   const [expenses, setExpensesState] = useState<Expense[]>(DEFAULT_EXPENSES);
   const [promos, setPromosState] = useState<Promo[]>(DEFAULT_PROMOS);
   const [notifications, setNotificationsState] = useState<Notification[]>(DEFAULT_NOTIFICATIONS);
