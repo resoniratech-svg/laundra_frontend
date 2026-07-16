@@ -116,6 +116,7 @@ export const SuperAdminPortal: React.FC = () => {
   const [editCompAddress, setEditCompAddress] = useState('');
   const [editCompArea, setEditCompArea] = useState('');
   const [editCompPhone, setEditCompPhone] = useState('');
+  const [editCompAltPhone, setEditCompAltPhone] = useState('');
   const [editCompGst, setEditCompGst] = useState('');
   const [editCompBusinessType, setEditCompBusinessType] = useState('Dry Cleaners');
   const [editCompStatus, setEditCompStatus] = useState('ACTIVE');
@@ -646,6 +647,7 @@ export const SuperAdminPortal: React.FC = () => {
         body: JSON.stringify({
           name: editCompName,
           phone: editCompPhone,
+          alt_phone: editCompAltPhone,
           address: editCompAddress,
           area: editCompArea,
           gst_number: editCompGst,
@@ -1454,6 +1456,7 @@ export const SuperAdminPortal: React.FC = () => {
                                 setEditCompAddress(c.address || '');
                                 setEditCompArea(c.area || '');
                                 setEditCompPhone(c.phone || '');
+                                setEditCompAltPhone((c as any).alt_phone || '');
                                 setEditCompGst(c.gst_number || '');
                                 setEditCompBusinessType(c.business_type || 'Dry Cleaners');
                                 setEditCompStatus(c.status || 'ACTIVE');
@@ -2106,6 +2109,17 @@ export const SuperAdminPortal: React.FC = () => {
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
                     <input type="text" value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Phone Number</label>
+                      <input type="tel" value={editCompPhone} onChange={e => setEditCompPhone(e.target.value)} placeholder="e.g. +97450123456" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Alternate Phone Number</label>
+                      <input type="tel" value={editCompAltPhone} onChange={e => setEditCompAltPhone(e.target.value)} placeholder="e.g. +97455987654" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                    </div>
                   </div>
 
                   <h4 style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>Admin Details</h4>
