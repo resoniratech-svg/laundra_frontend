@@ -3026,35 +3026,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                <span style={{ fontWeight: '700' }}>POS total amount:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b' }}>QR</span>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={customPOSAmount} 
-                    className="no-spinners"
-                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount - (parseFloat(customPOSDiscount) || 0)).toFixed(2)}
-                    onChange={e => setCustomPOSAmount(e.target.value)} 
-                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                <span style={{ fontWeight: '700' }}>Discount (QR):</span>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={customPOSDiscount} 
-                  className="no-spinners"
-                  placeholder="0.00"
-                  onChange={e => setCustomPOSDiscount(e.target.value)} 
-                  style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '1rem', color: '#0f172a', textAlign: 'right' }} 
-                />
-              </div>
-
+              {/* Coupon input field */}
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <input 
                   type="text" 
@@ -3075,6 +3047,37 @@ export const AdminPortal: React.FC = () => {
                   Discount Applied: -QR {posDiscount.toFixed(2)}
                 </div>
               )}
+
+              {/* Discount input field */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                <span style={{ fontWeight: '700' }}>Discount (QR):</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={customPOSDiscount} 
+                  className="no-spinners"
+                  placeholder="0.00"
+                  onChange={e => setCustomPOSDiscount(e.target.value)} 
+                  style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '1rem', color: '#0f172a', textAlign: 'right' }} 
+                />
+              </div>
+
+              {/* POS total amount field */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                <span style={{ fontWeight: '700' }}>POS total amount:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b' }}>QR</span>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={customPOSAmount} 
+                    className="no-spinners"
+                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount - (parseFloat(customPOSDiscount) || 0)).toFixed(2)}
+                    onChange={e => setCustomPOSAmount(e.target.value)} 
+                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                  />
+                </div>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
