@@ -1514,14 +1514,14 @@ export const CustomerPortal: React.FC = () => {
                   ) : (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
                       <span>{viewingInvoice.weightItems || 'Standard Laundry'}</span>
-                      <span style={{ fontWeight: '700' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
+                      <span style={{ fontWeight: '700' }}>QR {parseFloat(String(viewingInvoice.totalAmount || viewingInvoice.total || 0)).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', fontSize: '1rem', fontWeight: '800' }}>
                   <span>TOTAL AMOUNT:</span>
-                  <span>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
+                  <span>QR {parseFloat(String(viewingInvoice.totalAmount || viewingInvoice.total || 0)).toFixed(2)}</span>
                 </div>
               </div>
 
@@ -1551,7 +1551,7 @@ export const CustomerPortal: React.FC = () => {
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div><strong>Status:</strong> {selectedOrder.status} {selectedOrder.deliveryStatus && !['Pending Assignment', 'Received', 'Pending Pickup', 'Pending'].includes(selectedOrder.deliveryStatus) && ` - 🚚 ${selectedOrder.deliveryStatus}`}</div>
               <div><strong>Items:</strong> {selectedOrder.weightItems}</div>
-              <div><strong>Total Amount:</strong> QR {selectedOrder.totalAmount.toFixed(2)}</div>
+              <div><strong>Total Amount:</strong> QR {parseFloat(String(selectedOrder.totalAmount || selectedOrder.total || 0)).toFixed(2)}</div>
               <div><strong>Delivery agent:</strong> {selectedOrder.courier || 'Unassigned'}</div>
               
               {selectedOrder.deliveryStatus && ['Courier on the way', 'Reached Customer'].includes(selectedOrder.deliveryStatus) && (
