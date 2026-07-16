@@ -41,6 +41,14 @@ export const CustomerPortal: React.FC = () => {
   const navigate = useNavigate();
   const { db, saveDB, changeActiveCompany } = useDatabase();
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Active Customer Session Check with automatic secure login via URL ?login=cust-XXX
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [companyName, setCompanyName] = useState<string>('');
@@ -730,79 +738,115 @@ export const CustomerPortal: React.FC = () => {
   }).reverse();
 
   return (
-    <div className="portal-wrapper active" id="customerPortal" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex' }}>
+    <div className="portal-wrapper active" id="customerPortal" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       
-      {/* Sidebar Panel */}
-      <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0, position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
-        <div className="sidebar-brand" style={{ padding: '0 20px 16px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px' }}>
-          <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#1e3a8a' }}>{companyName || db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Company Name'}</span>
-        </div>
-
-        <div style={{ padding: '8px 16px', background: '#eff6ff', borderRadius: '8px', margin: '0 16px 20px 16px', border: '1px solid #dbeafe' }}>
-          <div style={{ fontSize: '0.7rem', color: '#1e3a8a', fontWeight: '700', textTransform: 'uppercase' }}>Session active</div>
-          <div style={{ fontSize: '0.88rem', color: '#1e40af', fontWeight: '800' }}>{customer.name}</div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
-          <ul className="sidebar-menu" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <li onClick={() => setActiveTab('dashboard')} className={`sidebar-menu-item ${activeTab === 'dashboard' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', background: activeTab === 'dashboard' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              📦 <span>My Bookings</span>
-            </li>
-            <li onClick={() => setActiveTab('services')} className={`sidebar-menu-item ${activeTab === 'services' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'services' ? '#2563eb' : '#475569', background: activeTab === 'services' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              🏷️ <span>Service Rates</span>
-            </li>
-            <li onClick={() => setActiveTab('invoices')} className={`sidebar-menu-item ${activeTab === 'invoices' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'invoices' ? '#2563eb' : '#475569', background: activeTab === 'invoices' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              🧾 <span>Invoices</span>
-            </li>
-            <li onClick={() => setActiveTab('wallet')} className={`sidebar-menu-item ${activeTab === 'wallet' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'wallet' ? '#2563eb' : '#475569', background: activeTab === 'wallet' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              💳 <span>Wallet & Loyalty</span>
-            </li>
-            <li onClick={() => setActiveTab('support')} className={`sidebar-menu-item ${activeTab === 'support' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'support' ? '#2563eb' : '#475569', background: activeTab === 'support' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              🎫 <span>Support Desk</span>
-            </li>
+      {isMobile ? (
+        <header style={{ position: 'sticky', top: 0, zIndex: 1000, background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+            <div>
+              <span style={{ fontSize: '1.05rem', fontWeight: '900', color: '#1e3a8a', display: 'block' }}>
+                {companyName || db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundry'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: '800' }}>👤 {customer.name}</span>
+            </div>
+            <button onClick={handleLogout} style={{ border: '1px solid #fca5a5', background: 'transparent', color: '#ef4444', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}>
+              🚪 Sign Out
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '10px 16px', WebkitOverflowScrolling: 'touch' }}>
+            <button onClick={() => setActiveTab('dashboard')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'dashboard' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 Bookings</button>
+            <button onClick={() => setActiveTab('services')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'services' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'services' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🏷️ Rates</button>
+            <button onClick={() => setActiveTab('invoices')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'invoices' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'invoices' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🧾 Invoices</button>
+            <button onClick={() => setActiveTab('wallet')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'wallet' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'wallet' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>💳 Wallet</button>
+            <button onClick={() => setActiveTab('support')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'support' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'support' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎫 Support</button>
             {(() => {
               const lastSeen = parseInt(localStorage.getItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`) || '0');
               const unreadAnnouncementsCount = activeTab === 'announcements' ? 0 : Math.max(0, systemAnnouncements.length - lastSeen);
-
               return (
-                <li onClick={() => { setActiveTab('announcements'); localStorage.setItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`, systemAnnouncements.length.toString()); }} className={`sidebar-menu-item ${activeTab === 'announcements' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'announcements' ? '#2563eb' : '#475569', background: activeTab === 'announcements' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    📢 <span>Announcements</span>
-                  </span>
+                <button onClick={() => { setActiveTab('announcements'); localStorage.setItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`, systemAnnouncements.length.toString()); }} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'announcements' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'announcements' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  📢 Announcements
                   {unreadAnnouncementsCount > 0 && (
-                    <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800' }}>
-                      {unreadAnnouncementsCount}
-                    </span>
+                    <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '800' }}>{unreadAnnouncementsCount}</span>
                   )}
-                </li>
+                </button>
               );
             })()}
-            <li onClick={() => setActiveTab('reviews')} className={`sidebar-menu-item ${activeTab === 'reviews' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'reviews' ? '#2563eb' : '#475569', background: activeTab === 'reviews' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              ⭐ <span>Rate Services</span>
-            </li>
-          </ul>
-        </div>
+            <button onClick={() => setActiveTab('reviews')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'reviews' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'reviews' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>⭐ Review</button>
+          </div>
+        </header>
+      ) : (
+        /* Sidebar Panel */
+        <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0, position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
+          <div className="sidebar-brand" style={{ padding: '0 20px 16px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px' }}>
+            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#1e3a8a' }}>{companyName || db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Company Name'}</span>
+          </div>
 
-        <div style={{ padding: '16px 20px 0', borderTop: '1px solid #f1f5f9', marginTop: '16px' }}>
-          <button onClick={handleLogout} className="secondary-btn" style={{ width: '100%', justifyContent: 'center', borderColor: '#ef4444', color: '#ef4444', height: '40px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', cursor: 'pointer', borderRadius: '8px' }}>
-            🚪 Sign Out
-          </button>
-        </div>
-      </aside>
+          <div style={{ padding: '8px 16px', background: '#eff6ff', borderRadius: '8px', margin: '0 16px 20px 16px', border: '1px solid #dbeafe' }}>
+            <div style={{ fontSize: '0.7rem', color: '#1e3a8a', fontWeight: '700', textTransform: 'uppercase' }}>Session active</div>
+            <div style={{ fontSize: '0.88rem', color: '#1e40af', fontWeight: '800' }}>{customer.name}</div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
+            <ul className="sidebar-menu" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <li onClick={() => setActiveTab('dashboard')} className={`sidebar-menu-item ${activeTab === 'dashboard' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', background: activeTab === 'dashboard' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                📦 <span>My Bookings</span>
+              </li>
+              <li onClick={() => setActiveTab('services')} className={`sidebar-menu-item ${activeTab === 'services' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'services' ? '#2563eb' : '#475569', background: activeTab === 'services' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                🏷️ <span>Service Rates</span>
+              </li>
+              <li onClick={() => setActiveTab('invoices')} className={`sidebar-menu-item ${activeTab === 'invoices' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'invoices' ? '#2563eb' : '#475569', background: activeTab === 'invoices' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                🧾 <span>Invoices</span>
+              </li>
+              <li onClick={() => setActiveTab('wallet')} className={`sidebar-menu-item ${activeTab === 'wallet' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'wallet' ? '#2563eb' : '#475569', background: activeTab === 'wallet' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                💳 <span>Wallet & Loyalty</span>
+              </li>
+              <li onClick={() => setActiveTab('support')} className={`sidebar-menu-item ${activeTab === 'support' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'support' ? '#2563eb' : '#475569', background: activeTab === 'support' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                🎫 <span>Support Desk</span>
+              </li>
+              {(() => {
+                const lastSeen = parseInt(localStorage.getItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`) || '0');
+                const unreadAnnouncementsCount = activeTab === 'announcements' ? 0 : Math.max(0, systemAnnouncements.length - lastSeen);
+
+                return (
+                  <li onClick={() => { setActiveTab('announcements'); localStorage.setItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`, systemAnnouncements.length.toString()); }} className={`sidebar-menu-item ${activeTab === 'announcements' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'announcements' ? '#2563eb' : '#475569', background: activeTab === 'announcements' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      📢 <span>Announcements</span>
+                    </span>
+                    {unreadAnnouncementsCount > 0 && (
+                      <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: '800' }}>
+                        {unreadAnnouncementsCount}
+                      </span>
+                    )}
+                  </li>
+                );
+              })()}
+              <li onClick={() => setActiveTab('reviews')} className={`sidebar-menu-item ${activeTab === 'reviews' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'reviews' ? '#2563eb' : '#475569', background: activeTab === 'reviews' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                ⭐ <span>Rate Services</span>
+              </li>
+            </ul>
+          </div>
+
+          <div style={{ padding: '16px 20px 0', borderTop: '1px solid #f1f5f9', marginTop: '16px' }}>
+            <button onClick={handleLogout} className="secondary-btn" style={{ width: '100%', justifyContent: 'center', borderColor: '#ef4444', color: '#ef4444', height: '40px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', cursor: 'pointer', borderRadius: '8px' }}>
+              🚪 Sign Out
+            </button>
+          </div>
+        </aside>
+      )}
 
       {/* Main Content Pane */}
-      <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+      <main style={{ flex: 1, padding: isMobile ? '16px' : '32px', overflowY: 'auto' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', gap: '12px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: '#0f172a' }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800', color: '#0f172a' }}>
               {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
             </h1>
-            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>Customer Portal / {activeTab}</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginTop: '2px' }}>Customer Portal / {activeTab}</div>
           </div>
           {activeTab === 'dashboard' && (
-            <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🛒 Book new order</button>
+            <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ width: isMobile ? '100%' : 'auto', padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🛒 Book new order</button>
           )}
         </div>
 

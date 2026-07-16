@@ -13,6 +13,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   const { db, saveDB } = useDatabase();
   const [showNotifications, setShowNotifications] = useState(false);
   const [companyName, setCompanyName] = useState<string>('');
+  const [isFullScreen, setIsFullScreen] = useState(activeModule === 'pos');
+
+  React.useEffect(() => {
+    setIsFullScreen(activeModule === 'pos');
+  }, [activeModule]);
 
   React.useEffect(() => {
     const loadAdminCompany = async () => {
@@ -154,6 +159,15 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1e3a8a', fontWeight: '800' }}>Operational Desk</h2>
           
+          {activeModule === 'pos' && (
+            <button 
+              onClick={() => onModuleChange('dashboard')} 
+              style={{ height: '36px', padding: '0 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', boxShadow: '0 2px 4px rgba(59,130,246,0.2)', transition: 'background 0.15s' }}
+            >
+              ⬅️ Back to Menu
+            </button>
+          )}
+          
           {/* Branch Selector */}
           <select 
             value={db.activeBranch} 
@@ -240,8 +254,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
 
       <div className="admin-layout-container" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
         
-        {/* Sidebar Panel */}
-        <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0, position: 'sticky', top: '24px', height: 'calc(100vh - 48px)' }}>
+        {!isFullScreen && (
+          <aside className="admin-sidebar" style={{ width: '260px', background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '20px 0', flexShrink: 0, position: 'sticky', top: '24px', height: 'calc(100vh - 48px)' }}>
           <div className="sidebar-brand" style={{ padding: '0 20px 20px 20px', borderBottom: '1px solid #f1f5f9', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e3a8a', display: 'block', lineHeight: '1.3' }}>
               {companyName || activeComp?.name || 'Company Name'}
@@ -342,11 +356,30 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
             </button>
           </div>
         </aside>
+      )}
 
-        {/* Content View */}
+      {/* Content View */}
         <main className="admin-main-content" style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '24px' }}>
           <div className="admin-content-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
-            <h2 id="adminActiveModuleTitle" style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#0f172a' }}>{currentTitle}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <h2 id="adminActiveModuleTitle" style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#0f172a' }}>{currentTitle}</h2>
+              {activeModule === 'pos' && isFullScreen && (
+                <button 
+                  onClick={() => setIsFullScreen(false)} 
+                  style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
+                >
+                  ⬅️ Show Sidebar Menu
+                </button>
+              )}
+              {activeModule === 'pos' && !isFullScreen && (
+                <button 
+                  onClick={() => setIsFullScreen(true)} 
+                  style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
+                >
+                  🖥️ Full Screen POS
+                </button>
+              )}
+            </div>
             <div className="breadcrumb" style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
               Operational Desk / {currentTitle}
             </div>

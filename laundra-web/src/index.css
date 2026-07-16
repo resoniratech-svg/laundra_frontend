@@ -609,7 +609,7 @@ h1, h2, h3, h4 {
   display: none; /* hidden by default, shown when portal workspace active */
   background: var(--bg-section);
   min-height: calc(100vh - 80px);
-  padding: 30px 4%;
+  padding: 30px 24px;
   animation: slideIn 0.3s ease;
 }
 .workspace-wrapper.active {

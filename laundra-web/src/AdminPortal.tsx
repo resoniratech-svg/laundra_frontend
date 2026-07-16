@@ -123,6 +123,7 @@ export const AdminPortal: React.FC = () => {
   const [custPass, setCustPass] = useState('');
   const [custOtp, setCustOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
+  const [custCode, setCustCode] = useState('');
 
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
@@ -148,6 +149,8 @@ export const AdminPortal: React.FC = () => {
   const [posCustAddress, setPosCustAddress] = useState('');
   const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [posSearch, setPosSearch] = useState('');
+  const [posCustomerSearch, setPosCustomerSearch] = useState('');
+  const [showCustDropdown, setShowCustDropdown] = useState(false);
   // Removed posCategory
   const [posCommission, setPosCommission] = useState<string>('');
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
@@ -650,6 +653,8 @@ export const AdminPortal: React.FC = () => {
       alert(`User Limit Reached: Maximum allowed Customers is ${limits.maxCustomers || 5000}. Contact SaaS Super Admin to upgrade.`);
       return;
     }
+    const randomCode = 'CUST-' + Math.floor(10000 + Math.random() * 90000);
+    setCustCode(randomCode);
     setAddingCustomerStep(1);
   };
 
@@ -667,7 +672,8 @@ export const AdminPortal: React.FC = () => {
           phone: custPhone,
           address: custAddress,
           otp: "",
-          password: defaultPass
+          password: defaultPass,
+          referral_code: custCode
         })
       });
 
@@ -719,6 +725,7 @@ export const AdminPortal: React.FC = () => {
       setCustAddress('');
       setCustPass('');
       setCustOtp('');
+      setCustCode('');
       setAddingCustomerStep(0);
     } catch (err) {
       console.error(err);
@@ -1890,6 +1897,7 @@ export const AdminPortal: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                  <th style={{ padding: '12px' }}>Customer ID</th>
                   <th style={{ padding: '12px' }}>Customer Name</th>
                   <th style={{ padding: '12px' }}>Contact</th>
                   <th style={{ padding: '12px' }}>QR Status</th>
@@ -1903,6 +1911,7 @@ export const AdminPortal: React.FC = () => {
                   .filter(c => c.name.toLowerCase().includes(custSearch.toLowerCase()))
                   .map(c => (
                     <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px', fontWeight: '700', color: '#64748b' }}>{c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())}</td>
                       <td style={{ padding: '12px', fontWeight: '700' }}>{c.name}</td>
                       <td style={{ padding: '12px' }}>{c.email} • {c.phone}</td>
                       <td style={{ padding: '12px' }}>
@@ -2655,55 +2664,68 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {activeModule === 'pos' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 0.7fr', gap: '24px' }}>
           {/* POS Catalog browsing */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>🧺 Service Catalog</h4>
             
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-              <input type="text" value={posSearch} onChange={e => setPosSearch(e.target.value)} placeholder="🔍 Search item (e.g. Shirt)..." style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
+            {!selectedPosItem ? (
+              <>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                  <input type="text" value={posSearch} onChange={e => setPosSearch(e.target.value)} placeholder="🔍 Search item (e.g. Shirt)..." style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
-              {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
-                .filter(name => String(name).toLowerCase().includes(posSearch.toLowerCase()))
-                .sort((a, b) => String(a).localeCompare(String(b)))
-                .map((itemName: any) => (
-                  <div 
-                    key={itemName} 
-                    onClick={() => setSelectedPosItem(itemName)}
-                    style={{ 
-                      padding: '16px 12px', 
-                      border: selectedPosItem === itemName ? '2px solid #2563eb' : '1px solid #cbd5e1', 
-                      borderRadius: '8px', 
-                      background: selectedPosItem === itemName ? '#eff6ff' : '#f8fafc', 
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center',
-                      gap: '8px' 
-                    }}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
+                  {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
+                    .filter(name => String(name).toLowerCase().includes(posSearch.toLowerCase()))
+                    .sort((a, b) => String(a).localeCompare(String(b)))
+                    .map((itemName: any) => (
+                      <div 
+                        key={itemName} 
+                        onClick={() => setSelectedPosItem(itemName)}
+                        style={{ 
+                          padding: '16px 12px', 
+                          border: '1px solid #cbd5e1', 
+                          borderRadius: '8px', 
+                          background: '#f8fafc', 
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'transform 0.1s, border-color 0.1s'
+                        }}
+                      >
+                        <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
+                        <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#0f172a' }}>{itemName}</div>
+                      </div>
+                    ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                  <button 
+                    onClick={() => setSelectedPosItem(null)} 
+                    style={{ padding: '6px 12px', background: '#cbd5e1', color: '#1e293b', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                   >
-                    <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#0f172a' }}>{itemName}</div>
-                  </div>
-                ))}
-            </div>
-
-            {selectedPosItem && (
-              <div style={{ marginTop: '20px', padding: '16px', background: '#f1f5f9', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <h5 style={{ margin: '0 0 12px 0', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Select Service for: <strong style={{ color: '#2563eb' }}>{selectedPosItem}</strong></span>
-                  <button onClick={() => setSelectedPosItem(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>✕</button>
-                </h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    ⬅️ Back to Catalog
+                  </button>
+                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a' }}>
+                    Select Service for: <strong style={{ color: '#2563eb' }}>{selectedPosItem}</strong>
+                  </span>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
                   {Array.from(new Set(backendServices.filter(s => s.name === selectedPosItem).map(s => s.category))).map(category => {
                     const servicesInCategory = backendServices.filter(s => s.name === selectedPosItem && s.category === category);
                     return (
-                      <div key={category} style={{ background: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '8px', color: '#334155' }}>{category}</div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <div key={category} style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontWeight: '800', fontSize: '0.9rem', marginBottom: '10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🛠️ {category}
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                           {servicesInCategory.map(service => (
                             <React.Fragment key={service.id}>
                               {service.price !== null && service.price !== undefined && (
@@ -2728,22 +2750,23 @@ export const AdminPortal: React.FC = () => {
                                     setSelectedPosItem(null);
                                   }}
                                   style={{
-                                    padding: '8px 12px',
+                                    padding: '10px 16px',
                                     background: '#eff6ff',
                                     color: '#2563eb',
-                                    border: '1px solid #bfdbfe',
-                                    borderRadius: '6px',
+                                    border: '1.5px solid #bfdbfe',
+                                    borderRadius: '8px',
                                     cursor: 'pointer',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '700',
+                                    fontSize: '0.8rem',
+                                    fontWeight: '800',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    gap: '2px'
+                                    gap: '4px',
+                                    boxShadow: '0 1px 2px rgba(37,99,235,0.05)'
                                   }}
                                 >
-                                  <span>Normal</span>
-                                  <span style={{ fontSize: '0.85rem' }}>QR {Number(service.price).toFixed(2)}</span>
+                                  <span>Normal Option</span>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>QR {Number(service.price).toFixed(2)}</span>
                                 </button>
                               )}
                               
@@ -2769,22 +2792,23 @@ export const AdminPortal: React.FC = () => {
                                     setSelectedPosItem(null);
                                   }}
                                   style={{
-                                    padding: '8px 12px',
+                                    padding: '10px 16px',
                                     background: '#f3e8ff',
                                     color: '#7c3aed',
-                                    border: '1px solid #d8b4fe',
-                                    borderRadius: '6px',
+                                    border: '1.5px solid #d8b4fe',
+                                    borderRadius: '8px',
                                     cursor: 'pointer',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '700',
+                                    fontSize: '0.8rem',
+                                    fontWeight: '800',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    gap: '2px'
+                                    gap: '4px',
+                                    boxShadow: '0 1px 2px rgba(124,58,237,0.05)'
                                   }}
                                 >
-                                  <span>Express</span>
-                                  <span style={{ fontSize: '0.85rem' }}>QR {Number(service.express_price).toFixed(2)}</span>
+                                  <span>Express Option</span>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>QR {Number(service.express_price).toFixed(2)}</span>
                                 </button>
                               )}
                             </React.Fragment>
@@ -2823,31 +2847,98 @@ export const AdminPortal: React.FC = () => {
               )}
             </div>
 
-            {/* Customer select */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+            {/* Customer select with search option */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', position: 'relative' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Select Customer</label>
-                <select value={posCustId} onChange={e => {
-                  const id = e.target.value;
-                  setPosCustId(id);
-                  if (id) {
-                    const c = db.customers.find(x => x.id === id);
-                    if (c) {
-                      setPosCustName(c.name);
-                      setPosCustPhone(c.phone || '');
-                      setPosCustEmail(c.email || '');
-                      setPosCustAddress(c.address || '');
-                    }
-                  } else {
-                    setPosCustName('');
-                    setPosCustPhone('');
-                    setPosCustEmail('');
-                    setPosCustAddress('');
-                  }
-                }} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="">— Guest Checkout —</option>
-                  {db.customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-                </select>
+                
+                {/* Search Input field */}
+                <div style={{ display: 'flex', gap: '6px', position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    placeholder="🔍 Search name or phone number..." 
+                    value={posCustomerSearch}
+                    onChange={e => {
+                      setPosCustomerSearch(e.target.value);
+                      setShowCustDropdown(true);
+                    }}
+                    onFocus={() => setShowCustDropdown(true)}
+                    style={{ width: '100%', padding: '8px', paddingRight: '30px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }} 
+                  />
+                  {posCustomerSearch && (
+                    <button 
+                      onClick={() => {
+                        setPosCustomerSearch('');
+                        setPosCustId('');
+                        setPosCustName('');
+                        setPosCustPhone('');
+                        setPosCustEmail('');
+                        setPosCustAddress('');
+                        setShowCustDropdown(false);
+                      }} 
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown list of filtered customers */}
+                {showCustDropdown && (
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', zIndex: 100, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                    
+                    {/* Guest Checkout option */}
+                    <div 
+                      onClick={() => {
+                        setPosCustId('');
+                        setPosCustName('');
+                        setPosCustPhone('');
+                        setPosCustEmail('');
+                        setPosCustAddress('');
+                        setPosCustomerSearch('');
+                        setShowCustDropdown(false);
+                      }}
+                      style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#1e293b', fontWeight: '700', background: posCustId === '' ? '#f0f9ff' : 'transparent' }}
+                    >
+                      — Guest Checkout —
+                    </div>
+
+                    {/* Filtered list */}
+                    {db.customers
+                      .filter(c => 
+                        c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
+                        (c.phone && c.phone.includes(posCustomerSearch))
+                      )
+                      .map(c => (
+                        <div 
+                          key={c.id}
+                          onClick={() => {
+                            setPosCustId(c.id);
+                            setPosCustName(c.name);
+                            setPosCustPhone(c.phone || '');
+                            setPosCustEmail(c.email || '');
+                            setPosCustAddress(c.address || '');
+                            setPosCustomerSearch(`${c.name} (${c.phone || 'No Phone'})`);
+                            setShowCustDropdown(false);
+                          }}
+                          style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#334155', background: posCustId === c.id ? '#eff6ff' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: '700' }}>{c.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>📞 {c.phone || 'N/A'} {c.email ? `| ✉️ ${c.email}` : ''}</div>
+                        </div>
+                      ))}
+                      
+                    {db.customers.filter(c => 
+                      c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
+                      (c.phone && c.phone.includes(posCustomerSearch))
+                    ).length === 0 && (
+                      <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
+                        No customers found
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {posCustId === '' ? (
@@ -3419,6 +3510,10 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateCustomer} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px', color: '#64748b' }}>Customer ID (Auto Generated)</label>
+                <input type="text" readOnly disabled value={custCode} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: '#f1f5f9', cursor: 'not-allowed', color: '#64748b', fontWeight: '700' }} />
+              </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
                 <input type="text" required value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
