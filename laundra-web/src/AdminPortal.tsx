@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
@@ -158,6 +158,17 @@ export const AdminPortal: React.FC = () => {
   const [posCouponCode, setPosCouponCode] = useState('');
   const [posDiscount, setPosDiscount] = useState(0);
   const [posCouponApplied, setPosCouponApplied] = useState(false);
+
+  const custDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (custDropdownRef.current && !custDropdownRef.current.contains(event.target as Node)) {
+        setShowCustDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Service Forms
   const [addingService, setAddingService] = useState(false);
@@ -2862,10 +2873,10 @@ export const AdminPortal: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Select Customer</label>
                 
                 {/* Search Input field */}
-                <div style={{ display: 'flex', gap: '6px', position: 'relative' }}>
+                <div ref={custDropdownRef} style={{ display: 'flex', gap: '6px', position: 'relative' }}>
                   <input 
                     type="text" 
-                    placeholder="🔍 Search name or phone number..." 
+                    placeholder="🔍 Search name, ID or phone number..." 
                     value={posCustomerSearch}
                     onChange={e => {
                       setPosCustomerSearch(e.target.value);
@@ -2914,10 +2925,14 @@ export const AdminPortal: React.FC = () => {
 
                       {/* Filtered list */}
                       {db.customers
-                        .filter(c => 
-                          c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
-                          (c.phone && c.phone.includes(posCustomerSearch))
-                        )
+                        .filter(c => {
+                          const query = posCustomerSearch.toLowerCase();
+                          const nameMatch = c.name.toLowerCase().includes(query);
+                          const phoneMatch = c.phone && c.phone.includes(query);
+                          const codeMatch = c.referral_code && c.referral_code.toLowerCase().includes(query);
+                          const fallbackMatch = c.id && ('CUST-' + String(c.id).substring(0, 5).toUpperCase()).toLowerCase().includes(query);
+                          return nameMatch || phoneMatch || codeMatch || fallbackMatch;
+                        })
                         .map(c => (
                           <div 
                             key={c.id}
@@ -2937,10 +2952,14 @@ export const AdminPortal: React.FC = () => {
                           </div>
                         ))}
                         
-                      {db.customers.filter(c => 
-                        c.name.toLowerCase().includes(posCustomerSearch.toLowerCase()) || 
-                        (c.phone && c.phone.includes(posCustomerSearch))
-                      ).length === 0 && (
+                      {db.customers.filter(c => {
+                        const query = posCustomerSearch.toLowerCase();
+                        const nameMatch = c.name.toLowerCase().includes(query);
+                        const phoneMatch = c.phone && c.phone.includes(query);
+                        const codeMatch = c.referral_code && c.referral_code.toLowerCase().includes(query);
+                        const fallbackMatch = c.id && ('CUST-' + String(c.id).substring(0, 5).toUpperCase()).toLowerCase().includes(query);
+                        return nameMatch || phoneMatch || codeMatch || fallbackMatch;
+                      }).length === 0 && (
                         <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
                           No customers found
                         </div>
@@ -2949,6 +2968,7 @@ export const AdminPortal: React.FC = () => {
                   )}
                 </div>
               </div>
+
 
               {posCustId === '' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
