@@ -119,6 +119,9 @@ export const CustomerPortal: React.FC = () => {
         const res = await fetch(`${BASE_URL}/api/v1/customers/public/${activeCustId}`);
         if (res.ok) {
           const data = await res.json();
+          if (data.access_token) {
+            localStorage.setItem('ll_auth_token', data.access_token);
+          }
           setCustomer({
             id: data.id,
             name: data.name,
