@@ -95,6 +95,7 @@ export interface Order {
   deliveryOtp?: string;
   pickupNotes?: string;
   deliveredDate?: string;
+  discount?: number;
   isDeleted?: boolean;
   backendId?: string;
 }

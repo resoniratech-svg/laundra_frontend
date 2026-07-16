@@ -1375,6 +1375,8 @@ export const AdminPortal: React.FC = () => {
 
     const newOrderId = backendOrderNumber || String(Math.floor(100000 + Math.random() * 900000));
 
+    const finalDiscount = posDiscount + (parseFloat(customPOSDiscount) || 0);
+
     const newOrder: Order = {
       id: newOrderId,
       backendId: backendOrderId || undefined,
@@ -1393,7 +1395,8 @@ export const AdminPortal: React.FC = () => {
       courier: null,
       phone: isGuest ? posCustPhone : undefined,
       email: isGuest ? posCustEmail : undefined,
-      address: isGuest ? posCustAddress : undefined
+      address: isGuest ? posCustAddress : undefined,
+      discount: finalDiscount
     };
 
     // Log cash-in transaction
@@ -3759,16 +3762,40 @@ export const AdminPortal: React.FC = () => {
                     <span style={{ fontWeight: '700' }}>#{viewingInvoice.id}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Order Date:</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.date}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Delivery Date:</span>
+                    <span style={{ fontWeight: '700' }}>{viewingInvoice.deliveredDate || 'Not Delivered'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Customer:</span>
                     <span style={{ fontWeight: '700' }}>{viewingInvoice.customerName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Customer Phone:</span>
+                    <span style={{ fontWeight: '700' }}>{db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || viewingInvoice.phone || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Customer Addr:</span>
+                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{db.customers.find(c => c.id === viewingInvoice.customerId)?.address || viewingInvoice.address || 'N/A'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Payment Method:</span>
                     <span style={{ fontWeight: '700' }}>{viewingInvoice.paymentMethod || 'Cash'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Status:</span>
                     <span style={{ fontWeight: '700', color: viewingInvoice.status === 'Delivered' ? '#16a34a' : '#2563eb' }}>{viewingInvoice.status}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Company Addr:</span>
+                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{activeComp.address || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Company Admin Tel:</span>
+                    <span style={{ fontWeight: '700' }}>{activeComp.phone || 'N/A'}</span>
                   </div>
                 </div>
 
@@ -3789,6 +3816,13 @@ export const AdminPortal: React.FC = () => {
                   )}
                 </div>
 
+                {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '6px', fontSize: '0.88rem', color: '#64748b', fontWeight: 'bold' }}>
+                    <span>DISCOUNT APPLIED:</span>
+                    <span>-QR {viewingInvoice.discount.toFixed(2)}</span>
+                  </div>
+                ) : null}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', fontSize: '1rem', fontWeight: '800' }}>
                   <span>TOTAL AMOUNT:</span>
                   <span>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
@@ -3801,6 +3835,8 @@ export const AdminPortal: React.FC = () => {
                   onClick={() => {
                     const win = window.open('', '_blank', 'width=450,height=600');
                     if (!win) return;
+                    const custPhone = db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || viewingInvoice.phone || 'N/A';
+                    const custAddr = db.customers.find(c => c.id === viewingInvoice.customerId)?.address || viewingInvoice.address || 'N/A';
                     win.document.write(`
                       <html>
                         <head>
@@ -3815,11 +3851,16 @@ export const AdminPortal: React.FC = () => {
                           </style>
                         </head>
                         <body>
-                          <h2>${companyHeaderName}</h2>
-                          <div class="center">${new Date(viewingInvoice.date).toLocaleString()}</div>
+                          <h2>${activeComp.name || 'Laundry'}</h2>
+                          <div class="center">Company Tel: ${activeComp.phone || 'N/A'}</div>
+                          <div class="center">Company Addr: ${activeComp.address || 'N/A'}</div>
                           <div class="divider"></div>
                           <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
+                          <div class="row"><span class="bold">Order Date:</span><span>${viewingInvoice.date}</span></div>
+                          <div class="row"><span class="bold">Delivery Date:</span><span>${viewingInvoice.deliveredDate || 'Not Delivered'}</span></div>
                           <div class="row"><span class="bold">Customer:</span><span>${viewingInvoice.customerName}</span></div>
+                          <div class="row"><span class="bold">Customer Tel:</span><span>${custPhone}</span></div>
+                          <div class="row"><span class="bold">Customer Addr:</span><span>${custAddr}</span></div>
                           <div class="row"><span class="bold">Payment:</span><span>${viewingInvoice.paymentMethod || 'Cash'}</span></div>
                           <div class="row"><span class="bold">Status:</span><span>${viewingInvoice.status}</span></div>
                           <div class="divider"></div>
@@ -3838,6 +3879,13 @@ export const AdminPortal: React.FC = () => {
                             `
                           }
                           <div class="divider"></div>
+                          ${viewingInvoice.discount && viewingInvoice.discount > 0 ? `
+                            <div class="row bold">
+                              <span>DISCOUNT APPLIED:</span>
+                              <span>-QR ${viewingInvoice.discount.toFixed(2)}</span>
+                            </div>
+                            <div class="divider"></div>
+                          ` : ''}
                           <div class="row bold" style="font-size: 16px;">
                             <span>TOTAL AMOUNT:</span>
                             <span>QR ${viewingInvoice.totalAmount.toFixed(2)}</span>
