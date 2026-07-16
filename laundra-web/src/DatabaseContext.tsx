@@ -546,7 +546,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setOrders = (newVal: Order[]) => {
     setOrdersState(newVal);
-    localStorage.setItem(`ll_${activeCompanyIdRef.current}_orders`, JSON.stringify(newVal));
+    const key = `ll_${activeCompanyIdRef.current}_orders`;
+    const serialized = JSON.stringify(newVal);
+    localStorage.setItem(key, serialized);
+    // Always dual-write to a universal backup key so orders survive company-id mismatches on refresh
+    localStorage.setItem('ll_orders_latest_backup', serialized);
+    localStorage.setItem('ll_orders_latest_backup_compid', activeCompanyIdRef.current);
   };
 
   const setExpenses = (newVal: Expense[]) => {
@@ -636,6 +641,23 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         
         setter(parsed);
+      } else if (key === 'orders') {
+        // FALLBACK: try the universal backup key — this handles company-id mismatches on refresh
+        const backupRaw = localStorage.getItem('ll_orders_latest_backup');
+        const backupCompId = localStorage.getItem('ll_orders_latest_backup_compid');
+        if (backupRaw) {
+          try {
+            const backupParsed = JSON.parse(backupRaw);
+            if (Array.isArray(backupParsed) && backupParsed.length > 0) {
+              console.info(`[DB] Orders not found for '${compId}', restoring ${backupParsed.length} orders from backup (originally saved under '${backupCompId}')`);
+              // Re-save under correct company key so next load is direct
+              localStorage.setItem(`ll_${compId}_orders`, backupRaw);
+              setter(backupParsed);
+              return;
+            }
+          } catch (_e) { /* ignore parse error */ }
+        }
+        setter(fallback);
       } else {
         setter(fallback);
       }
@@ -715,11 +737,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const res = await fetch(`${BASE_URL}/api/v1/companies/public`);
         if (res.ok) {
           const data = await res.json();
-          setCompanies(prev => {
+          if (data.length > 0) {
             const mapped = data.map((c: any) => ({
               id: c.id,
               name: c.name,
+              slug: c.slug || c.id,
               adminEmail: c.admin_email || `admin@${c.id}.com`,
+              address: c.address || '',
+              phone: c.phone || '',
               status: c.status === 'ACTIVE' ? 'Active' : 'Suspended',
               subscription: { tier: 'Premium', status: 'Active', expiresAt: '2027-12-31' },
               features: {
@@ -728,8 +753,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 deliveryModule: true, serviceManagement: true, walletLoyalty: true
               }
             }));
-            return mapped.length > 0 ? mapped : prev;
-          });
+            setCompanies(mapped);
+
+            // Migrate orders from comp-default to the real company key if they don't exist there yet
+            const currentCompId = localStorage.getItem('ll_active_company_id') || 'comp-default';
+            const realCompId = mapped[0]?.id;
+            if (realCompId && realCompId !== 'comp-default' && realCompId !== currentCompId) {
+              const existingOrders = localStorage.getItem(`ll_${realCompId}_orders`);
+              if (!existingOrders || existingOrders === '[]') {
+                // Copy over from comp-default or backup
+                const defaultOrders = localStorage.getItem(`ll_comp-default_orders`) ||
+                                      localStorage.getItem('ll_orders_latest_backup');
+                if (defaultOrders && defaultOrders !== '[]') {
+                  localStorage.setItem(`ll_${realCompId}_orders`, defaultOrders);
+                  console.info(`[DB] Migrated orders from comp-default to real company '${realCompId}'`);
+                }
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to sync public companies:', err);
