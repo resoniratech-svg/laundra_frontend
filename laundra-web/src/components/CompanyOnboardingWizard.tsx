@@ -169,7 +169,22 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
 
   const handleStep4 = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStep(5);
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/saas-admin/verify-otp`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail, otp: adminOtp })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errData.detail || 'Invalid or expired OTP');
+      }
+      setStep(5);
+    } catch (err: any) {
+      setError(err.message);
+    }
+    setLoading(false);
   };
 
   const handleStep5 = async (e: React.FormEvent) => {
@@ -398,7 +413,7 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
 
           {/* Step 5 (Enable Platform Features) removed per user request */}          {step === 7 && (
             <form onSubmit={handleStep7} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h3>6. Import Service Catalog (Optional)</h3>
+              <h3>5. Import Service Catalog (Optional)</h3>
               <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Upload an Excel file (.xlsx) with columns: Category, Name, Price, Description, Is Active</p>
               <input type="file" accept=".xlsx, .xls" onChange={e => setFile(e.target.files?.[0] || null)} style={{ padding: '10px' }} />
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
@@ -410,12 +425,13 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
 
           {step === 8 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h3>7. Review & Confirm</h3>
+              <h3>6. Review & Confirm</h3>
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', fontSize: '0.9rem' }}>
                 <p><strong>Company:</strong> {compName}</p>
+                {compPhone && <p><strong>Company Phone:</strong> {compPhone}</p>}
+                {compAltPhone && <p><strong>Company Alternate Phone:</strong> {compAltPhone}</p>}
                 <p><strong>Admin:</strong> {adminName} ({adminEmail})</p>
                 <p><strong>Plan:</strong> {customPlanName || 'Custom'} (QR {customPrice})</p>
-
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setStep(7)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
@@ -427,7 +443,7 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
           {step === 9 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', paddingTop: '40px' }}>
               <div style={{ fontSize: '3rem' }}>🎉</div>
-              <h3>Tenant Environment Ready!</h3>
+              <h3>7. Tenant Environment Ready!</h3>
               <p style={{ color: '#64748b', textAlign: 'center' }}>The isolated tenant environment for {compName} has been successfully provisioned.</p>
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px', width: '100%' }}>
                 <button type="button" onClick={() => setStep(8)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
