@@ -256,8 +256,29 @@ export const AdminPortal: React.FC = () => {
       });
       if (servicesRes.ok) {
         const sData = await servicesRes.json();
-        setBackendServices(sData);
-        allServices = sData;
+
+        // Strip pandas DataFrame serialization garbage from name/category fields.
+        // Broken data looks like: "Item Description Abaya\nItem Description NaN\nName: 30, dtype: object"
+        const cleanServiceField = (raw: any): string => {
+          if (!raw) return '';
+          const str = String(raw).trim();
+          if (!str.includes('\n')) return str;
+          const lines = str.split('\n').map((l: string) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (/dtype:|Name:\s*\d+|NaN/.test(line)) continue;
+            return line.replace(/^Item Description\s*/i, '').trim();
+          }
+          return str.split('\n')[0].replace(/^Item Description\s*/i, '').trim();
+        };
+
+        const cleanedServices = sData.map((s: any) => ({
+          ...s,
+          name: cleanServiceField(s.name),
+          category: cleanServiceField(s.category),
+        }));
+
+        setBackendServices(cleanedServices);
+        allServices = cleanedServices;
 
         // Sync with DatabaseContext
         const companyId = db.activeCompanyId;
@@ -443,8 +464,28 @@ export const AdminPortal: React.FC = () => {
             deliveryOtp: ''
           };
         });
-        
-        saveDB({ orders: mappedOrders });
+
+        // Merge locally-saved courier assignments so they aren't wiped on refresh.
+        // The backend does not store pickup/delivery courier info, so we preserve
+        // whatever was already saved in db.orders for each matching order.
+        const currentOrders: any[] = JSON.parse(localStorage.getItem('laundry_db') || '{}').orders || [];
+        const mergedOrders = mappedOrders.map((freshOrder: any) => {
+          const existing = currentOrders.find((e: any) => e.id === freshOrder.id);
+          if (existing) {
+            return {
+              ...freshOrder,
+              pickupCourier: existing.pickupCourier ?? freshOrder.pickupCourier ?? null,
+              deliveryCourier: existing.deliveryCourier ?? freshOrder.deliveryCourier ?? null,
+              courier: existing.courier ?? freshOrder.courier ?? null,
+              deliveryStatus: existing.deliveryStatus ?? freshOrder.deliveryStatus,
+              deliveredDate: existing.deliveredDate ?? freshOrder.deliveredDate ?? null,
+              discount: existing.discount ?? freshOrder.discount ?? 0,
+            };
+          }
+          return freshOrder;
+        });
+
+        saveDB({ orders: mergedOrders });
       }
     } catch (err) {
       console.error('Failed to fetch backend orders:', err);

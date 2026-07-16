@@ -188,10 +188,30 @@ export const CustomerPortal: React.FC = () => {
         const res = await fetch(`${BASE_URL}/api/v1/services/public/${db.activeCompanyId}`);
         if (res.ok) {
           const sData = await res.json();
-          if (Array.isArray(sData) && sData.length > 0) {
-            setCatalogServices(sData);
+
+          // Strip pandas DataFrame garbage from name/category (e.g. "Item Description Abaya\nNaN\nName: 30, dtype: object")
+          const cleanServiceField = (raw: any): string => {
+            if (!raw) return '';
+            const str = String(raw).trim();
+            if (!str.includes('\n')) return str;
+            const lines = str.split('\n').map((l: string) => l.trim()).filter(Boolean);
+            for (const line of lines) {
+              if (/dtype:|Name:\s*\d+|NaN/.test(line)) continue;
+              return line.replace(/^Item Description\s*/i, '').trim();
+            }
+            return str.split('\n')[0].replace(/^Item Description\s*/i, '').trim();
+          };
+
+          const cleanedServices = sData.map((s: any) => ({
+            ...s,
+            name: cleanServiceField(s.name),
+            category: cleanServiceField(s.category),
+          }));
+
+          if (Array.isArray(cleanedServices) && cleanedServices.length > 0) {
+            setCatalogServices(cleanedServices);
             // Map to db.items, db.serviceTypes, db.serviceVariants, db.itemPrices
-            const mappedItems = sData.map((s: any) => ({
+            const mappedItems = cleanedServices.map((s: any) => ({
               id: s.id.toString(),
               englishName: s.name,
               category: s.category || 'General',
