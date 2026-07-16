@@ -537,7 +537,7 @@ export const CustomerPortal: React.FC = () => {
           pickup_address: oAddress,
           delivery_address: oAddress,
           special_instructions: `Phone: ${oPhone}`,
-          is_express: false,
+          is_express: customerCart.some(i => i.variantName === 'Express'),
           coupon_code: promoApplied?.code || null
         })
       });

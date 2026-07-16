@@ -1425,7 +1425,8 @@ export const AdminPortal: React.FC = () => {
           body: JSON.stringify({
             customer_id: posCustId,
             items: itemsPayload,
-            coupon_code: posCouponApplied ? posCouponCode : null
+            coupon_code: posCouponApplied ? posCouponCode : null,
+            is_express: posCart.some(i => i.variantName === 'Express')
           })
         });
         if (res.ok) {
