@@ -2894,6 +2894,10 @@ export const AdminPortal: React.FC = () => {
                     type="text" 
                     placeholder="🔍 Search name, ID or phone number..." 
                     value={posCustomerSearch}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     onChange={e => {
                       setPosCustomerSearch(e.target.value);
                       setShowCustDropdown(true);
@@ -3742,7 +3746,11 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* VIEW INVOICE MODAL */}
-      {viewingInvoice && (
+      {viewingInvoice && (() => {
+        const invoiceCompName = activeComp?.name || 'Laundry';
+        const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
+        const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+        return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', padding: '20px 24px', color: 'white', position: 'relative' }}>
@@ -3753,11 +3761,14 @@ export const AdminPortal: React.FC = () => {
             <div style={{ padding: '24px', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '16px', fontFamily: "'Courier New', Courier, monospace" }}>
                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{activeComp?.name || 'laundry'}</h4>
-                  {activeComp?.address && (
-                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', fontStyle: 'italic' }}>{activeComp.address}</div>
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{invoiceCompName}</h4>
+                  {invoiceCompAddr && (
+                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', fontStyle: 'italic' }}>{invoiceCompAddr}</div>
                   )}
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
+                  {invoiceCompPhone && (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>Tel: {invoiceCompPhone}</div>
+                  )}
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
@@ -3799,14 +3810,18 @@ export const AdminPortal: React.FC = () => {
                       <span style={{ fontWeight: '700', color: '#ef4444' }}>QR {viewingInvoice.discount.toFixed(2)}</span>
                     </div>
                   ) : null}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Company Addr:</span>
-                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{activeComp.address || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#64748b' }}>Company Admin Tel:</span>
-                    <span style={{ fontWeight: '700' }}>{activeComp.phone || 'N/A'}</span>
-                  </div>
+                  {invoiceCompAddr && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: '#64748b' }}>Company Addr:</span>
+                      <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{invoiceCompAddr}</span>
+                    </div>
+                  )}
+                  {invoiceCompPhone && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Company Admin Tel:</span>
+                      <span style={{ fontWeight: '700' }}>{invoiceCompPhone}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
@@ -3861,9 +3876,9 @@ export const AdminPortal: React.FC = () => {
                           </style>
                         </head>
                         <body>
-                          <h2>${activeComp.name || 'Laundry'}</h2>
-                          ${activeComp.address ? `<div class="center" style="font-size: 12px; font-style: italic;">${activeComp.address}</div>` : ''}
-                          <div class="center">Company Tel: ${activeComp.phone || 'N/A'}</div>
+                          <h2>${invoiceCompName}</h2>
+                          ${invoiceCompAddr ? `<div class="center" style="font-size: 12px; font-style: italic;">${invoiceCompAddr}</div>` : ''}
+                          ${invoiceCompPhone ? `<div class="center">Tel: ${invoiceCompPhone}</div>` : ''}
                           <div class="divider"></div>
                           <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
                           <div class="row"><span class="bold">Order Date:</span><span>${viewingInvoice.date}</span></div>
@@ -3919,7 +3934,8 @@ export const AdminPortal: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* VIEW ORDER TIMELINE MODAL */}
       {viewingOrder && (
