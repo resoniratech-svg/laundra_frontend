@@ -301,7 +301,6 @@ export const LandingPage: React.FC = () => {
     try {
       // 1. Authenticate to get token
       let requestRole = null;
-      let requestTenant = null;
       
       if (role === 'admin') requestRole = 'ADMIN';
       if (role === 'cashier') requestRole = 'CASHIER';
@@ -309,17 +308,12 @@ export const LandingPage: React.FC = () => {
       if (role === 'customer') requestRole = 'CUSTOMER';
       if (role === 'superadmin') requestRole = 'SUPER_ADMIN';
 
-      if (requestRole !== 'SUPER_ADMIN') {
-        requestTenant = db.activeCompanyId;
-      }
-
       const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email, 
           password: pass,
-          tenant_id: requestTenant,
           role: requestRole
         })
       });
@@ -361,6 +355,10 @@ export const LandingPage: React.FC = () => {
         setToken(null);
         setApiLoading(false);
         return;
+      }
+
+      if (user.tenant_id && user.role !== 'SUPER_ADMIN' && user.role !== 'super_admin') {
+        changeActiveCompany(user.tenant_id);
       }
 
       // Block delivery boys who are not yet approved
@@ -552,30 +550,6 @@ export const LandingPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* Company Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '10px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Store:</span>
-            <select
-              value={db.activeCompanyId}
-              onChange={(e) => changeActiveCompany(e.target.value)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1.5px solid #cbd5e1',
-                fontSize: '0.85rem',
-                fontWeight: '700',
-                color: '#1e3a8a',
-                cursor: 'pointer',
-                outline: 'none',
-                background: 'white'
-              }}
-            >
-              {publicCompanies.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.address ? `, ${c.address}` : ''}</option>
-              ))}
-            </select>
-          </div>
-
           <button 
             className="secondary-btn" 
             onClick={() => {
@@ -1113,23 +1087,6 @@ export const LandingPage: React.FC = () => {
               <button onClick={() => setShowLogIn(false)} className="icon-btn" style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
             <form onSubmit={handleLogInSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {loginRole !== 'superadmin' && loginEmail.trim().toLowerCase() !== 'superadmin@laundra.com' && (
-                <div className="form-group">
-                  <label style={{ fontWeight: '700', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>Select Laundry Company</label>
-                  <select 
-                    value={db.activeCompanyId || ''} 
-                    onChange={(e) => changeActiveCompany(e.target.value)} 
-                    className="form-input" 
-                    required 
-                    style={{ height: '48px', fontWeight: '600' }}
-                  >
-                    <option value="" disabled>-- Select Company --</option>
-                    {publicCompanies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}{c.address ? `, ${c.address}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div className="form-group">
                 <label style={{ fontWeight: '700', fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase' }}>Select Portal</label>
                 <select 
