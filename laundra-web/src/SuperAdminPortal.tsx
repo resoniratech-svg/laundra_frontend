@@ -1438,7 +1438,9 @@ export const SuperAdminPortal: React.FC = () => {
                               {c.status === 'ONBOARDING' && (
                                 <button onClick={() => {
                                   const hasSub = !!c.subscription;
-                                  const step = hasSub ? 6 : 3;
+                                  // Wizard step mapping: 1=Create Company, 3=Create Admin, 4=Verify OTP, 5=Pricing Plan, 7=Service Import, 8=Review, 9=Done
+                                  // Step 6 was removed — if company already has subscription, resume at step 7 (service catalog)
+                                  const step = hasSub ? 7 : 3;
                                   setResumeWizardData({ companyId: c.id, step });
                                   setShowWizard(true);
                                 }} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #eab308', background: '#fef08a', color: '#854d0e', cursor: 'pointer' }}>🚀 Resume Setup</button>

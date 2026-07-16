@@ -373,6 +373,20 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
             </div>
           )}
 
+          {/* Catch-all: if step number is not handled, show a helpful fallback instead of blank */}
+          {![1, 3, 4, 5, 7, 8, 9].includes(step) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', paddingTop: '40px' }}>
+              <div style={{ fontSize: '2.5rem' }}>⚠️</div>
+              <h3 style={{ color: '#b45309' }}>Resuming from Step {step}</h3>
+              <p style={{ color: '#64748b', textAlign: 'center' }}>
+                This step was previously completed. Continue to the next available step.
+              </p>
+              <button onClick={() => setStep(7)} style={{ ...btnStyle, width: 'auto', padding: '12px 32px', background: '#f59e0b' }}>
+                Continue → Service Catalog Import
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
