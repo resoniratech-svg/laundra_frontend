@@ -3750,6 +3750,9 @@ export const AdminPortal: React.FC = () => {
         const invoiceCompName = activeComp?.name || 'Laundry';
         const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
         const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+        const invoiceCompAltPhone = ((activeComp as any)?.alt_phone && (activeComp as any).alt_phone !== 'N/A') ? (activeComp as any).alt_phone : '';
+        // Combined phone display: e.g. "+97450123456, +974501234123"
+        const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
         return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
@@ -3765,8 +3768,8 @@ export const AdminPortal: React.FC = () => {
                   {invoiceCompAddr && (
                     <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', fontStyle: 'italic' }}>{invoiceCompAddr}</div>
                   )}
-                  {invoiceCompPhone && (
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>Tel: {invoiceCompPhone}</div>
+                  {invoicePhoneDisplay && (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', fontWeight: '600' }}>{invoicePhoneDisplay}</div>
                   )}
                   <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
                 </div>
@@ -3878,7 +3881,7 @@ export const AdminPortal: React.FC = () => {
                         <body>
                           <h2>${invoiceCompName}</h2>
                           ${invoiceCompAddr ? `<div class="center" style="font-size: 12px; font-style: italic;">${invoiceCompAddr}</div>` : ''}
-                          ${invoiceCompPhone ? `<div class="center">Tel: ${invoiceCompPhone}</div>` : ''}
+                          ${invoicePhoneDisplay ? `<div class="center" style="font-size: 12px; font-weight: bold;">${invoicePhoneDisplay}</div>` : ''}
                           <div class="divider"></div>
                           <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
                           <div class="row"><span class="bold">Order Date:</span><span>${viewingInvoice.date}</span></div>
