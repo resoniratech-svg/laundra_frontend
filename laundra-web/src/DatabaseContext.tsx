@@ -478,13 +478,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [itemPrices, setItemPricesState] = useState<ItemPrice[]>([]);
   const [customers, setCustomersState] = useState<Customer[]>(DEFAULT_CUSTOMERS);
   const [orders, setOrdersState] = useState<Order[]>(() => {
+    // IDs of dummy/seed orders that must never appear in production
+    const DUMMY_ORDER_IDS = new Set(['OR-8839', 'OR-8841', 'OR-8842']);
+    const purgeDummies = (arr: any[]): any[] => arr.filter((o: any) => !DUMMY_ORDER_IDS.has(o.id));
+
     // Read synchronously from localStorage so orders survive page refresh without any async race
     const compId = localStorage.getItem('ll_active_company_id') || 'comp-default';
     const saved = localStorage.getItem(`ll_${compId}_orders`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const clean = purgeDummies(parsed);
+          // Re-save with dummies stripped so they never come back
+          if (clean.length !== parsed.length) {
+            localStorage.setItem(`ll_${compId}_orders`, JSON.stringify(clean));
+          }
+          if (clean.length > 0) return clean;
+        }
       } catch (_e) { /* fall through */ }
     }
     // Fallback: check the universal backup key (handles company-id mismatch scenario)
@@ -492,10 +503,13 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (backup) {
       try {
         const parsed = JSON.parse(backup);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const clean = purgeDummies(parsed);
+          if (clean.length > 0) return clean;
+        }
       } catch (_e) { /* fall through */ }
     }
-    return DEFAULT_ORDERS;
+    return [];
   });
   const [expenses, setExpensesState] = useState<Expense[]>(DEFAULT_EXPENSES);
   const [promos, setPromosState] = useState<Promo[]>(DEFAULT_PROMOS);
