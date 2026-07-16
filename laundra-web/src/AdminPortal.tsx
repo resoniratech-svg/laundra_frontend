@@ -4357,8 +4357,23 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <div style={{ width: '150px', height: '150px', background: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4.5rem', borderRadius: '12px', position: 'relative' }}>
-                📱
+              <div style={{ width: '180px', height: '180px', background: '#f1f5f9', border: '2px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
+                {qrCust.qrStatus === 'Disabled' ? (
+                  <div style={{ textAlign: 'center', color: '#ef4444' }}>
+                    <div style={{ fontSize: '3rem' }}>🚫</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '800', marginTop: '4px' }}>QR DISABLED</div>
+                  </div>
+                ) : (
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${qrCust.id}`)}`}
+                    alt={`QR Code for ${qrCust.name}`}
+                    style={{ width: '180px', height: '180px', borderRadius: '8px' }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).parentElement!.innerHTML = '<div style="font-size:2rem;text-align:center">📵<br/><span style="font-size:0.7rem">QR unavailable<br/>offline</span></div>';
+                    }}
+                  />
+                )}
                 {qrCust.qrStatus === 'Disabled' && (
                   <span style={{ position: 'absolute', top: '5px', right: '5px', background: '#ef4444', color: 'white', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>DISABLED</span>
                 )}
