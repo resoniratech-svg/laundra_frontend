@@ -20,6 +20,7 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
   const [compName, setCompName] = useState('');
   const [compEmail, setCompEmail] = useState('');
   const [compPhone, setCompPhone] = useState('');
+  const [compAltPhone, setCompAltPhone] = useState('');
   const [compAddress, setCompAddress] = useState('');
   const [compGst, setCompGst] = useState('');
   const [compType, setCompType] = useState('Laundry');
@@ -80,7 +81,9 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: compName,
-          address: compAddress
+          address: compAddress,
+          phone: compPhone,
+          alt_phone: compAltPhone
         })
       });
       if (!res.ok) throw new Error(await res.text());
@@ -265,6 +268,20 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               <h3>1. Create Company</h3>
               <input required placeholder="Company Name" value={compName} onChange={e => setCompName(e.target.value)} style={inputStyle} />
               <input placeholder="Company Address" value={compAddress} onChange={e => setCompAddress(e.target.value)} style={inputStyle} />
+              <input
+                type="tel"
+                placeholder="Company Phone Number"
+                value={compPhone}
+                onChange={e => setCompPhone(e.target.value)}
+                style={inputStyle}
+              />
+              <input
+                type="tel"
+                placeholder="Company Alternate Phone Number (optional)"
+                value={compAltPhone}
+                onChange={e => setCompAltPhone(e.target.value)}
+                style={inputStyle}
+              />
               <button disabled={loading} type="submit" style={btnStyle}>{loading ? 'Saving...' : 'Next Step →'}</button>
             </form>
           )}
