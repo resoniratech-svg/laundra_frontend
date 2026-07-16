@@ -154,6 +154,7 @@ export const AdminPortal: React.FC = () => {
   // Removed posCategory
   const [posCommission, setPosCommission] = useState<string>('');
   const [customPOSAmount, setCustomPOSAmount] = useState<string>('');
+  const [customPOSDiscount, setCustomPOSDiscount] = useState<string>('');
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
   const [posCouponCode, setPosCouponCode] = useState('');
   const [posDiscount, setPosDiscount] = useState(0);
@@ -1258,7 +1259,8 @@ export const AdminPortal: React.FC = () => {
       if (!isNaN(val)) return val;
     }
     const sum = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    return Math.max(0, sum - posDiscount);
+    const manualDiscount = parseFloat(customPOSDiscount) || 0;
+    return Math.max(0, sum - posDiscount - manualDiscount);
   };
 
   const handleApplyCoupon = async () => {
@@ -1420,6 +1422,7 @@ export const AdminPortal: React.FC = () => {
     setPosCustAddress('');
     setPosPayMethod('Cash');
     setCustomPOSAmount('');
+    setCustomPOSDiscount('');
 
     addActivity('Order', `Created POS manual order #${newOrderId} for ${customerName} (Commission: QR ${commAmt})`);
     alert(`POS checkout complete. Order #${newOrderId} placed successfully!`);
@@ -1435,6 +1438,7 @@ export const AdminPortal: React.FC = () => {
     setPosCustAddress('');
     setPosCommission('');
     setCustomPOSAmount('');
+    setCustomPOSDiscount('');
     setPosCouponCode('');
     setPosDiscount(0);
     setPosCouponApplied(false);
@@ -3031,11 +3035,24 @@ export const AdminPortal: React.FC = () => {
                     step="0.01" 
                     value={customPOSAmount} 
                     className="no-spinners"
-                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount).toFixed(2)}
+                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount - (parseFloat(customPOSDiscount) || 0)).toFixed(2)}
                     onChange={e => setCustomPOSAmount(e.target.value)} 
                     style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
                   />
                 </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                <span style={{ fontWeight: '700' }}>Discount (QR):</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={customPOSDiscount} 
+                  className="no-spinners"
+                  placeholder="0.00"
+                  onChange={e => setCustomPOSDiscount(e.target.value)} 
+                  style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '1rem', color: '#0f172a', textAlign: 'right' }} 
+                />
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
