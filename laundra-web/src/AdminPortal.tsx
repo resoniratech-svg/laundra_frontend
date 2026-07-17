@@ -4275,7 +4275,7 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Total Amnt to<br/>Pay المبلغ الإجمالي للدفع</div>
                 <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
               </div>
-              {viewingInvoice.paymentStatus === 'Unpaid' && (
+              {viewingInvoice.paymentMethod === 'Pay Later' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem', color: '#ef4444' }}>
                   <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Due Amount<br/>المبلغ المستحق</div>
                   <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
@@ -4421,7 +4421,7 @@ export const AdminPortal: React.FC = () => {
                               <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
                               <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
                             </div>
-                            ${viewingInvoice.paymentStatus === 'Unpaid' ? `
+                            ${viewingInvoice.paymentMethod === 'Pay Later' ? `
                               <div class="totals-row" style="font-size: 16px; color: #000;">
                                 <div class="bold">Due Amount المبلغ المستحق</div>
                                 <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
