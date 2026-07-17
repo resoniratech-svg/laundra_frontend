@@ -2915,7 +2915,7 @@ export const AdminPortal: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px', maxHeight: 'calc(100vh - 250px)', minHeight: '500px', overflowY: 'auto', paddingRight: '4px', alignContent: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px', maxHeight: 'calc(100vh - 350px)', minHeight: '300px', overflowY: 'auto', paddingRight: '4px', alignContent: 'start' }}>
               {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
                 .filter(name => {
                   const matchesSearch = String(name).toLowerCase().includes(posSearch.toLowerCase());
