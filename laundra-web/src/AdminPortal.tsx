@@ -3326,6 +3326,7 @@ export const AdminPortal: React.FC = () => {
                       <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{p.code}</span>
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
+                    {p.description && <div style={{ fontSize: '0.75rem', color: '#0ea5e9', marginTop: '2px', fontWeight: '500' }}>🗓️ {p.description}</div>}
                     {(p as any).required_services && (p as any).required_services.length > 0 && (
                       <div style={{ marginTop: '6px', padding: '6px', background: '#e2e8f0', borderRadius: '4px', fontSize: '0.75rem' }}>
                         <strong>Package Includes:</strong>
