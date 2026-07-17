@@ -2106,10 +2106,19 @@ export const AdminPortal: React.FC = () => {
                   .filter(c => {
                     const term = custSearch.toLowerCase();
                     if (!term) return true;
-                    const custId = c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase());
-                    const name = c.name || '';
-                    const phone = c.phone || '';
-                    return name.toLowerCase().includes(term) || custId.toLowerCase().includes(term) || phone.toLowerCase().includes(term);
+                    
+                    const custId = (c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())).toLowerCase();
+                    const name = (c.name || '').toLowerCase();
+                    const phone = (c.phone || '').toLowerCase();
+                    
+                    // Allow matching digits directly even if formatted with + or spaces
+                    const rawDigits = phone.replace(/[^0-9]/g, '');
+                    const termDigits = term.replace(/[^0-9]/g, '');
+                    
+                    return name.startsWith(term) || 
+                           custId.startsWith(term) || 
+                           phone.startsWith(term) || 
+                           (termDigits.length > 0 && rawDigits.startsWith(termDigits));
                   })
                   .map(c => (
                     <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
