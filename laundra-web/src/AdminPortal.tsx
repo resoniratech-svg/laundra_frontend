@@ -2729,6 +2729,7 @@ export const AdminPortal: React.FC = () => {
                   <th style={{ padding: '12px' }}>Delivery Date</th>
                   <th style={{ padding: '12px' }}>Total Amount</th>
                   <th style={{ padding: '12px' }}>status</th>
+                  <th style={{ padding: '12px' }}>Payment Status</th>
                   {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>Assigned Courier</th>}
                   <th style={{ padding: '12px', textAlign: 'center' }}>Modify Status</th>
                 </tr>
@@ -2774,6 +2775,13 @@ export const AdminPortal: React.FC = () => {
                           background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Created' ? '#eff6ff' : '#fef3c7',
                           color: o.status === 'Delivered' ? '#15803d' : o.status === 'Created' ? '#2563eb' : '#b45309'
                         }}>{o.status}</span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{
+                          padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
+                          background: o.paymentStatus === 'Paid' ? '#dcfce7' : '#fee2e2',
+                          color: o.paymentStatus === 'Paid' ? '#15803d' : '#b91c1c'
+                        }}>{o.paymentStatus || 'Unpaid'}</span>
                       </td>
                       {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
                         <td style={{ padding: '12px' }}>
