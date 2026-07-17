@@ -148,6 +148,7 @@ export const AdminPortal: React.FC = () => {
   const [posCustEmail, setPosCustEmail] = useState('');
   const [posCustAddress, setPosCustAddress] = useState('');
   const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
+  const [posRemark, setPosRemark] = useState('');
   const [posSearch, setPosSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
@@ -1513,7 +1514,8 @@ export const AdminPortal: React.FC = () => {
       phone: isGuest ? posCustPhone : undefined,
       email: isGuest ? posCustEmail : undefined,
       address: isGuest ? posCustAddress : undefined,
-      discount: finalDiscount
+      discount: finalDiscount,
+      special_instructions: posPayMethod !== 'Cash' ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
     };
 
     // Log cash-in transaction
@@ -1541,6 +1543,8 @@ export const AdminPortal: React.FC = () => {
     setPosCustEmail('');
     setPosCustAddress('');
     setPosPayMethod('Cash');
+    setPosRemark('');
+    setPosCouponCode('');
     setCustomPOSAmount('');
     setCustomPOSDiscount('');
 
@@ -3311,17 +3315,32 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: posPayMethod !== 'Cash' ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
                   <option value="Card">Card payment</option>
                   <option value="UPI">UPI payment</option>
                   <option value="Wallet">Wallet payment</option>
                 </select>
+                
+                {posPayMethod !== 'Cash' && (
+                  <input 
+                    type="text"
+                    value={posRemark}
+                    onChange={e => setPosRemark(e.target.value)}
+                    placeholder="Add payment remark (e.g. Txn ID)"
+                    style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
+                  />
+                )}
+
                 <button 
                   onClick={() => {
                     if (posCart.length === 0) {
                       alert('Please add at least one laundry service to the cart before checking out.');
+                      return;
+                    }
+                    if (posPayMethod !== 'Cash' && !posRemark.trim()) {
+                      alert(`Please enter a remark (e.g. Transaction ID or Reference) for ${posPayMethod} payment.`);
                       return;
                     }
                     handleCheckoutPOS();
