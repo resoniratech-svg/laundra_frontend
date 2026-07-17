@@ -4,8 +4,6 @@ import { createPortal } from 'react-dom';
 import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
 import { PortalLayout } from './components/PortalLayout';
 import { apiApproveDeliveryBoy, apiRejectDeliveryBoy } from './deliveryApi';
-import { AddCashierModal } from './components/AddCashierModal';
-import { AddDeliveryModal } from './components/AddDeliveryModal';
 import PrepaidPackagesManager from './PrepaidPackagesManager';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
