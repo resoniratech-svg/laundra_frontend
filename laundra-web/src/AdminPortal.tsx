@@ -116,6 +116,7 @@ export const AdminPortal: React.FC = () => {
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
   const [addingDeliveryStep, setAddingDeliveryStep] = useState<number>(0); // OTP flow for Delivery
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
   
   // Form inputs
   const [custName, setCustName] = useState('');
@@ -918,7 +919,9 @@ export const AdminPortal: React.FC = () => {
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.otp_debug) {
-            alert(`[DEV MODE] SMTP not configured. The OTP for ${staffEmail} is: ${data.otp_debug}`);
+            setDebugOtp(data.otp_debug);
+          } else {
+            setDebugOtp(null);
           }
           setAddingCashierStep(2);
         } else {
@@ -940,7 +943,9 @@ export const AdminPortal: React.FC = () => {
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.otp_debug) {
-            alert(`[DEV MODE] SMTP not configured. The OTP for ${staffEmail} is: ${data.otp_debug}`);
+            setDebugOtp(data.otp_debug);
+          } else {
+            setDebugOtp(null);
           }
           setAddingDeliveryStep(2);
         } else {
@@ -4068,6 +4073,11 @@ export const AdminPortal: React.FC = () => {
             {addingCashierStep === 2 && (
               <form onSubmit={e => handleVerifyStaffOtp(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
+                {debugOtp && (
+                  <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
+                    ⚠️ SMTP Not Configured. Your OTP is: <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
+                  </div>
+                )}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
@@ -4150,6 +4160,11 @@ export const AdminPortal: React.FC = () => {
             {addingDeliveryStep === 2 && (
               <form onSubmit={e => handleVerifyStaffOtp(e, 'delivery')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
+                {debugOtp && (
+                  <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
+                    ⚠️ SMTP Not Configured. Your OTP is: <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
+                  </div>
+                )}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
