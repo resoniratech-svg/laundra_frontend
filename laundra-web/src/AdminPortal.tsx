@@ -4,6 +4,9 @@ import { createPortal } from 'react-dom';
 import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
 import { PortalLayout } from './components/PortalLayout';
 import { apiApproveDeliveryBoy, apiRejectDeliveryBoy } from './deliveryApi';
+import { AddCashierModal } from './components/AddCashierModal';
+import { AddDeliveryModal } from './components/AddDeliveryModal';
+import PrepaidPackagesManager from './PrepaidPackagesManager';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface CompanyActivity {
@@ -156,14 +159,15 @@ export const AdminPortal: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
   const [showCustDropdown, setShowCustDropdown] = useState(false);
-  // Removed posCategory
+  const [posCouponCode, setPosCouponCode] = useState('');
+  const [posCouponApplied, setPosCouponApplied] = useState(false);
+  const [posPrepaidQRToken, setPosPrepaidQRToken] = useState('');
+  const [posPrepaidPackageApplied, setPosPrepaidPackageApplied] = useState<any>(null);
+  const [posDiscount, setPosDiscount] = useState(0);
+  const [customPOSDiscount, setCustomPOSDiscount] = useState<string>('');
   const [posCommission, setPosCommission] = useState<string>('');
   const [customPOSAmount, setCustomPOSAmount] = useState<string>('');
-  const [customPOSDiscount, setCustomPOSDiscount] = useState<string>('');
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
-  const [posCouponCode, setPosCouponCode] = useState('');
-  const [posDiscount, setPosDiscount] = useState(0);
-  const [posCouponApplied, setPosCouponApplied] = useState(false);
 
   const custDropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1501,6 +1505,27 @@ export const AdminPortal: React.FC = () => {
           const data = await res.json();
           backendOrderId = data.id;
           backendOrderNumber = data.order_number;
+          
+          // Redeem the package if applied
+          if (posPrepaidPackageApplied) {
+            try {
+              const token = localStorage.getItem('ll_auth_token');
+              await fetch(`${BASE_URL}/api/v1/prepaid-packages/qr/${posPrepaidQRToken}/redeem`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  quantity: posPrepaidPackageApplied.qtyToRedeem,
+                  order_id: backendOrderId
+                })
+              });
+            } catch (err) {
+              console.error('Error redeeming prepaid package:', err);
+            }
+          }
+          
         } else {
           const errData = await res.json();
           console.warn('Backend order creation failed:', errData.detail);
@@ -1586,6 +1611,8 @@ export const AdminPortal: React.FC = () => {
     setPosCouponCode('');
     setPosDiscount(0);
     setPosCouponApplied(false);
+    setPosPrepaidQRToken('');
+    setPosPrepaidPackageApplied(null);
     setPosCustomerSearch('');
   };
 
@@ -1922,6 +1949,94 @@ export const AdminPortal: React.FC = () => {
     
     const newMatch = updatedCustomers.find(c => c.id === newId)!;
     setQrCust(newMatch);
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!posCouponCode) return;
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('ll_auth_token');
+      const payload = {
+        code: posCouponCode,
+        cart_total: posCart.reduce((sum, item) => sum + (item.price * item.qty), 0),
+        cart_items: posCart.map(item => ({ service_id: item.serviceId, quantity: item.qty }))
+      };
+      
+      const res = await fetch(`${BASE_URL}/api/v1/coupons/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setPosDiscount(data.discount_applied);
+        setPosCouponApplied(true);
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Invalid or expired coupon');
+        setPosDiscount(0);
+        setPosCouponApplied(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleApplyPrepaidQR = async () => {
+    if (!posPrepaidQRToken) return;
+    try {
+      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/qr/${posPrepaidQRToken}`);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.package.status !== 'ACTIVE') {
+          alert(`This package is ${data.package.status} and cannot be used.`);
+          return;
+        }
+        if (data.package.remaining_quantity <= 0) {
+          alert('This package has been fully utilized.');
+          return;
+        }
+        
+        // Check if cart has eligible services
+        const eligibleInCart = posCart.filter(item => data.package.eligible_services.includes(item.serviceId));
+        if (eligibleInCart.length === 0) {
+          alert('Cart does not contain any services eligible for this prepaid package.');
+          return;
+        }
+        
+        // Calculate total eligible items
+        const totalEligibleQty = eligibleInCart.reduce((sum, item) => sum + item.qty, 0);
+        const qtyToRedeem = Math.min(totalEligibleQty, data.package.remaining_quantity);
+        
+        // Calculate discount (waive price of eligible items up to qtyToRedeem)
+        let discountAcc = 0;
+        let remainingRedeem = qtyToRedeem;
+        for (const item of eligibleInCart) {
+          if (remainingRedeem <= 0) break;
+          const redeemThisItem = Math.min(item.qty, remainingRedeem);
+          discountAcc += (item.price * redeemThisItem);
+          remainingRedeem -= redeemThisItem;
+        }
+        
+        setPosPrepaidPackageApplied({
+          ...data.package,
+          qtyToRedeem,
+          discountAmount: discountAcc
+        });
+        setPosDiscount(discountAcc); // Use the same discount state for total calculation
+        
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Invalid QR Code');
+        setPosPrepaidPackageApplied(null);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error scanning QR code");
+    }
   };
 
   // Reviews replies
@@ -3323,6 +3438,29 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
+              {/* Prepaid Package QR input field */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Scan/Enter Package QR Code" 
+                  value={posPrepaidQRToken} 
+                  onChange={e => { setPosPrepaidQRToken(e.target.value); setPosPrepaidPackageApplied(null); setPosDiscount(0); }} 
+                  style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+                />
+                <button 
+                  onClick={handleApplyPrepaidQR} 
+                  style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Scan QR
+                </button>
+              </div>
+              {posPrepaidPackageApplied && (
+                <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '4px', background: '#f5f3ff', padding: '6px', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                  <strong>📦 {posPrepaidPackageApplied.package_name} Applied</strong><br/>
+                  Redeeming {posPrepaidPackageApplied.qtyToRedeem} items. Discount: -QR {posPrepaidPackageApplied.discountAmount.toFixed(2)}
+                </div>
+              )}
+
               {/* Discount input field */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                 <span style={{ fontWeight: '700' }}>Discount (QR):</span>
@@ -3421,6 +3559,11 @@ export const AdminPortal: React.FC = () => {
 
 
 
+
+      {/* 📦 PREPAID PACKAGES MANAGER TAB */}
+      {activeModule === 'prepaid-packages' && (
+        <PrepaidPackagesManager token={localStorage.getItem('ll_auth_token') || ''} db={db} />
+      )}
 
       {/* 🎁 COUPONS MANAGER TAB */}
       {activeModule === 'coupons' && (

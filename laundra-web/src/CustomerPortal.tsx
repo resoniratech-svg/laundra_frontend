@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase, type Order, type Customer, type Promo } from './DatabaseContext';
+import CustomerPrepaidPackages from './CustomerPrepaidPackages';
 
 // Support ticket interface
 interface SupportTicket {
@@ -886,6 +887,7 @@ export const CustomerPortal: React.FC = () => {
             <button onClick={() => setActiveTab('dashboard')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'dashboard' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 Bookings</button>
             <button onClick={() => setActiveTab('services')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'services' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'services' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🏷️ Rates</button>
             <button onClick={() => setActiveTab('offers')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'offers' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'offers' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎁 Offers</button>
+            <button onClick={() => setActiveTab('packages')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'packages' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'packages' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 Packages</button>
             <button onClick={() => setActiveTab('invoices')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'invoices' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'invoices' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🧾 Invoices</button>
             <button onClick={() => setActiveTab('wallet')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'wallet' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'wallet' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>💳 Wallet</button>
             <button onClick={() => setActiveTab('support')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'support' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'support' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎫 Support</button>
@@ -926,6 +928,9 @@ export const CustomerPortal: React.FC = () => {
               </li>
               <li onClick={() => setActiveTab('offers')} className={`sidebar-menu-item ${activeTab === 'offers' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'offers' ? '#2563eb' : '#475569', background: activeTab === 'offers' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 🎁 <span>Special Offers</span>
+              </li>
+              <li onClick={() => setActiveTab('packages')} className={`sidebar-menu-item ${activeTab === 'packages' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'packages' ? '#2563eb' : '#475569', background: activeTab === 'packages' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                📦 <span>Packages</span>
               </li>
               <li onClick={() => setActiveTab('invoices')} className={`sidebar-menu-item ${activeTab === 'invoices' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'invoices' ? '#2563eb' : '#475569', background: activeTab === 'invoices' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 🧾 <span>Invoices</span>
@@ -1116,6 +1121,11 @@ export const CustomerPortal: React.FC = () => {
                 })}
             </div>
           </div>
+        )}
+
+        {/* PACKAGES TAB */}
+        {activeTab === 'packages' && customer && (
+          <CustomerPrepaidPackages customerId={customer.id} token={localStorage.getItem('ll_auth_token') || ''} />
         )}
 
         {/* OFFERS TAB */}
