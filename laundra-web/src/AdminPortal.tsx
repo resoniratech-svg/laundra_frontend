@@ -3354,6 +3354,18 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
+              {posPayMethod === 'Wallet' && posCustId && (
+                <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '6px', color: '#334155', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                  <span style={{ fontWeight: '600' }}>Available Wallet Balance:</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0ea5e9' }}>QR {db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}</span>
+                </div>
+              )}
+              {posPayMethod === 'Wallet' && !posCustId && (
+                <div style={{ padding: '10px 12px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '6px', color: '#b45309', fontSize: '0.85rem', fontWeight: '600', marginTop: '12px', textAlign: 'center' }}>
+                  ⚠️ Please select a registered customer to use Wallet payment
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
