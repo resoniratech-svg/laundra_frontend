@@ -3034,7 +3034,7 @@ export const AdminPortal: React.FC = () => {
                 })}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px', paddingTop: '20px', paddingBottom: '8px', borderTop: '1px solid #e2e8f0', justifyContent: 'center' }}>
               <button type="button" onClick={() => setActiveModule('customers')} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>👥 Customer Management</button>
               <button type="button" onClick={() => setActiveModule('orders')} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📦 Order Management</button>
               <button type="button" onClick={() => setActiveModule('reports')} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📊 Business Reports</button>
