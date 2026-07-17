@@ -2888,10 +2888,9 @@ export const AdminPortal: React.FC = () => {
                           padding: '6px 14px',
                           borderRadius: '8px',
                           border: isActive ? 'none' : '1px solid #cbd5e1',
-                          background: isActive ? '#2563eb' : '#f8fafc',
-                          color: isActive ? 'white' : '#1e293b',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
+                          background: isActive ? '#3b82f6' : 'white',
+                          color: isActive ? 'white' : '#475569',
+                          fontWeight: '600',
                           fontSize: '0.8rem',
                           transition: 'all 0.2s',
                           boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
@@ -2901,6 +2900,14 @@ export const AdminPortal: React.FC = () => {
                       </button>
                     );
                   })}
+                </div>
+                
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '24px', margin: '0 4px' }}></div>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" onClick={() => setActiveModule('customers')} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>👥 Customer</button>
+                  <button type="button" onClick={() => setActiveModule('orders')} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>📦 Orders</button>
+                  <button type="button" onClick={() => setActiveModule('reports')} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>📊 Reports</button>
                 </div>
               </div>,
               document.getElementById('pos-header-portal-target')!
