@@ -1561,6 +1561,7 @@ export const AdminPortal: React.FC = () => {
     setPosCouponCode('');
     setCustomPOSAmount('');
     setCustomPOSDiscount('');
+    setPosCustomerSearch('');
 
     addActivity('Order', `Created POS manual order #${newOrderId} for ${customerName} (Commission: QR ${commAmt})`);
     alert(`POS checkout complete. Order #${newOrderId} placed successfully!`);
@@ -1580,6 +1581,7 @@ export const AdminPortal: React.FC = () => {
     setPosCouponCode('');
     setPosDiscount(0);
     setPosCouponApplied(false);
+    setPosCustomerSearch('');
   };
 
   // Coupons actions
