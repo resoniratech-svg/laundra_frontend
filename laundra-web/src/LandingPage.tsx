@@ -1101,7 +1101,6 @@ export const LandingPage: React.FC = () => {
                   <option value="admin">Admin Portal</option>
                   <option value="cashier">Cashier Portal</option>
                   <option value="delivery">Delivery Portal</option>
-                  <option value="customer">Customer Portal</option>
                   <option value="superadmin">Super Admin Portal</option>
                 </select>
               </div>
