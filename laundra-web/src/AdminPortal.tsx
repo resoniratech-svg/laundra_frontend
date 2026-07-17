@@ -504,11 +504,13 @@ export const AdminPortal: React.FC = () => {
         const coupData = await coupRes.json();
         const mappedCoupons = coupData.map((c: any) => ({
           id: c.id,
+          name: c.name,
           code: c.code,
           type: c.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
           value: parseFloat(c.value),
-          description: `Expires: ${c.expiry_date || 'Never'}`,
-          uses: 0
+          description: `Valid from ${c.start_date || 'Now'} to ${c.expiry_date || 'Never'}`,
+          uses: 0,
+          required_services: c.required_services
         }));
         saveDB({ promos: mappedCoupons });
       }
