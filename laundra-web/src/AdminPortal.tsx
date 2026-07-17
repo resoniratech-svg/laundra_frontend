@@ -710,23 +710,35 @@ export const AdminPortal: React.FC = () => {
   }, [systemAnnouncements, platformTickets, reviews, adminCustomerTickets]);
 
   // One-time migration: normalize any existing orders stored with UUID or prefixed IDs to plain 6-digit numbers
+  // Also migrate legacy orders with incorrect "Unpaid" paymentStatus.
   useEffect(() => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const prefixPattern = /^(OR-|ORD-)/i;
-    const needsMigration = db.orders.some(o => uuidPattern.test(o.id) || prefixPattern.test(o.id));
+    const needsMigration = db.orders.some(o => 
+      uuidPattern.test(o.id) || 
+      prefixPattern.test(o.id) ||
+      (o.paymentStatus === 'Unpaid' && ['Cash', 'Card', 'UPI', 'Wallet'].includes(o.paymentMethod || ''))
+    );
+    
     if (needsMigration) {
       const migratedOrders = db.orders.map(o => {
-        if (uuidPattern.test(o.id)) {
+        let updatedOrder = { ...o };
+        
+        if (uuidPattern.test(updatedOrder.id)) {
           const humanId = String(Math.floor(100000 + Math.random() * 900000));
-          return { ...o, id: humanId, backendId: o.backendId || o.id };
+          updatedOrder = { ...updatedOrder, id: humanId, backendId: updatedOrder.backendId || updatedOrder.id };
         }
-        if (prefixPattern.test(o.id)) {
-          // Extract digits from OR-1943 → 1943, ORD-20260713-5503 → keep last digits, pad to 6
-          const digits = o.id.replace(/[^0-9]/g, '');
+        if (prefixPattern.test(updatedOrder.id)) {
+          const digits = updatedOrder.id.replace(/[^0-9]/g, '');
           const humanId = digits.length >= 4 ? digits.slice(-6).padStart(6, '0') : String(Math.floor(100000 + Math.random() * 900000));
-          return { ...o, id: humanId };
+          updatedOrder = { ...updatedOrder, id: humanId };
         }
-        return o;
+        
+        if (updatedOrder.paymentStatus === 'Unpaid' && ['Cash', 'Card', 'UPI', 'Wallet'].includes(updatedOrder.paymentMethod || '')) {
+          updatedOrder.paymentStatus = 'Paid';
+        }
+        
+        return updatedOrder;
       });
       saveDB({ orders: migratedOrders });
     }
