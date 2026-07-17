@@ -4241,8 +4241,8 @@ export const AdminPortal: React.FC = () => {
                     <div style={{ flex: 2, fontWeight: '700' }}>{s.name}</div>
                     <div style={{ flex: 2 }}>{s.express ? 'Express' : 'Normal'}</div>
                     <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{s.qty || 1}</div>
-                    <div style={{ flex: 1, textAlign: 'right' }}>{(s.express ? s.price * 1.5 : s.price).toFixed(2)}</div>
-                    <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>{(s.express ? (s.price || 0) * 1.5 : (s.price || 0)).toFixed(2)}</div>
+                    <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{((s.express ? (s.price || 0) * 1.5 : (s.price || 0)) * (s.qty || 1)).toFixed(2)}</div>
                   </div>
                 ))
               ) : (
@@ -4388,8 +4388,8 @@ export const AdminPortal: React.FC = () => {
                                 <div style="flex: 2; font-weight: bold">${s.name}</div>
                                 <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
                                 <div style="flex: 1; text-align: center; font-weight: bold">${s.qty || 1}</div>
-                                <div style="flex: 1; text-align: right">${(s.express ? s.price * 1.5 : s.price).toFixed(2)}</div>
-                                <div style="flex: 1.5; text-align: right; font-weight: bold">${((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</div>
+                                <div style="flex: 1; text-align: right">${(s.express ? (s.price || 0) * 1.5 : (s.price || 0)).toFixed(2)}</div>
+                                <div style="flex: 1.5; text-align: right; font-weight: bold">${((s.express ? (s.price || 0) * 1.5 : (s.price || 0)) * (s.qty || 1)).toFixed(2)}</div>
                               </div>
                             `).join('') : `
                               <div class="table-row">
