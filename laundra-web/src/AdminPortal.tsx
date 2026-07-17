@@ -2752,7 +2752,7 @@ export const AdminPortal: React.FC = () => {
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
                       <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
-                      <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || 'N/A'}</td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
                       <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || 'Not Delivered'}</td>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#1e3a8a' }}>QR {o.totalAmount.toFixed(2)}</td>
@@ -4146,6 +4146,7 @@ export const AdminPortal: React.FC = () => {
         const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
         // Combined phone display: e.g. "+97450123456, +974501234123"
         const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
+        const safeTotal = viewingInvoice.totalAmount ?? viewingInvoice.total ?? 0;
         return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '20px', width: '100%', maxWidth: '380px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative', fontFamily: "'Arial', sans-serif", color: '#000', fontSize: '0.85rem' }}>
@@ -4248,8 +4249,8 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
                   <div style={{ flex: 4, fontWeight: '700' }}>{viewingInvoice.weightItems || 'Standard Laundry'}</div>
                   <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>1</div>
-                  <div style={{ flex: 1, textAlign: 'right' }}>{viewingInvoice.totalAmount.toFixed(2)}</div>
-                  <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{viewingInvoice.totalAmount.toFixed(2)}</div>
+                  <div style={{ flex: 1, textAlign: 'right' }}>{safeTotal.toFixed(2)}</div>
+                  <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{safeTotal.toFixed(2)}</div>
                 </div>
               )}
             </div>
@@ -4261,7 +4262,7 @@ export const AdminPortal: React.FC = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
                 <div>Total Bill Amnt مبلغ الفاتورة</div>
-                <div style={{ fontWeight: '700' }}>QR {(viewingInvoice.totalAmount + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+                <div style={{ fontWeight: '700' }}>QR {(safeTotal + (viewingInvoice.discount || 0)).toFixed(2)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
                 <div>Discount خصم</div>
@@ -4269,16 +4270,16 @@ export const AdminPortal: React.FC = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1rem' }}>
                 <div style={{ fontWeight: '800' }}>Total Amount مبلغ</div>
-                <div style={{ fontWeight: '900' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
+                <div style={{ fontWeight: '900' }}>QR {safeTotal.toFixed(2)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem' }}>
                 <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Total Amnt to<br/>Pay المبلغ الإجمالي للدفع</div>
-                <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
+                <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {safeTotal.toFixed(2)}</div>
               </div>
               {viewingInvoice.paymentMethod === 'Pay Later' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem', color: '#ef4444' }}>
                   <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Due Amount<br/>المبلغ المستحق</div>
-                  <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
+                  <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {safeTotal.toFixed(2)}</div>
                 </div>
               )}
             </div>
@@ -4394,8 +4395,8 @@ export const AdminPortal: React.FC = () => {
                               <div class="table-row">
                                 <div style="flex: 4; font-weight: bold">${viewingInvoice.weightItems || 'Standard Laundry'}</div>
                                 <div style="flex: 1; text-align: center; font-weight: bold">1</div>
-                                <div style="flex: 1; text-align: right">${viewingInvoice.totalAmount.toFixed(2)}</div>
-                                <div style="flex: 1.5; text-align: right; font-weight: bold">${viewingInvoice.totalAmount.toFixed(2)}</div>
+                                <div style="flex: 1; text-align: right">${safeTotal.toFixed(2)}</div>
+                                <div style="flex: 1.5; text-align: right; font-weight: bold">${safeTotal.toFixed(2)}</div>
                               </div>
                             `
                           }
@@ -4407,7 +4408,7 @@ export const AdminPortal: React.FC = () => {
                             </div>
                             <div class="totals-row">
                               <div>Total Bill Amnt مبلغ الفاتورة</div>
-                              <div class="bold">QR ${(viewingInvoice.totalAmount + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+                              <div class="bold">QR ${(safeTotal + (viewingInvoice.discount || 0)).toFixed(2)}</div>
                             </div>
                             <div class="totals-row">
                               <div>Discount خصم</div>
@@ -4415,16 +4416,16 @@ export const AdminPortal: React.FC = () => {
                             </div>
                             <div class="totals-row" style="font-size: 14px;">
                               <div class="bold">Total Amount مبلغ</div>
-                              <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
+                              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
                             </div>
                             <div class="totals-row" style="font-size: 16px;">
                               <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
-                              <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
+                              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
                             </div>
                             ${viewingInvoice.paymentMethod === 'Pay Later' ? `
                               <div class="totals-row" style="font-size: 16px; color: #000;">
                                 <div class="bold">Due Amount المبلغ المستحق</div>
-                                <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
+                                <div class="bold">QR ${safeTotal.toFixed(2)}</div>
                               </div>
                             ` : ''}
                           </div>
