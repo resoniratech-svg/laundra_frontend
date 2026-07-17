@@ -2681,8 +2681,8 @@ export const AdminPortal: React.FC = () => {
                 type="text" 
                 value={orderSearch} 
                 onChange={e => setOrderSearch(e.target.value)} 
-                placeholder="🔍 Search orders by client..." 
-                style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '220px' }} 
+                placeholder="🔍 Search Order ID, Customer, or Number..." 
+                style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px' }} 
               />
               <select 
                 value={orderFilter} 
@@ -2721,7 +2721,24 @@ export const AdminPortal: React.FC = () => {
                 {[...db.orders]
                   .reverse()
                   .filter(o => !o.isDeleted)
-                  .filter(o => o.customerName.toLowerCase().includes(orderSearch.toLowerCase()))
+                  .filter(o => {
+                    const term = orderSearch.toLowerCase();
+                    if (!term) return true;
+                    
+                    const name = (o.customerName || '').toLowerCase();
+                    const phone = (o.phone || '').toLowerCase();
+                    const orderId = String(o.id).toLowerCase();
+                    
+                    // Allow matching digits directly even if formatted with + or spaces
+                    const rawPhone = phone.replace(/[^0-9]/g, '');
+                    const termDigits = term.replace(/[^0-9]/g, '');
+                    
+                    return name.startsWith(term) || 
+                           orderId.startsWith(term) || 
+                           orderId.startsWith(term.replace(/^#/, '')) ||
+                           phone.startsWith(term) || 
+                           (termDigits.length > 0 && rawPhone.startsWith(termDigits));
+                  })
                   .filter(o => orderFilter === 'All' || o.status === orderFilter)
                   .filter(o => {
                     if (db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy') return true;
