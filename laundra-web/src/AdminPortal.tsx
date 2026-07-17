@@ -1588,7 +1588,8 @@ export const AdminPortal: React.FC = () => {
         code: cpCode,
         discount_type: cpType === 'Percentage' ? 'PERCENTAGE' : 'FLAT',
         value: parseFloat(cpValue) || 0,
-        expiry_date: '2099-12-31',
+        start_date: cpStartDate || new Date().toISOString().split('T')[0],
+        expiry_date: cpEndDate || '2099-12-31',
         required_services: couponServices.length > 0 ? couponServices.map(s => ({
           service_id: s.id,
           qty: s.qty,
@@ -1614,7 +1615,7 @@ export const AdminPortal: React.FC = () => {
             code: data.code,
             type: data.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
             value: parseFloat(data.value),
-            description: `Expires: ${data.expiry_date || 'Never'}`,
+            description: `Valid from ${data.start_date || 'Now'} to ${data.expiry_date || 'Never'}`,
             uses: 0,
             required_services: data.required_services
           };
@@ -1632,6 +1633,8 @@ export const AdminPortal: React.FC = () => {
       setCpCode('');
       setCpValue('');
       setCpDesc('');
+      setCpStartDate('');
+      setCpEndDate('');
       setCouponServices([]);
       setEditingCoupon(null);
     } catch (err) {
@@ -3463,6 +3466,16 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} placeholder="e.g. 15" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   <span style={{ fontWeight: '700', color: '#64748b', fontSize: '1.2rem' }}>%</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Start Date</label>
+                  <input type="date" required value={cpStartDate} onChange={e => setCpStartDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>End Date</label>
+                  <input type="date" required value={cpEndDate} onChange={e => setCpEndDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
               
