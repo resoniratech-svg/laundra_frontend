@@ -270,11 +270,9 @@ export const CustomerPortal: React.FC = () => {
   useEffect(() => {
     const fetchPromos = async () => {
       try {
-        const token = localStorage.getItem('ll_auth_token');
+        if (!db.activeCompanyId) return;
         const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-        const res = await fetch(`${BASE_URL}/api/v1/coupons`, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        });
+        const res = await fetch(`${BASE_URL}/api/v1/coupons/public?tenant_id=${db.activeCompanyId}`);
         if (res.ok) {
           const data = await res.json();
           setBackendPromos(data.map((c: any) => ({
@@ -293,7 +291,7 @@ export const CustomerPortal: React.FC = () => {
       }
     };
     fetchPromos();
-  }, [db.promos]);
+  }, [db.activeCompanyId]);
 
   // Customer profile details
   const [profName, setProfName] = useState('');
