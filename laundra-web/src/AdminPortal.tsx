@@ -4075,7 +4075,7 @@ export const AdminPortal: React.FC = () => {
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
                 {debugOtp && (
                   <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
-                    ⚠️ SMTP Not Configured. Your OTP is: <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
+                    ⚡ Admin Fast-Track OTP (Bypasses email delays): <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
                   </div>
                 )}
                 <div>
@@ -4162,7 +4162,7 @@ export const AdminPortal: React.FC = () => {
                 <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
                 {debugOtp && (
                   <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
-                    ⚠️ SMTP Not Configured. Your OTP is: <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
+                    ⚡ Admin Fast-Track OTP (Bypasses email delays): <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
                   </div>
                 )}
                 <div>
