@@ -194,6 +194,8 @@ export const AdminPortal: React.FC = () => {
   const [cpCode, setCpCode] = useState('');
   const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Percentage');
   const [cpValue, setCpValue] = useState('');
+  const [cpStartDate, setCpStartDate] = useState('');
+  const [cpEndDate, setCpEndDate] = useState('');
   const [cpDesc, setCpDesc] = useState('');
   const [couponServices, setCouponServices] = useState<any[]>([]);
   const [cpActiveCategory, setCpActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
