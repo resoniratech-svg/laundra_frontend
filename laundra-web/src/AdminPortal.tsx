@@ -147,7 +147,7 @@ export const AdminPortal: React.FC = () => {
   const [posCustPhone, setPosCustPhone] = useState('');
   const [posCustEmail, setPosCustEmail] = useState('');
   const [posCustAddress, setPosCustAddress] = useState('');
-  const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
+  const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet' | 'Pay Later'>('Cash');
   const [posRemark, setPosRemark] = useState('');
   const [posSearch, setPosSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
@@ -1505,7 +1505,7 @@ export const AdminPortal: React.FC = () => {
       totalAmount: total,
       status: 'Created',
       paymentMethod: posPayMethod,
-      paymentStatus: posPayMethod === 'Wallet' ? 'Paid' : 'Unpaid',
+      paymentStatus: posPayMethod === 'Pay Later' ? 'Unpaid' : 'Paid',
       deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(),
       services: posCart.map(i => ({ serviceId: i.variantId, name: `${i.itemName} - ${i.serviceTypeName} (${i.variantName})`, qty: i.qty, plan: i.variantName, price: i.price })),
       deliveryStatus: 'Received',
@@ -1515,7 +1515,7 @@ export const AdminPortal: React.FC = () => {
       email: isGuest ? posCustEmail : undefined,
       address: isGuest ? posCustAddress : undefined,
       discount: finalDiscount,
-      special_instructions: posPayMethod !== 'Cash' ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
+      special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
     };
 
     // Log cash-in transaction
@@ -3315,15 +3315,16 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: posPayMethod !== 'Cash' ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
                   <option value="Card">Card payment</option>
                   <option value="UPI">UPI payment</option>
                   <option value="Wallet">Wallet payment</option>
+                  <option value="Pay Later">Pay Later</option>
                 </select>
                 
-                {posPayMethod !== 'Cash' && (
+                {['Card', 'UPI', 'Wallet'].includes(posPayMethod) && (
                   <input 
                     type="text"
                     value={posRemark}
@@ -3339,7 +3340,7 @@ export const AdminPortal: React.FC = () => {
                       alert('Please add at least one laundry service to the cart before checking out.');
                       return;
                     }
-                    if (posPayMethod !== 'Cash' && !posRemark.trim()) {
+                    if (['Card', 'UPI', 'Wallet'].includes(posPayMethod) && !posRemark.trim()) {
                       alert(`Please enter a remark (e.g. Transaction ID or Reference) for ${posPayMethod} payment.`);
                       return;
                     }
