@@ -1951,38 +1951,6 @@ export const AdminPortal: React.FC = () => {
     setQrCust(newMatch);
   };
 
-  const handleApplyCoupon = async () => {
-    if (!posCouponCode) return;
-    try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('ll_auth_token');
-      const payload = {
-        code: posCouponCode,
-        cart_total: posCart.reduce((sum, item) => sum + (item.price * item.qty), 0),
-        cart_items: posCart.map(item => ({ service_id: item.serviceId, quantity: item.qty }))
-      };
-      
-      const res = await fetch(`${BASE_URL}/api/v1/coupons/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setPosDiscount(data.discount_applied);
-        setPosCouponApplied(true);
-      } else {
-        const err = await res.json();
-        alert(err.detail || 'Invalid or expired coupon');
-        setPosDiscount(0);
-        setPosCouponApplied(false);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleApplyPrepaidQR = async () => {
     if (!posPrepaidQRToken) return;
     try {
