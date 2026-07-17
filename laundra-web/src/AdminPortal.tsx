@@ -110,6 +110,8 @@ export const AdminPortal: React.FC = () => {
   // Local state for modals & details
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Order | null>(null);
+  const [payLaterModalOrder, setPayLaterModalOrder] = useState<Order | null>(null);
+  const [payLaterSelectedMethod, setPayLaterSelectedMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
@@ -2777,10 +2779,19 @@ export const AdminPortal: React.FC = () => {
                         }}>{o.status}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
-                        <span style={{
+                        <span 
+                          onClick={() => {
+                            if (o.paymentStatus !== 'Paid') {
+                              setPayLaterModalOrder(o);
+                              setPayLaterSelectedMethod('Cash');
+                            }
+                          }}
+                          style={{
                           padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
                           background: o.paymentStatus === 'Paid' ? '#dcfce7' : '#fee2e2',
-                          color: o.paymentStatus === 'Paid' ? '#15803d' : '#b91c1c'
+                          color: o.paymentStatus === 'Paid' ? '#15803d' : '#b91c1c',
+                          cursor: o.paymentStatus === 'Paid' ? 'default' : 'pointer',
+                          display: 'inline-block'
                         }}>{o.paymentStatus || 'Unpaid'}</span>
                       </td>
                       {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
@@ -4892,6 +4903,66 @@ export const AdminPortal: React.FC = () => {
                 <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Save Catalog</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Pay Later Collection Modal */}
+      {payLaterModalOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button onClick={() => setPayLaterModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: '#64748b', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
+            <h3 style={{ marginTop: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.5rem' }}>💳</span> Collect Payment
+            </h3>
+            
+            <div style={{ margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#64748b' }}>Order ID:</span>
+                <span style={{ fontWeight: '700', color: '#0f172a' }}>#{payLaterModalOrder.id}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#64748b' }}>Customer:</span>
+                <span style={{ fontWeight: '700', color: '#0f172a' }}>{payLaterModalOrder.customerName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
+                <span style={{ color: '#0f172a', fontWeight: '800' }}>Due Amount:</span>
+                <span style={{ fontWeight: '800', color: '#ef4444' }}>QR {Number(payLaterModalOrder.totalAmount || payLaterModalOrder.total || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Select Payment Method</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {['Cash', 'Card', 'UPI', 'Wallet'].map(m => (
+                  <button 
+                    key={m}
+                    onClick={() => setPayLaterSelectedMethod(m as any)}
+                    style={{ 
+                      flex: 1, padding: '8px 0', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem',
+                      background: payLaterSelectedMethod === m ? '#eff6ff' : '#fff',
+                      color: payLaterSelectedMethod === m ? '#2563eb' : '#475569',
+                      borderColor: payLaterSelectedMethod === m ? '#3b82f6' : '#cbd5e1'
+                    }}
+                  >{m}</button>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={() => {
+                const updatedOrders = db.orders.map(o => 
+                  o.id === payLaterModalOrder.id 
+                    ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod } 
+                    : o
+                );
+                saveDB({ orders: updatedOrders });
+                setPayLaterModalOrder(null);
+                alert(`Order #${payLaterModalOrder.id} successfully marked as Paid via ${payLaterSelectedMethod}!`);
+              }}
+              style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer' }}
+            >
+              Mark as Paid
+            </button>
           </div>
         </div>
       )}
