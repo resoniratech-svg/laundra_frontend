@@ -2082,8 +2082,8 @@ export const AdminPortal: React.FC = () => {
               type="text" 
               value={custSearch} 
               onChange={e => setCustSearch(e.target.value)} 
-              placeholder="🔍 Search customers..." 
-              style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '250px' }} 
+              placeholder="🔍 Search name, customer id, or phone number..." 
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px' }} 
             />
             <button onClick={handleStartAddCustomer} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Customer</button>
           </div>
@@ -2103,7 +2103,14 @@ export const AdminPortal: React.FC = () => {
               </thead>
               <tbody>
                 {db.customers
-                  .filter(c => c.name.toLowerCase().includes(custSearch.toLowerCase()))
+                  .filter(c => {
+                    const term = custSearch.toLowerCase();
+                    if (!term) return true;
+                    const custId = c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase());
+                    const name = c.name || '';
+                    const phone = c.phone || '';
+                    return name.toLowerCase().includes(term) || custId.toLowerCase().includes(term) || phone.toLowerCase().includes(term);
+                  })
                   .map(c => (
                     <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#64748b' }}>{c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())}</td>
