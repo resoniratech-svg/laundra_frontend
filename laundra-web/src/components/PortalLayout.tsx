@@ -361,7 +361,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       {/* Content View */}
         <main className="admin-main-content" style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '24px' }}>
           <div className="admin-content-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <h2 id="adminActiveModuleTitle" style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#0f172a' }}>{currentTitle}</h2>
               {activeModule === 'pos' && isFullScreen && (
                 <button 
@@ -379,6 +379,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                   🖥️ Full Screen POS
                 </button>
               )}
+              {/* Target for AdminPortal to inject POS tabs */}
+              <div id="pos-header-portal-target" style={{ display: 'flex', alignItems: 'center', marginLeft: '12px' }}></div>
             </div>
             <div className="breadcrumb" style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
               Operational Desk / {currentTitle}

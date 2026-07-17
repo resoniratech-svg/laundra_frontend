@@ -517,7 +517,7 @@ export const LandingPage: React.FC = () => {
         boxShadow: '0 4px 30px rgba(0, 0, 0, 0.03)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <img src="/qubexe_logo.png" alt="Qubexe Logo" style={{ height: '40px', objectFit: 'contain', borderRadius: '4px' }} />
+          <img src="/qubexe.logo.png" alt="Qubexe Logo" style={{ height: '50px', transform: 'scale(2.8)', transformOrigin: 'left center', objectFit: 'contain' }} />
         </div>
 
         {/* Center links for quick navigation */}
@@ -556,17 +556,11 @@ export const LandingPage: React.FC = () => {
               setLoginRole('admin');
               setShowLogIn(true);
             }} 
-            style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer' }}
+            style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
           >
             👤 Login
           </button>
-          <button 
-            className="primary-btn" 
-            onClick={() => setShowSignUp(true)} 
-            style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '700', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', border: 'none', cursor: 'pointer' }}
-          >
-            Sign Up
-          </button>
+
         </div>
       </header>
 
@@ -1120,10 +1114,7 @@ export const LandingPage: React.FC = () => {
                 <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="form-input" required placeholder="••••••••" style={{ height: '48px', fontWeight: 500 }} />
               </div>
               <button type="submit" className="primary-btn" style={{ height: '52px', fontSize: '1.05rem', marginTop: '8px', background: '#2563eb', color: 'white', border: 'none', cursor: 'pointer' }}>Authenticate</button>
-              <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.9rem' }}>
-                <span style={{ color: '#64748b' }}>Don't have a customer account?</span> &nbsp;
-                <a onClick={() => { setShowLogIn(false); setShowSignUp(true); }} style={{ color: '#2563eb', fontWeight: '600', cursor: 'pointer' }}>Sign Up</a>
-              </div>
+
             </form>
           </div>
         </div>

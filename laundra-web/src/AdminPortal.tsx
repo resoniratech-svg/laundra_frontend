@@ -2847,38 +2847,44 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 0.7fr', gap: '24px' }}>
           {/* POS Catalog browsing */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>🧺 Service Catalog</h4>
-            
-            {/* Category Filter Tabs at the top */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-              {(['Pressing', 'Wash & Press', 'Dry Cleaning'] as const).map(cat => {
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory(cat);
-                      setSelectedPosItem(null);
-                    }}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: isActive ? 'none' : '1px solid #cbd5e1',
-                      background: isActive ? '#2563eb' : '#f8fafc',
-                      color: isActive ? 'white' : '#1e293b',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      transition: 'all 0.2s',
-                      boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
-                    }}
-                  >
-                    {cat === 'Pressing' ? '💨 Pressing' : cat === 'Wash & Press' ? '🧺 Wash & Clean' : '✨ Dry Cleaning'}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Render Category Tabs in Header via Portal */}
+            {document.getElementById('pos-header-portal-target') && createPortal(
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <h4 style={{ margin: '0 12px 0 0', borderLeft: '2px solid #cbd5e1', paddingLeft: '16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
+                  <span>🧺</span> Service Catalog
+                </h4>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['Pressing', 'Wash & Press', 'Dry Cleaning'] as const).map(cat => {
+                    const isActive = activeCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setActiveCategory(cat);
+                          setSelectedPosItem(null);
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          border: isActive ? 'none' : '1px solid #cbd5e1',
+                          background: isActive ? '#2563eb' : '#f8fafc',
+                          color: isActive ? 'white' : '#1e293b',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          transition: 'all 0.2s',
+                          boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
+                        }}
+                      >
+                        {cat === 'Pressing' ? '💨 Pressing' : cat === 'Wash & Press' ? '🧺 Wash & Clean' : '✨ Dry Cleaning'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>,
+              document.getElementById('pos-header-portal-target')!
+            )}
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               <input 
@@ -2890,7 +2896,7 @@ export const AdminPortal: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '14px', maxHeight: '420px', overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px', maxHeight: 'calc(100vh - 250px)', minHeight: '500px', overflowY: 'auto', paddingRight: '4px', alignContent: 'start' }}>
               {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
                 .filter(name => {
                   const matchesSearch = String(name).toLowerCase().includes(posSearch.toLowerCase());
@@ -2907,7 +2913,7 @@ export const AdminPortal: React.FC = () => {
                     <div 
                       key={itemName} 
                       style={{ 
-                        padding: '16px 12px', 
+                        padding: '10px 4px', 
                         border: '1.5px solid #cbd5e1', 
                         borderRadius: '12px', 
                         background: '#ffffff', 
@@ -2915,15 +2921,15 @@ export const AdminPortal: React.FC = () => {
                         display: 'flex', 
                         flexDirection: 'column', 
                         alignItems: 'center',
-                        gap: '10px',
+                        gap: '6px',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                         position: 'relative'
                       }}
                     >
                       <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                      <div style={{ fontWeight: '800', fontSize: '0.85rem', color: '#0f172a', marginBottom: '4px' }}>{itemName}</div>
+                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{itemName}</div>
                       
-                      <div style={{ display: 'flex', gap: '6px', width: '100%', marginTop: 'auto' }}>
+                      <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
                         {hasNormal ? (
                           <button
                             type="button"
@@ -2948,12 +2954,12 @@ export const AdminPortal: React.FC = () => {
                             }}
                             style={{
                               flex: 1,
-                              padding: '6px 4px',
+                              padding: '4px 2px',
                               background: '#eff6ff',
                               color: '#2563eb',
                               border: '1px solid #bfdbfe',
                               borderRadius: '6px',
-                              fontSize: '0.75rem',
+                              fontSize: '0.65rem',
                               fontWeight: '700',
                               cursor: 'pointer'
                             }}
@@ -2961,7 +2967,7 @@ export const AdminPortal: React.FC = () => {
                             Normal<br/>QR {parseFloat(service.price).toFixed(1)}
                           </button>
                         ) : (
-                          <div style={{ flex: 1, padding: '6px 4px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                          <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
                         )}
 
                         {hasExpress ? (
@@ -2988,12 +2994,12 @@ export const AdminPortal: React.FC = () => {
                             }}
                             style={{
                               flex: 1,
-                              padding: '6px 4px',
+                              padding: '4px 2px',
                               background: '#faf5ff',
                               color: '#7c3aed',
                               border: '1px solid #e9d5ff',
                               borderRadius: '6px',
-                              fontSize: '0.75rem',
+                              fontSize: '0.65rem',
                               fontWeight: '700',
                               cursor: 'pointer'
                             }}
@@ -3001,7 +3007,7 @@ export const AdminPortal: React.FC = () => {
                             Express<br/>QR {parseFloat(service.express_price).toFixed(1)}
                           </button>
                         ) : (
-                          <div style={{ flex: 1, padding: '6px 4px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                          <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
                         )}
                       </div>
                     </div>
@@ -3099,10 +3105,11 @@ export const AdminPortal: React.FC = () => {
                       {db.customers
                         .filter(c => {
                           const query = posCustomerSearch.toLowerCase();
-                          const nameMatch = c.name.toLowerCase().includes(query);
-                          const phoneMatch = c.phone && c.phone.includes(query);
-                          const codeMatch = c.referral_code && c.referral_code.toLowerCase().includes(query);
-                          const fallbackMatch = c.id && ('CUST-' + String(c.id).substring(0, 5).toUpperCase()).toLowerCase().includes(query);
+                          if (!query) return true;
+                          const nameMatch = c.name.toLowerCase().startsWith(query);
+                          const phoneMatch = c.phone && String(c.phone).startsWith(query);
+                          const codeMatch = c.referral_code && String(c.referral_code).toLowerCase().startsWith(query);
+                          const fallbackMatch = c.id && ('cust-' + String(c.id).substring(0, 5)).startsWith(query);
                           return nameMatch || phoneMatch || codeMatch || fallbackMatch;
                         })
                         .map(c => (
@@ -3150,7 +3157,12 @@ export const AdminPortal: React.FC = () => {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Phone Number</label>
-                    <input type="text" value={posCustPhone} onChange={e => setPosCustPhone(e.target.value)} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                    <input type="text" value={posCustPhone} maxLength={20} onChange={e => {
+                      const val = e.target.value;
+                      if (/^[^a-zA-Z]*$/.test(val)) {
+                        setPosCustPhone(val);
+                      }
+                    }} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Email Address</label>
@@ -3906,108 +3918,151 @@ export const AdminPortal: React.FC = () => {
         // Combined phone display: e.g. "+97450123456, +974501234123"
         const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
         return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>🧾 Order Invoice Details</h3>
-              <button onClick={() => setViewingInvoice(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
-            </div>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', padding: '20px', width: '100%', maxWidth: '380px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative', fontFamily: "'Arial', sans-serif", color: '#000', fontSize: '0.85rem' }}>
+            <button onClick={() => setViewingInvoice(null)} style={{ position: 'absolute', right: '12px', top: '12px', color: '#000', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem', fontWeight: 'bold' }}>✕</button>
             
-            <div style={{ padding: '24px', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '16px', fontFamily: "'Courier New', Courier, monospace" }}>
-                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>{invoiceCompName}</h4>
-                  {invoiceCompAddr && (
-                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', fontStyle: 'italic' }}>{invoiceCompAddr}</div>
-                  )}
-                  {invoicePhoneDisplay && (
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', fontWeight: '600' }}>{invoicePhoneDisplay}</div>
-                  )}
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>{new Date(viewingInvoice.date).toLocaleDateString()}</div>
-                </div>
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', fontWeight: '900' }}>{invoiceCompName}</h2>
+              {invoiceCompAddr && (
+                <div style={{ fontSize: '0.8rem', marginTop: '2px', fontWeight: '600' }}>{invoiceCompAddr}</div>
+              )}
+              {invoicePhoneDisplay && (
+                <div style={{ fontSize: '0.8rem', marginTop: '2px', fontWeight: '600' }}>{invoicePhoneDisplay}</div>
+              )}
+            </div>
 
-                <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Order ID:</span>
-                    <span style={{ fontWeight: '700' }}>#{viewingInvoice.id}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Order Date:</span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.date}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Delivery Date:</span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.deliveredDate || 'Not Delivered'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Customer:</span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.customerName}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Customer Phone:</span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.phone || db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Customer Addr:</span>
-                    <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{viewingInvoice.address || db.customers.find(c => c.id === viewingInvoice.customerId)?.address || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Payment Method:</span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.paymentMethod || 'Cash'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Status:</span>
-                    <span style={{ fontWeight: '700', color: viewingInvoice.status === 'Delivered' ? '#16a34a' : '#2563eb' }}>{viewingInvoice.status}</span>
-                  </div>
-                  {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: '#64748b' }}>Discount Applied:</span>
-                      <span style={{ fontWeight: '700', color: '#ef4444' }}>QR {viewingInvoice.discount.toFixed(2)}</span>
-                    </div>
-                  ) : null}
-                  {invoiceCompAddr && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: '#64748b' }}>Shop Address:</span>
-                      <span style={{ fontWeight: '700', textAlign: 'right', maxWidth: '60%', overflowWrap: 'anywhere' }}>{invoiceCompAddr}</span>
-                    </div>
-                  )}
-                  {invoiceCompPhone && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: '#64748b' }}>Shop Phone:</span>
-                      <span style={{ fontWeight: '700' }}>{invoiceCompPhone}</span>
-                    </div>
-                  )}
-                </div>
+            <div style={{ textAlign: 'center', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', margin: '10px 0', padding: '6px 0' }}>
+              <div style={{ fontWeight: '800', fontSize: '0.9rem' }}>Customer Copy</div>
+              <div style={{ fontWeight: '800', fontSize: '0.9rem' }}>نسخة العميل</div>
+            </div>
 
-                <div style={{ borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
-                  <div style={{ fontWeight: '700', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Services / Items</div>
-                  {viewingInvoice.services && viewingInvoice.services.length > 0 ? (
-                    viewingInvoice.services.map((s: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
-                        <span>{s.name} x{s.qty || 1}</span>
-                        <span style={{ fontWeight: '700' }}>QR {((s.price) * (s.qty || 1)).toFixed(2)}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                      <span>{viewingInvoice.weightItems || 'Standard Laundry'}</span>
-                      <span style={{ fontWeight: '700' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
-                    </div>
-                  )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Order NO</div>
+                  <div style={{ fontSize: '0.7rem' }}>رقم الفاتورة</div>
                 </div>
-
-                {viewingInvoice.discount && viewingInvoice.discount > 0 ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #cbd5e1', paddingBottom: '6px', marginBottom: '6px', fontSize: '0.85rem' }}>
-                    <span>Discount:</span>
-                    <span>-QR {viewingInvoice.discount.toFixed(2)}</span>
-                  </div>
-                ) : null}
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', fontSize: '1rem', fontWeight: '800' }}>
-                  <span>TOTAL AMOUNT:</span>
-                  <span>QR {viewingInvoice.totalAmount.toFixed(2)}</span>
-                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.id}</div>
               </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Order Date</div>
+                  <div style={{ fontSize: '0.7rem' }}>تاريخ الفاتورة</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.date}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Delivery Date</div>
+                  <div style={{ fontSize: '0.7rem' }}>تاريخ التسليم</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.deliveredDate || 'Not Delivered'}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Delivery Type</div>
+                  <div style={{ fontSize: '0.7rem' }}>نوع التوصيل</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.deliveryType || 'TAKE AWAY'}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Customer Name</div>
+                  <div style={{ fontSize: '0.7rem' }}>اسم العميل</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.customerName}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Contact NO</div>
+                  <div style={{ fontSize: '0.7rem' }}>رقم الاتصال</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.phone || db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || 'N/A'}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Address</div>
+                  <div style={{ fontSize: '0.7rem' }}>عنوان</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.address || db.customers.find(c => c.id === viewingInvoice.customerId)?.address || 'N/A'}</div>
+              </div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '130px' }}>
+                  <div style={{ fontWeight: '700' }}>Payment Status</div>
+                  <div style={{ fontSize: '0.7rem' }}>حالة الدفع</div>
+                </div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.paymentStatus || 'UNPAID'} ({viewingInvoice.paymentMethod || 'CASH'})</div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '6px' }}>
+              <div style={{ display: 'flex', fontWeight: '700', fontSize: '0.8rem', borderBottom: '1px dashed #000', paddingBottom: '6px', marginBottom: '6px' }}>
+                <div style={{ flex: 2 }}>Cloth<br/><span style={{fontSize: '0.65rem'}}>نوع</span></div>
+                <div style={{ flex: 2 }}>Service<br/><span style={{fontSize: '0.65rem'}}>خدمة</span></div>
+                <div style={{ flex: 1, textAlign: 'center' }}>Qty<br/><span style={{fontSize: '0.65rem'}}>كمية</span></div>
+                <div style={{ flex: 1, textAlign: 'right' }}>Price<br/><span style={{fontSize: '0.65rem'}}>سعر</span></div>
+                <div style={{ flex: 1.5, textAlign: 'right' }}>Amount<br/><span style={{fontSize: '0.65rem'}}>مبلغ</span></div>
+              </div>
+
+              {viewingInvoice.services && viewingInvoice.services.length > 0 ? (
+                viewingInvoice.services.map((s: any, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
+                    <div style={{ flex: 2, fontWeight: '700' }}>{s.name}</div>
+                    <div style={{ flex: 2 }}>{s.express ? 'Express' : 'Normal'}</div>
+                    <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{s.qty || 1}</div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>{(s.express ? s.price * 1.5 : s.price).toFixed(2)}</div>
+                    <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
+                  <div style={{ flex: 4, fontWeight: '700' }}>{viewingInvoice.weightItems || 'Standard Laundry'}</div>
+                  <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>1</div>
+                  <div style={{ flex: 1, textAlign: 'right' }}>{viewingInvoice.totalAmount.toFixed(2)}</div>
+                  <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{viewingInvoice.totalAmount.toFixed(2)}</div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
+                <div>Total Quantity عدد القطع</div>
+                <div style={{ fontWeight: '700' }}>{viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + (s.qty || 1), 0) : 1}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
+                <div>Total Bill Amnt مبلغ الفاتورة</div>
+                <div style={{ fontWeight: '700' }}>QR {(viewingInvoice.totalAmount + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
+                <div>Discount خصم</div>
+                <div style={{ fontWeight: '700' }}>{(viewingInvoice.discount || 0).toFixed(2)}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1rem' }}>
+                <div style={{ fontWeight: '800' }}>Total Amount مبلغ</div>
+                <div style={{ fontWeight: '900' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem' }}>
+                <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Total Amnt to<br/>Pay المبلغ الإجمالي للدفع</div>
+                <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {viewingInvoice.totalAmount.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px', fontWeight: '800', fontSize: '1rem', textTransform: 'uppercase' }}>
+              {viewingInvoice.deliveryType || 'TAKE AWAY'}
+            </div>
+
+            <div style={{ marginTop: '16px', fontSize: '0.7rem', textAlign: 'justify', lineHeight: '1.4' }}>
+              The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '0.7rem', textAlign: 'justify', lineHeight: '1.4', direction: 'rtl' }}>
+              المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
+            </div>
+
+            <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '0.8rem', fontWeight: '700' }}>
+              <div>User: {viewingInvoice.cashierName || 'Cashier'}</div>
+              <div>Printed: {new Date().toLocaleString()}</div>
+            </div>
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setViewingInvoice(null)} style={{ padding: '8px 16px', border: '1.5px solid #cbd5e1', borderRadius: '8px', background: 'transparent', cursor: 'pointer', fontWeight: '700' }}>Close</button>
@@ -4022,59 +4077,132 @@ export const AdminPortal: React.FC = () => {
                         <head>
                           <title>Invoice #${viewingInvoice.id}</title>
                           <style>
-                            body { font-family: 'Courier New', Courier, monospace; font-size: 14px; padding: 30px; line-height: 1.4; }
-                            h2 { text-align: center; margin: 0 0 10px 0; }
+                            body { font-family: 'Arial', sans-serif; font-size: 14px; padding: 0; margin: 0; width: 320px; line-height: 1.4; color: #000; }
+                            h2 { text-align: center; margin: 0 0 5px 0; font-size: 22px; text-transform: uppercase; }
                             .center { text-align: center; }
-                            .divider { border-top: 1px dashed #000; margin: 15px 0; }
-                            .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+                            .row { display: flex; margin-bottom: 4px; }
                             .bold { font-weight: bold; }
+                            .lbl-en { font-weight: bold; font-size: 12px; }
+                            .lbl-ar { font-size: 10px; }
+                            .col-lbl { width: 130px; }
+                            .col-val { flex: 1; font-weight: bold; }
+                            .table-hdr { display: flex; font-weight: bold; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+                            .table-row { display: flex; font-size: 12px; margin-bottom: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; align-items: center; }
+                            .totals-row { display: flex; justify-content: space-between; width: 220px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+                            .rtl { direction: rtl; }
                           </style>
                         </head>
                         <body>
                           <h2>${invoiceCompName}</h2>
-                          ${invoiceCompAddr ? `<div class="center" style="font-size: 12px; font-style: italic;">${invoiceCompAddr}</div>` : ''}
-                          ${invoicePhoneDisplay ? `<div class="center" style="font-size: 12px; font-weight: bold;">${invoicePhoneDisplay}</div>` : ''}
+                          ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
+                          ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
+                          
                           <div class="divider"></div>
-                          <div class="row"><span class="bold">Order ID:</span><span>#${viewingInvoice.id}</span></div>
-                          <div class="row"><span class="bold">Order Date:</span><span>${viewingInvoice.date}</span></div>
-                          <div class="row"><span class="bold">Delivery Date:</span><span>${viewingInvoice.deliveredDate || 'Not Delivered'}</span></div>
-                          <div class="row"><span class="bold">Customer:</span><span>${viewingInvoice.customerName}</span></div>
-                          <div class="row"><span class="bold">Customer Tel:</span><span>${custPhone}</span></div>
-                          <div class="row"><span class="bold">Customer Addr:</span><span>${custAddr}</span></div>
-                          <div class="row"><span class="bold">Payment:</span><span>${viewingInvoice.paymentMethod || 'Cash'}</span></div>
-                          <div class="row"><span class="bold">Status:</span><span>${viewingInvoice.status}</span></div>
-                          ${viewingInvoice.discount && viewingInvoice.discount > 0 ? `
-                            <div class="row"><span class="bold">Discount Amount:</span><span>QR ${viewingInvoice.discount.toFixed(2)}</span></div>
-                          ` : ''}
+                          <div class="center bold" style="font-size: 16px;">Customer Copy</div>
+                          <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
                           <div class="divider"></div>
-                          <div class="row bold" style="font-size: 12px; text-transform: uppercase;"><span>Services / Items</span><span>Price</span></div>
+
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
+                            <div class="col-val">: ${viewingInvoice.id}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
+                            <div class="col-val">: ${viewingInvoice.date}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
+                            <div class="col-val">: ${viewingInvoice.deliveredDate || 'Not Delivered'}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Delivery Type</div><div class="lbl-ar">نوع التوصيل</div></div>
+                            <div class="col-val">: ${viewingInvoice.deliveryType || 'TAKE AWAY'}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
+                            <div class="col-val">: ${viewingInvoice.customerName}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
+                            <div class="col-val">: ${custPhone}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
+                            <div class="col-val">: ${custAddr}</div>
+                          </div>
+                          <div class="row">
+                            <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
+                            <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'} (${viewingInvoice.paymentMethod || 'CASH'})</div>
+                          </div>
+
+                          <div class="divider"></div>
+                          
+                          <div class="table-hdr">
+                            <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
+                            <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
+                            <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
+                            <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
+                            <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
+                          </div>
+
                           ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
                             viewingInvoice.services.map((s: any) => `
-                              <div class="row">
-                                <span>${s.name} ${s.express ? '(Express)' : ''} x${s.qty || 1}</span>
-                                <span>QR ${((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</span>
+                              <div class="table-row">
+                                <div style="flex: 2; font-weight: bold">${s.name}</div>
+                                <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
+                                <div style="flex: 1; text-align: center; font-weight: bold">${s.qty || 1}</div>
+                                <div style="flex: 1; text-align: right">${(s.express ? s.price * 1.5 : s.price).toFixed(2)}</div>
+                                <div style="flex: 1.5; text-align: right; font-weight: bold">${((s.express ? s.price * 1.5 : s.price) * (s.qty || 1)).toFixed(2)}</div>
                               </div>
                             `).join('') : `
-                              <div class="row">
-                                <span>${viewingInvoice.weightItems || 'Standard Laundry'}</span>
-                                <span>QR ${viewingInvoice.totalAmount.toFixed(2)}</span>
+                              <div class="table-row">
+                                <div style="flex: 4; font-weight: bold">${viewingInvoice.weightItems || 'Standard Laundry'}</div>
+                                <div style="flex: 1; text-align: center; font-weight: bold">1</div>
+                                <div style="flex: 1; text-align: right">${viewingInvoice.totalAmount.toFixed(2)}</div>
+                                <div style="flex: 1.5; text-align: right; font-weight: bold">${viewingInvoice.totalAmount.toFixed(2)}</div>
                               </div>
                             `
                           }
-                          <div class="divider"></div>
-                          ${viewingInvoice.discount && viewingInvoice.discount > 0 ? `
-                            <div class="row bold">
-                              <span>DISCOUNT APPLIED:</span>
-                              <span>-QR ${viewingInvoice.discount.toFixed(2)}</span>
+
+                          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
+                            <div class="totals-row">
+                              <div>Total Quantity عدد القطع</div>
+                              <div class="bold">${viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + (s.qty || 1), 0) : 1}</div>
                             </div>
-                            <div class="divider"></div>
-                          ` : ''}
-                          <div class="row bold" style="font-size: 16px;">
-                            <span>TOTAL AMOUNT:</span>
-                            <span>QR ${viewingInvoice.totalAmount.toFixed(2)}</span>
+                            <div class="totals-row">
+                              <div>Total Bill Amnt مبلغ الفاتورة</div>
+                              <div class="bold">QR ${(viewingInvoice.totalAmount + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+                            </div>
+                            <div class="totals-row">
+                              <div>Discount خصم</div>
+                              <div class="bold">${(viewingInvoice.discount || 0).toFixed(2)}</div>
+                            </div>
+                            <div class="totals-row" style="font-size: 14px;">
+                              <div class="bold">Total Amount مبلغ</div>
+                              <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
+                            </div>
+                            <div class="totals-row" style="font-size: 16px;">
+                              <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
+                              <div class="bold">QR ${viewingInvoice.totalAmount.toFixed(2)}</div>
+                            </div>
                           </div>
-                          <div class="divider"></div>
-                          <div class="center" style="margin-top: 20px; font-size: 12px;">Thank you for your business!</div>
+
+                          <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
+                            ${viewingInvoice.deliveryType || 'TAKE AWAY'}
+                          </div>
+
+                          <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                            The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
+                          </div>
+                          <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                            المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
+                          </div>
+
+                          <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
+                            <div>User: ${viewingInvoice.cashierName || 'Cashier'}</div>
+                            <div>Printed: ${new Date().toLocaleString()}</div>
+                          </div>
                         </body>
                       </html>
                     `);
@@ -4086,7 +4214,6 @@ export const AdminPortal: React.FC = () => {
                   🖨️ Print / Save PDF
                 </button>
               </div>
-            </div>
           </div>
         </div>
         );
