@@ -1654,7 +1654,8 @@ export const AdminPortal: React.FC = () => {
           saveDB({ promos: [...db.promos, newPromo] });
           addActivity('Settings', `Created coupon: ${cpCode}`);
         } else {
-          alert('Failed to save coupon to backend');
+          const errData = await res.json().catch(() => ({}));
+          alert('Failed to save coupon to backend: ' + (errData.detail || JSON.stringify(errData) || 'Unknown error'));
         }
       } else {
         const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, name: cpName, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc, required_services: couponServices } : p);
