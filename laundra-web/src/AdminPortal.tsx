@@ -4146,7 +4146,8 @@ export const AdminPortal: React.FC = () => {
         const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
         // Combined phone display: e.g. "+97450123456, +974501234123"
         const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
-        const safeTotal = viewingInvoice.totalAmount ?? viewingInvoice.total ?? 0;
+        const safeTotal = Number(viewingInvoice.totalAmount ?? viewingInvoice.total ?? 0);
+        const safeDiscount = Number(viewingInvoice.discount || 0);
         return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', padding: '20px', width: '100%', maxWidth: '380px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative', fontFamily: "'Arial', sans-serif", color: '#000', fontSize: '0.85rem' }}>
@@ -4236,15 +4237,20 @@ export const AdminPortal: React.FC = () => {
               </div>
 
               {viewingInvoice.services && viewingInvoice.services.length > 0 ? (
-                viewingInvoice.services.map((s: any, idx: number) => (
-                  <div key={idx} style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
-                    <div style={{ flex: 2, fontWeight: '700' }}>{s.name}</div>
-                    <div style={{ flex: 2 }}>{s.express ? 'Express' : 'Normal'}</div>
-                    <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{s.qty || 1}</div>
-                    <div style={{ flex: 1, textAlign: 'right' }}>{(s.express ? (s.price || 0) * 1.5 : (s.price || 0)).toFixed(2)}</div>
-                    <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{((s.express ? (s.price || 0) * 1.5 : (s.price || 0)) * (s.qty || 1)).toFixed(2)}</div>
-                  </div>
-                ))
+                viewingInvoice.services.map((s: any, idx: number) => {
+                  const sPrice = Number(s.price || 0);
+                  const sQty = Number(s.qty || 1);
+                  const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
+                  return (
+                    <div key={idx} style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
+                      <div style={{ flex: 2, fontWeight: '700' }}>{s.name}</div>
+                      <div style={{ flex: 2 }}>{s.express ? 'Express' : 'Normal'}</div>
+                      <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{sQty}</div>
+                      <div style={{ flex: 1, textAlign: 'right' }}>{sFinalPrice.toFixed(2)}</div>
+                      <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{(sFinalPrice * sQty).toFixed(2)}</div>
+                    </div>
+                  );
+                })
               ) : (
                 <div style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
                   <div style={{ flex: 4, fontWeight: '700' }}>{viewingInvoice.weightItems || 'Standard Laundry'}</div>
@@ -4258,15 +4264,15 @@ export const AdminPortal: React.FC = () => {
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '0.85rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
                 <div>Total Quantity عدد القطع</div>
-                <div style={{ fontWeight: '700' }}>{viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + (s.qty || 1), 0) : 1}</div>
+                <div style={{ fontWeight: '700' }}>{viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + Number(s.qty || 1), 0) : 1}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
                 <div>Total Bill Amnt مبلغ الفاتورة</div>
-                <div style={{ fontWeight: '700' }}>QR {(safeTotal + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+                <div style={{ fontWeight: '700' }}>QR {(safeTotal + safeDiscount).toFixed(2)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
                 <div>Discount خصم</div>
-                <div style={{ fontWeight: '700' }}>{(viewingInvoice.discount || 0).toFixed(2)}</div>
+                <div style={{ fontWeight: '700' }}>{safeDiscount.toFixed(2)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1rem' }}>
                 <div style={{ fontWeight: '800' }}>Total Amount مبلغ</div>
@@ -4383,20 +4389,25 @@ export const AdminPortal: React.FC = () => {
                           </div>
 
                           ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
-                            viewingInvoice.services.map((s: any) => `
-                              <div class="table-row">
-                                <div style="flex: 2; font-weight: bold">${s.name}</div>
-                                <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
-                                <div style="flex: 1; text-align: center; font-weight: bold">${s.qty || 1}</div>
-                                <div style="flex: 1; text-align: right">${(s.express ? (s.price || 0) * 1.5 : (s.price || 0)).toFixed(2)}</div>
-                                <div style="flex: 1.5; text-align: right; font-weight: bold">${((s.express ? (s.price || 0) * 1.5 : (s.price || 0)) * (s.qty || 1)).toFixed(2)}</div>
-                              </div>
-                            `).join('') : `
+                            viewingInvoice.services.map((s: any) => {
+                              const sPrice = Number(s.price || 0);
+                              const sQty = Number(s.qty || 1);
+                              const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
+                              return `
+                                <div class="table-row">
+                                  <div style="flex: 2; font-weight: bold">${s.name}</div>
+                                  <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
+                                  <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
+                                  <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
+                                  <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+                                </div>
+                              `;
+                            }).join('') : `
                               <div class="table-row">
                                 <div style="flex: 4; font-weight: bold">${viewingInvoice.weightItems || 'Standard Laundry'}</div>
                                 <div style="flex: 1; text-align: center; font-weight: bold">1</div>
-                                <div style="flex: 1; text-align: right">${safeTotal.toFixed(2)}</div>
-                                <div style="flex: 1.5; text-align: right; font-weight: bold">${safeTotal.toFixed(2)}</div>
+                                <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
+                                <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
                               </div>
                             `
                           }
@@ -4408,11 +4419,11 @@ export const AdminPortal: React.FC = () => {
                             </div>
                             <div class="totals-row">
                               <div>Total Bill Amnt مبلغ الفاتورة</div>
-                              <div class="bold">QR ${(safeTotal + (viewingInvoice.discount || 0)).toFixed(2)}</div>
+                              <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
                             </div>
                             <div class="totals-row">
                               <div>Discount خصم</div>
-                              <div class="bold">${(viewingInvoice.discount || 0).toFixed(2)}</div>
+                              <div class="bold">${safeDiscount.toFixed(2)}</div>
                             </div>
                             <div class="totals-row" style="font-size: 14px;">
                               <div class="bold">Total Amount مبلغ</div>
