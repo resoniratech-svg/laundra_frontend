@@ -191,6 +191,7 @@ export const AdminPortal: React.FC = () => {
 
   // Coupon Forms
   const [editingCoupon, setEditingCoupon] = useState<Promo | null>(null);
+  const [cpName, setCpName] = useState('');
   const [cpCode, setCpCode] = useState('');
   const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Percentage');
   const [cpValue, setCpValue] = useState('');
@@ -1587,6 +1588,7 @@ export const AdminPortal: React.FC = () => {
       const token = localStorage.getItem('ll_auth_token');
       
       const payload = {
+        name: cpName,
         code: cpCode,
         discount_type: cpType === 'Percentage' ? 'PERCENTAGE' : 'FLAT',
         value: parseFloat(cpValue) || 0,
@@ -1614,6 +1616,7 @@ export const AdminPortal: React.FC = () => {
           const data = await res.json();
           const newPromo: any = {
             id: data.id,
+            name: data.name,
             code: data.code,
             type: data.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
             value: parseFloat(data.value),
@@ -1627,11 +1630,12 @@ export const AdminPortal: React.FC = () => {
           alert('Failed to save coupon to backend');
         }
       } else {
-        const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc, required_services: couponServices } : p);
+        const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, name: cpName, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc, required_services: couponServices } : p);
         saveDB({ promos: updated });
         addActivity('Settings', `Edited coupon: ${cpCode}`);
       }
       
+      setCpName('');
       setCpCode('');
       setCpValue('');
       setCpDesc('');
@@ -3315,8 +3319,11 @@ export const AdminPortal: React.FC = () => {
               {db.promos.map(p => (
                 <div key={p.code} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <strong>Code: {p.code}</strong>
-                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ fontSize: '1.05rem', color: '#1e293b' }}>{p.name || 'Unnamed Offer'}</strong>
+                      <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{p.code}</span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
                     {(p as any).required_services && (p as any).required_services.length > 0 && (
                       <div style={{ marginTop: '6px', padding: '6px', background: '#e2e8f0', borderRadius: '4px', fontSize: '0.75rem' }}>
                         <strong>Package Includes:</strong>
@@ -3460,8 +3467,12 @@ export const AdminPortal: React.FC = () => {
               handleSaveCoupon(e);
             }} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Name (Generates Code)</label>
-                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="e.g. SUMMER SPECIAL" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Name</label>
+                <input type="text" required value={cpName} onChange={e => setCpName(e.target.value)} placeholder="e.g. Summer Special" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Code (Generates Code)</label>
+                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="e.g. SUMMERSPECIAL" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div style={{ marginBottom: '8px' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Discount Value (%)</label>
