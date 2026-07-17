@@ -258,13 +258,42 @@ export const CustomerPortal: React.FC = () => {
   }, [db.activeCompanyId]);
 
   // Sidebar Menu State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'support' | 'reviews' | 'profile'>(() => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'invoices' | 'wallet' | 'addresses' | 'support' | 'reviews' | 'profile' | 'offers'>(() => {
     return (localStorage.getItem('ll_active_customer_tab') as any) || 'dashboard';
   });
 
   useEffect(() => {
     localStorage.setItem('ll_active_customer_tab', activeTab);
   }, [activeTab]);
+
+  const [backendPromos, setBackendPromos] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchPromos = async () => {
+      try {
+        const token = localStorage.getItem('ll_auth_token');
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const res = await fetch(`${BASE_URL}/api/v1/coupons`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setBackendPromos(data.map((c: any) => ({
+            id: c.id,
+            code: c.code,
+            type: c.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
+            value: parseFloat(c.value),
+            description: `Expires: ${c.expiry_date || 'Never'}`,
+            required_services: c.required_services
+          })));
+        } else {
+          setBackendPromos(db.promos);
+        }
+      } catch (e) {
+        setBackendPromos(db.promos);
+      }
+    };
+    fetchPromos();
+  }, [db.promos]);
 
   // Customer profile details
   const [profName, setProfName] = useState('');
@@ -858,6 +887,7 @@ export const CustomerPortal: React.FC = () => {
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '10px 16px', WebkitOverflowScrolling: 'touch' }}>
             <button onClick={() => setActiveTab('dashboard')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'dashboard' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 Bookings</button>
             <button onClick={() => setActiveTab('services')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'services' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'services' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🏷️ Rates</button>
+            <button onClick={() => setActiveTab('offers')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'offers' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'offers' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎁 Offers</button>
             <button onClick={() => setActiveTab('invoices')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'invoices' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'invoices' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🧾 Invoices</button>
             <button onClick={() => setActiveTab('wallet')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'wallet' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'wallet' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>💳 Wallet</button>
             <button onClick={() => setActiveTab('support')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'support' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'support' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎫 Support</button>
@@ -895,6 +925,9 @@ export const CustomerPortal: React.FC = () => {
               </li>
               <li onClick={() => setActiveTab('services')} className={`sidebar-menu-item ${activeTab === 'services' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'services' ? '#2563eb' : '#475569', background: activeTab === 'services' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 🏷️ <span>Service Rates</span>
+              </li>
+              <li onClick={() => setActiveTab('offers')} className={`sidebar-menu-item ${activeTab === 'offers' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'offers' ? '#2563eb' : '#475569', background: activeTab === 'offers' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                🎁 <span>Special Offers</span>
               </li>
               <li onClick={() => setActiveTab('invoices')} className={`sidebar-menu-item ${activeTab === 'invoices' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'invoices' ? '#2563eb' : '#475569', background: activeTab === 'invoices' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 🧾 <span>Invoices</span>
@@ -943,7 +976,7 @@ export const CustomerPortal: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', gap: '12px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800', color: '#0f172a' }}>
-              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
+              {activeTab === 'dashboard' ? 'My Bookings & Timeline' : activeTab === 'services' ? 'Laundry Rates' : activeTab === 'offers' ? 'Special Offers & Packages' : activeTab === 'invoices' ? 'My Invoices' : activeTab === 'wallet' ? 'Wallet & Loyalty Points' : activeTab === 'support' ? 'Support Tickets' : activeTab === 'reviews' ? 'Review & Feedback' : 'My Account Settings'}
             </h1>
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginTop: '2px' }}>Customer Portal / {activeTab}</div>
           </div>
@@ -1084,6 +1117,58 @@ export const CustomerPortal: React.FC = () => {
                   );
                 })}
             </div>
+          </div>
+        )}
+
+        {/* OFFERS TAB */}
+        {activeTab === 'offers' && (
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+            {backendPromos.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🎁</div>
+                <h3 style={{ margin: '0 0 8px 0' }}>No active offers</h3>
+                <p style={{ margin: 0, color: '#64748b' }}>Check back later for special discounts and laundry packages!</p>
+              </div>
+            ) : (
+              backendPromos.map(p => (
+                <div key={p.code} style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ background: 'linear-gradient(135deg, #2563eb, #3b82f6)', padding: '20px', color: 'white', position: 'relative' }}>
+                    <div style={{ position: 'absolute', right: '15px', top: '15px', fontSize: '2rem', opacity: 0.8 }}>🏷️</div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', paddingRight: '40px' }}>{p.code}</h3>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '500', opacity: 0.9 }}>
+                      {p.type === 'Percentage' ? `${p.value}% Off Your Order` : `QR ${p.value} Flat Discount`}
+                    </div>
+                  </div>
+                  <div style={{ padding: '20px', flex: 1 }}>
+                    {p.type === 'Percentage' && (p as any).required_services && (p as any).required_services.length > 0 ? (
+                      <>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#475569' }}>This package includes:</h4>
+                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {(p as any).required_services.map((rs: any, idx: number) => (
+                            <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
+                              <span style={{ fontWeight: '600', color: '#1e293b' }}>{rs.name}</span>
+                              <span style={{ color: '#64748b' }}>x{rs.qty}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: '1.5' }}>
+                        Use code <strong style={{ color: '#2563eb' }}>{p.code}</strong> at checkout to get {p.type === 'Percentage' ? `${p.value}%` : `QR ${p.value}`} off your next order.
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'center' }}>
+                    <button 
+                      onClick={() => setActiveTab('dashboard')} 
+                      style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

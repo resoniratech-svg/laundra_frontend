@@ -195,6 +195,8 @@ export const AdminPortal: React.FC = () => {
   const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Percentage');
   const [cpValue, setCpValue] = useState('');
   const [cpDesc, setCpDesc] = useState('');
+  const [couponServices, setCouponServices] = useState<any[]>([]);
+  const [cpActiveCategory, setCpActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
 
   // Expense Forms
   const [backendExpenses, setBackendExpenses] = useState<any[]>([]);
@@ -1586,7 +1588,13 @@ export const AdminPortal: React.FC = () => {
         code: cpCode,
         discount_type: cpType === 'Percentage' ? 'PERCENTAGE' : 'FLAT',
         value: parseFloat(cpValue) || 0,
-        expiry_date: '2099-12-31'
+        expiry_date: '2099-12-31',
+        required_services: couponServices.length > 0 ? couponServices.map(s => ({
+          service_id: s.id,
+          qty: s.qty,
+          name: s.name,
+          price: s.price
+        })) : null
       };
 
       if (!editingCoupon) {
@@ -1607,7 +1615,8 @@ export const AdminPortal: React.FC = () => {
             type: data.discount_type === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount',
             value: parseFloat(data.value),
             description: `Expires: ${data.expiry_date || 'Never'}`,
-            uses: 0
+            uses: 0,
+            required_services: data.required_services
           };
           saveDB({ promos: [...db.promos, newPromo] });
           addActivity('Settings', `Created coupon: ${cpCode}`);
@@ -1615,16 +1624,16 @@ export const AdminPortal: React.FC = () => {
           alert('Failed to save coupon to backend');
         }
       } else {
-        // Edit logic skipped for brevity since backend doesn't have PUT /coupons yet.
-        const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc } : p);
+        const updated = db.promos.map(p => p.code === editingCoupon.code ? { ...p, code: cpCode, type: cpType, value: parseFloat(cpValue) || 0, description: cpDesc, required_services: couponServices } : p);
         saveDB({ promos: updated });
         addActivity('Settings', `Edited coupon: ${cpCode}`);
-        setEditingCoupon(null);
       }
       
       setCpCode('');
       setCpValue('');
       setCpDesc('');
+      setCouponServices([]);
+      setEditingCoupon(null);
     } catch (err) {
       console.error('Error saving coupon', err);
     }
@@ -3303,38 +3312,169 @@ export const AdminPortal: React.FC = () => {
                   <div>
                     <strong>Code: {p.code}</strong>
                     <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
+                    {(p as any).required_services && (p as any).required_services.length > 0 && (
+                      <div style={{ marginTop: '6px', padding: '6px', background: '#e2e8f0', borderRadius: '4px', fontSize: '0.75rem' }}>
+                        <strong>Package Includes:</strong>
+                        <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                          {(p as any).required_services.map((rs: any, idx: number) => (
+                            <li key={idx}>{rs.name} (Qty: {rs.qty})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                  <button onClick={() => handleDeleteCoupon((p as any).id, p.code)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
+                  <button onClick={() => handleDeleteCoupon((p as any).id, p.code)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑️</button>
                 </div>
               ))}
             </div>
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>➕ Create Coupon</h4>
-            <form onSubmit={handleSaveCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Coupon Code</label>
-                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Type</label>
-                  <select value={cpType} onChange={e => setCpType(e.target.value as any)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                    <option value="Percentage">Percentage</option>
-                    <option value="Flat">Flat Discount</option>
-                  </select>
+            <h4 style={{ margin: '0 0 12px 0' }}>➕ Create Package / Bundle Coupon</h4>
+            
+            <div style={{ marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '0.85rem' }}>Select Services for Bundle:</strong>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['Pressing', 'Wash & Press', 'Dry Cleaning'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCpActiveCategory(cat)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: cpActiveCategory === cat ? 'none' : '1px solid #cbd5e1',
+                        background: cpActiveCategory === cat ? '#2563eb' : '#f8fafc',
+                        color: cpActiveCategory === cat ? 'white' : '#1e293b',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {cat === 'Pressing' ? '💨 Pressing' : cat === 'Wash & Press' ? '🧺 Wash & Clean' : '✨ Dry Cleaning'}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Value</label>
-                  <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div style={{ maxHeight: '250px', overflowY: 'auto', marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px' }}>
+                {backendServices.filter(s => s.category === cpActiveCategory).map(s => {
+                  const hasNormal = s.price !== null && s.price !== undefined;
+                  const hasExpress = s.express_price !== null && s.express_price !== undefined;
+                  
+                  return (
+                    <div 
+                      key={s.id} 
+                      style={{ 
+                        padding: '10px 4px', 
+                        border: '1.5px solid #cbd5e1', 
+                        borderRadius: '12px', 
+                        background: '#ffffff', 
+                        textAlign: 'center',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(s.name)}</div>
+                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{s.name}</div>
+                      
+                      <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
+                        {hasNormal ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const variantId = `normal_${s.id}`;
+                              const existing = couponServices.find(cs => cs.id === variantId);
+                              if (existing) {
+                                setCouponServices(couponServices.map(cs => cs.id === variantId ? { ...cs, qty: cs.qty + 1 } : cs));
+                              } else {
+                                setCouponServices([...couponServices, { id: variantId, name: s.name, price: Number(s.price) || 0, qty: 1 }]);
+                              }
+                            }}
+                            style={{ flex: 1, padding: '4px 2px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            Normal<br/>QR {parseFloat(s.price).toFixed(1)}
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                        )}
+
+                        {hasExpress ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const variantId = `express_${s.id}`;
+                              const existing = couponServices.find(cs => cs.id === variantId);
+                              if (existing) {
+                                setCouponServices(couponServices.map(cs => cs.id === variantId ? { ...cs, qty: cs.qty + 1 } : cs));
+                              } else {
+                                setCouponServices([...couponServices, { id: variantId, name: `${s.name} (Express)`, price: Number(s.express_price) || 0, qty: 1 }]);
+                              }
+                            }}
+                            style={{ flex: 1, padding: '4px 2px', background: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            Express<br/>QR {parseFloat(s.express_price).toFixed(1)}
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {couponServices.length > 0 && (
+                <div style={{ marginTop: '12px', background: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
+                  <strong style={{ fontSize: '0.8rem' }}>Selected Bundle Items:</strong>
+                  {couponServices.map(cs => (
+                    <div key={cs.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: '4px' }}>
+                      <span>{cs.name} x {cs.qty}</span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <span>QR {(cs.price * cs.qty).toFixed(2)}</span>
+                        <button type="button" onClick={() => setCouponServices(couponServices.filter(item => item.id !== cs.id))} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: '1px solid #cbd5e1', marginTop: '8px', paddingTop: '4px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    Overall Regular Price: QR {couponServices.reduce((acc, curr) => acc + (curr.price * curr.qty), 0).toFixed(2)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={(e) => {
+              if (couponServices.length === 0 && cpType === 'Flat') {
+                // If they just want a standard flat discount without bundle services, that's fine too.
+              }
+              handleSaveCoupon(e);
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Name (Generates Code)</label>
+                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="e.g. SUMMER SPECIAL" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Discount Value (%)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} placeholder="e.g. 15" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <span style={{ fontWeight: '700', color: '#64748b', fontSize: '1.2rem' }}>%</span>
                 </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Description</label>
-                <input type="text" value={cpDesc} onChange={e => setCpDesc(e.target.value)} placeholder="Summer holiday special discount..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Save Coupon</button>
+              
+              {couponServices.length > 0 && cpValue && !isNaN(parseFloat(cpValue)) && (
+                <div style={{ padding: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#166534' }}>Total Offer Price Amount:</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#15803d' }}>
+                    QR {(couponServices.reduce((acc, curr) => acc + (curr.price * curr.qty), 0) * (1 - parseFloat(cpValue) / 100)).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Save Package Coupon</button>
             </form>
           </div>
 
