@@ -2708,6 +2708,7 @@ export const AdminPortal: React.FC = () => {
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
                   <th style={{ padding: '12px' }}>Order ID</th>
                   <th style={{ padding: '12px' }}>Customer</th>
+                  <th style={{ padding: '12px' }}>Customer Number</th>
                   <th style={{ padding: '12px' }}>Order Date</th>
                   <th style={{ padding: '12px' }}>Delivery Date</th>
                   <th style={{ padding: '12px' }}>Total Amount</th>
@@ -2730,6 +2731,7 @@ export const AdminPortal: React.FC = () => {
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
                       <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
                       <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || 'Not Delivered'}</td>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#1e3a8a' }}>QR {o.totalAmount.toFixed(2)}</td>
