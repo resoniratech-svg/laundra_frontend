@@ -4210,13 +4210,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.deliveredDate || 'Not Delivered'}</div>
               </div>
-              <div style={{ display: 'flex' }}>
-                <div style={{ width: '130px' }}>
-                  <div style={{ fontWeight: '700' }}>Delivery Type</div>
-                  <div style={{ fontSize: '0.7rem' }}>نوع التوصيل</div>
-                </div>
-                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.deliveryType || 'TAKE AWAY'}</div>
-              </div>
+
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '130px' }}>
                   <div style={{ fontWeight: '700' }}>Customer Name</div>
@@ -4243,7 +4237,7 @@ export const AdminPortal: React.FC = () => {
                   <div style={{ fontWeight: '700' }}>Payment Status</div>
                   <div style={{ fontSize: '0.7rem' }}>حالة الدفع</div>
                 </div>
-                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.paymentStatus || 'UNPAID'} ({viewingInvoice.paymentMethod || 'CASH'})</div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.paymentStatus || 'UNPAID'}</div>
               </div>
             </div>
 
@@ -4303,7 +4297,7 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {safeTotal.toFixed(2)}</div>
               </div>
               {viewingInvoice.paymentMethod === 'Pay Later' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem', color: '#ef4444' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '0.9rem', color: '#000' }}>
                   <div style={{ fontWeight: '800', lineHeight: '1.2' }}>Due Amount<br/>المبلغ المستحق</div>
                   <div style={{ fontWeight: '900', alignSelf: 'center' }}>QR {safeTotal.toFixed(2)}</div>
                 </div>
@@ -4377,10 +4371,7 @@ export const AdminPortal: React.FC = () => {
                             <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
                             <div class="col-val">: ${viewingInvoice.deliveredDate || 'Not Delivered'}</div>
                           </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Delivery Type</div><div class="lbl-ar">نوع التوصيل</div></div>
-                            <div class="col-val">: ${viewingInvoice.deliveryType || 'TAKE AWAY'}</div>
-                          </div>
+
                           <div class="row">
                             <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
                             <div class="col-val">: ${viewingInvoice.customerName}</div>
@@ -4395,7 +4386,7 @@ export const AdminPortal: React.FC = () => {
                           </div>
                           <div class="row">
                             <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
-                            <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'} (${viewingInvoice.paymentMethod || 'CASH'})</div>
+                            <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'}</div>
                           </div>
 
                           <div class="divider"></div>
@@ -4454,7 +4445,7 @@ export const AdminPortal: React.FC = () => {
                               <div class="bold">QR ${safeTotal.toFixed(2)}</div>
                             </div>
                             ${viewingInvoice.paymentMethod === 'Pay Later' ? `
-                              <div class="totals-row" style="font-size: 16px; color: #000;">
+                              <div class="totals-row" style="font-size: 13px; color: #000;">
                                 <div class="bold">Due Amount المبلغ المستحق</div>
                                 <div class="bold">QR ${safeTotal.toFixed(2)}</div>
                               </div>
