@@ -160,6 +160,7 @@ export const AdminPortal: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
   const [showCustDropdown, setShowCustDropdown] = useState(false);
+  const [showGuestFields, setShowGuestFields] = useState(false);
   const [posCouponCode, setPosCouponCode] = useState('');
   const [posCouponApplied, setPosCouponApplied] = useState(false);
   const [posPrepaidQRToken, setPosPrepaidQRToken] = useState('');
@@ -3449,7 +3450,26 @@ export const AdminPortal: React.FC = () => {
             {/* Customer select with search option */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', position: 'relative' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Select Customer</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700' }}>Select Customer</label>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowGuestFields(!showGuestFields);
+                      if (!showGuestFields) {
+                        setPosCustId('');
+                        setPosCustName('');
+                        setPosCustPhone('');
+                        setPosCustEmail('');
+                        setPosCustAddress('');
+                        setPosCustomerSearch('');
+                      }
+                    }}
+                    style={{ fontSize: '0.75rem', fontWeight: '700', color: '#2563eb', background: '#eff6ff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    + New Customer
+                  </button>
+                </div>
                 
                 {/* Search Input field */}
                 <div ref={custDropdownRef} style={{ display: 'flex', gap: '6px', position: 'relative' }}>
@@ -3500,6 +3520,7 @@ export const AdminPortal: React.FC = () => {
                           setPosCustAddress('');
                           setPosCustomerSearch('');
                           setShowCustDropdown(false);
+                          setShowGuestFields(true);
                         }}
                         style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#1e293b', fontWeight: '700', background: posCustId === '' ? '#f0f9ff' : 'transparent' }}
                       >
@@ -3555,8 +3576,9 @@ export const AdminPortal: React.FC = () => {
 
 
               {posCustId === '' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div>
+                showGuestFields && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Customer Name</label>
                     <input type="text" value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
@@ -3577,7 +3599,8 @@ export const AdminPortal: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Physical Address</label>
                     <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Enter guest address..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
-                </div>
+                  </div>
+                )
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
