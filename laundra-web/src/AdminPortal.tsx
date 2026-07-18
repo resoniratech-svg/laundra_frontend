@@ -852,7 +852,8 @@ export const AdminPortal: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(`Failed to create customer: ${data.detail || 'Unknown error'}`);
+        const errMsg = data.message || data.detail || (data.errors ? JSON.stringify(data.errors) : 'Unknown error');
+        alert(`Failed to create customer: ${errMsg}`);
         return;
       }
 
@@ -949,7 +950,7 @@ export const AdminPortal: React.FC = () => {
         setSelectedPrepaidPackage('');
         setAppliedCouponCode('');
       } else {
-        alert(data.detail || 'Failed to purchase package');
+        alert(data.message || data.detail || 'Failed to purchase package');
       }
     })
     .catch(err => {
