@@ -192,6 +192,7 @@ export const AdminPortal: React.FC = () => {
 
   // Wallet / Loyalty adjustments
   const [walletCust, setWalletCust] = useState<Customer | null>(null);
+  const [viewingWalletHistoryCust, setViewingWalletHistoryCust] = useState<Customer | null>(null);
   const [walletAmt, setWalletAmt] = useState('');
   const [walletDir, setWalletDir] = useState<'in' | 'out'>('in');
   const [loyaltyCust, setLoyaltyCust] = useState<Customer | null>(null);
@@ -401,18 +402,22 @@ export const AdminPortal: React.FC = () => {
       if (custRes.ok) {
         const cData = await custRes.json();
         // Map backend customers to the local Customer format
-        const mapped = cData.map((c: any) => ({
-          id: c.id,
-          name: c.name || '',
-          phone: c.phone || '',
-          email: c.email || '',
-          address: c.address || '',
-          walletBalance: parseFloat(c.wallet_balance || '0'),
-          loyaltyPoints: c.loyalty_points || 0,
-          creditBalance: 0,
-          notes: '',
-          qrStatus: 'Active QR' as const
-        }));
+        const mapped = cData.map((c: any) => {
+          const existingCust = db.customers.find(dc => dc.id === c.id);
+          return {
+            id: c.id,
+            name: c.name || '',
+            phone: c.phone || '',
+            email: c.email || '',
+            address: c.address || '',
+            walletBalance: parseFloat(c.wallet_balance || '0'),
+            loyaltyPoints: c.loyalty_points || 0,
+            creditBalance: 0,
+            notes: existingCust?.notes || '',
+            qrStatus: existingCust?.qrStatus || ('Active QR' as const),
+            walletHistory: existingCust?.walletHistory || []
+          };
+        });
         allCustomers = mapped;
         if (mapped.length > 0) {
           saveDB({ customers: mapped });
@@ -1467,7 +1472,18 @@ export const AdminPortal: React.FC = () => {
             alert('Insufficient customer wallet balance!');
             return;
           }
-          updatedCustomers = updatedCustomers.map(c => c.id === posCustId ? { ...c, walletBalance: c.walletBalance - total } : c);
+          updatedCustomers = updatedCustomers.map(c => {
+            if (c.id === posCustId) {
+              const hist = [...(c.walletHistory || []), {
+                date: new Date().toLocaleString(),
+                amount: total,
+                type: 'use' as const,
+                note: `Order #${newOrderId}`
+              }];
+              return { ...c, walletBalance: c.walletBalance - total, walletHistory: hist };
+            }
+            return c;
+          });
         }
         
         // Also update the customer's profile if they changed it in the POS
@@ -1891,7 +1907,13 @@ export const AdminPortal: React.FC = () => {
         console.warn('Failed to update wallet on backend, updating locally anyway.');
       }
 
-      const updated = db.customers.map(c => c.id === walletCust.id ? { ...c, walletBalance: finalBalance } : c);
+      const newHist = {
+        date: new Date().toLocaleString(),
+        amount: Math.abs(diff),
+        type: diff >= 0 ? 'add' as const : 'use' as const,
+        note: 'Manual adjustment'
+      };
+      const updated = db.customers.map(c => c.id === walletCust.id ? { ...c, walletBalance: finalBalance, walletHistory: [...(c.walletHistory || []), newHist] } : c);
       saveDB({ customers: updated });
       addActivity('Payment', `Adjusted wallet for customer ${walletCust.name}: ${diff > 0 ? '+' : ''}${diff} QR`);
       setWalletCust(null);
@@ -3954,6 +3976,7 @@ export const AdminPortal: React.FC = () => {
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
                   <td style={{ padding: '10px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setViewingWalletHistoryCust(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
                       <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Add to Wallet</button>
                       <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Add Loyalty</button>
                     </div>
@@ -5332,6 +5355,36 @@ export const AdminPortal: React.FC = () => {
       )}
 
     </PortalLayout>
+
+      {/* WALLET HISTORY MODAL */}
+      {viewingWalletHistoryCust && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Wallet History: {viewingWalletHistoryCust.name}</h3>
+              <button onClick={() => setViewingWalletHistoryCust(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+            <div style={{ padding: '24px', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(!viewingWalletHistoryCust.walletHistory || viewingWalletHistoryCust.walletHistory.length === 0) ? (
+                <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No wallet history found.</div>
+              ) : (
+                viewingWalletHistoryCust.walletHistory.slice().reverse().map((h, i) => (
+                  <div key={i} style={{ padding: '12px', background: h.amount === 0 ? '#1e293b' : '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: h.amount === 0 ? '#fff' : '#0f172a' }}>{h.note || 'Wallet Adjustment'}</div>
+                      <div style={{ fontSize: '0.75rem', color: h.amount === 0 ? '#cbd5e1' : '#64748b' }}>{h.date}</div>
+                    </div>
+                    <div style={{ fontWeight: '800', color: h.amount === 0 ? '#fff' : (h.type === 'add' ? '#ca8a04' : '#6b7280') }}>
+                      {h.type === 'add' ? '+' : (h.amount === 0 ? '' : '-')}QR {h.amount.toFixed(2)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 };

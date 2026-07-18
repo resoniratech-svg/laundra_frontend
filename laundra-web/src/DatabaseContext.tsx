@@ -54,6 +54,7 @@ export interface Customer {
   subDuration?: string;
   password?: string;
   qrStatus?: 'Active QR' | 'Regenerated' | 'Disabled' | 'Shared via WhatsApp' | 'Not Shared Yet';
+  walletHistory?: { date: string; amount: number; type: 'add' | 'use'; note?: string }[];
 }
 
 export interface Order {
