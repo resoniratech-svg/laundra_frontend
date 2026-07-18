@@ -57,6 +57,8 @@ export const AdminPortal: React.FC = () => {
   // Announcement composer state
   const [annTitle, setAnnTitle] = useState('');
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [annContent, setAnnContent] = useState('');
   const [annAudience, setAnnAudience] = useState<'All' | 'Delivery Staff' | 'Customers'>('All');
 
@@ -3040,6 +3042,7 @@ export const AdminPortal: React.FC = () => {
           </div>
 
         </div>
+        </div>
       )}
 
       {activeModule === 'pos' && (
@@ -3215,8 +3218,8 @@ export const AdminPortal: React.FC = () => {
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px', paddingTop: '20px', paddingBottom: '8px', borderTop: '1px solid #e2e8f0', justifyContent: 'center' }}>
               <button type="button" onClick={() => setShowCustomerModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>👥 Customer Management</button>
-              <button type="button" onClick={() => setActiveModule('orders')} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📦 Order Management</button>
-              <button type="button" onClick={() => setActiveModule('reports')} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📊 Business Reports</button>
+              <button type="button" onClick={() => setShowOrderModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📦 Order Management</button>
+              <button type="button" onClick={() => setShowReportModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📊 Business Reports</button>
             </div>
           </div>
 
@@ -3867,8 +3870,26 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* 📊 BUSINESS REPORTS TAB */}
-      {activeModule === 'reports' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* 📊 BUSINESS REPORTS TAB */}
+      {(activeModule === 'reports' || showReportModal) && (
+        <div style={showReportModal ? {
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
+        } : { display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          <div style={showReportModal ? {
+            background: '#f8fafc', padding: '24px', borderRadius: '16px', 
+            width: '95%', maxWidth: '1600px', maxHeight: '95vh', overflowY: 'auto',
+            display: 'flex', flexDirection: 'column', gap: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          } : { display: 'contents' }}>
+
+            {showReportModal && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '12px', marginBottom: '8px' }}>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Business Reports</h2>
+                <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>✖</button>
+              </div>
+            )}
           
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>📈 Sales & Performance Reports Console</h4>
@@ -3889,6 +3910,7 @@ export const AdminPortal: React.FC = () => {
             </div>
           </div>
 
+        </div>
         </div>
       )}
 
