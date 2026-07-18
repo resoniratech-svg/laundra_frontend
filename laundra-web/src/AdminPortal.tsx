@@ -5359,28 +5359,51 @@ export const AdminPortal: React.FC = () => {
       {/* WALLET HISTORY MODAL */}
       {viewingWalletHistoryCust && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Wallet History: {viewingWalletHistoryCust.name}</h3>
-              <button onClick={() => setViewingWalletHistoryCust(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+          <div style={{ background: '#9ca3af', borderRadius: '16px', width: '100%', maxWidth: '340px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <button onClick={() => setViewingWalletHistoryCust(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', opacity: 0.8 }}>✕</button>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', color: 'white', marginBottom: '40px' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: '400', letterSpacing: '2px' }}>l a u n d r a</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '2px' }}>Customer</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: '600' }}>{viewingWalletHistoryCust.name}</div>
+              </div>
             </div>
-            <div style={{ padding: '24px', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {(!viewingWalletHistoryCust.walletHistory || viewingWalletHistoryCust.walletHistory.length === 0) ? (
-                <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No wallet history found.</div>
-              ) : (
-                viewingWalletHistoryCust.walletHistory.slice().reverse().map((h, i) => (
-                  <div key={i} style={{ padding: '12px', background: h.amount === 0 ? '#1e293b' : '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: h.amount === 0 ? '#fff' : '#0f172a' }}>{h.note || 'Wallet Adjustment'}</div>
-                      <div style={{ fontSize: '0.75rem', color: h.amount === 0 ? '#cbd5e1' : '#64748b' }}>{h.date}</div>
-                    </div>
-                    <div style={{ fontWeight: '800', color: h.amount === 0 ? '#fff' : (h.type === 'add' ? '#ca8a04' : '#6b7280') }}>
-                      {h.type === 'add' ? '+' : (h.amount === 0 ? '' : '-')}QR {h.amount.toFixed(2)}
-                    </div>
-                  </div>
-                ))
-              )}
+
+            {/* Icons Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', padding: '0 10px' }}>
+               {[1, 2, 3, 4, 5].map(i => (
+                 <span key={i} style={{ fontSize: '1.8rem', filter: (viewingWalletHistoryCust.loyaltyPoints >= (i*20)) ? 'none' : 'grayscale(100%) opacity(50%)' }}>⭐</span>
+               ))}
             </div>
+
+            {/* Stats Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', marginBottom: '40px' }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '4px' }}>Loyalty Points</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: '400' }}>{viewingWalletHistoryCust.loyaltyPoints}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '4px' }}>Wallet Balance</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: '400' }}>QR {viewingWalletHistoryCust.walletBalance.toFixed(2)}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '4px' }}>Status</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: '400' }}>{viewingWalletHistoryCust.loyaltyPoints > 100 ? 'Gold' : 'Silver'}</div>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'auto' }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${viewingWalletHistoryCust.id}`)}`} 
+                alt="QR" 
+                style={{ width: '160px', height: '160px', marginBottom: '8px' }} 
+              />
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>Powered by Enable.tech</div>
+            </div>
+
           </div>
         </div>
       )}
