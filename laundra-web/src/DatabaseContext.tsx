@@ -225,6 +225,39 @@ export interface LeaveRequest {
   createdAt: string;
 }
 
+export interface PrepaidPackage {
+  id: string;
+  name: string;
+  description: string;
+  value: number;
+  validityDays: number;
+  applicableServices: string[];
+  status: 'Active' | 'Inactive';
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountAmount?: number;
+  discountPercent?: number;
+  minPurchase?: number;
+  status: 'Active' | 'Inactive';
+}
+
+export interface CustomerPackage {
+  id: string;
+  packageId: string;
+  customerId: string;
+  packageName: string;
+  packageValue: number;
+  currentBalance: number;
+  usedAmount: number;
+  purchaseDate: string;
+  expiryDate: string;
+  status: 'Active' | 'In Use' | 'Low Balance' | 'Completed';
+  qrToken: string;
+}
+
 export interface Database {
   services: Service[];
   items: Item[];
@@ -235,6 +268,9 @@ export interface Database {
   orders: Order[];
   expenses: Expense[];
   promos: Promo[];
+  packages: PrepaidPackage[];
+  coupons: Coupon[];
+  customerPackages: CustomerPackage[];
   notifications: Notification[];
   users: User[];
   drawerCash: number;
@@ -263,6 +299,9 @@ interface DatabaseContextType {
   setOrders: (orders: Order[]) => void;
   setExpenses: (expenses: Expense[]) => void;
   setPromos: (promos: Promo[]) => void;
+  setPackages: (packages: PrepaidPackage[]) => void;
+  setCoupons: (coupons: Coupon[]) => void;
+  setCustomerPackages: (customerPackages: CustomerPackage[]) => void;
   setNotifications: (notifications: Notification[]) => void;
   setUsers: (users: User[]) => void;
   setDrawerCash: (cash: number) => void;
@@ -313,6 +352,19 @@ const DEFAULT_PROMOS: Promo[] = [
   { code: 'EXPRESS5', type: 'Percentage', value: 5, description: 'Save 5% on Express delivery options', uses: 8 },
   { code: 'STAYCLEAN', type: 'Flat', value: 10, description: '$10.00 off on bills above $50.00', uses: 35 }
 ];
+
+const DEFAULT_PACKAGES: PrepaidPackage[] = [
+  { id: 'PKG-001', name: 'Gold Membership', description: 'Premium Laundry Package', value: 5000, validityDays: 365, applicableServices: ['Wash', 'Iron', 'Steam', 'Dry Clean'], status: 'Active' },
+  { id: 'PKG-002', name: 'Silver Starter', description: 'Basic Laundry Package', value: 2000, validityDays: 180, applicableServices: ['Wash', 'Iron'], status: 'Active' }
+];
+
+const DEFAULT_COUPONS: Coupon[] = [
+  { id: 'C-001', code: 'WELCOME500', discountAmount: 500, minPurchase: 2000, status: 'Active' },
+  { id: 'C-002', code: 'FESTIVAL10', discountPercent: 10, status: 'Active' },
+  { id: 'C-003', code: 'VIP1000', discountAmount: 1000, minPurchase: 5000, status: 'Active' }
+];
+
+const DEFAULT_CUSTOMER_PACKAGES: CustomerPackage[] = [];
 
 const DEFAULT_NOTIFICATIONS: Notification[] = [
   { id: 1, text: "New home pickup requested by Selena Gomez.", time: "10 mins ago", unread: true },
@@ -519,6 +571,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
   const [expenses, setExpensesState] = useState<Expense[]>(DEFAULT_EXPENSES);
   const [promos, setPromosState] = useState<Promo[]>(DEFAULT_PROMOS);
+  const [packages, setPackagesState] = useState<PrepaidPackage[]>(DEFAULT_PACKAGES);
+  const [coupons, setCouponsState] = useState<Coupon[]>(DEFAULT_COUPONS);
+  const [customerPackages, setCustomerPackagesState] = useState<CustomerPackage[]>(DEFAULT_CUSTOMER_PACKAGES);
   const [notifications, setNotificationsState] = useState<Notification[]>(DEFAULT_NOTIFICATIONS);
   const [users, setUsersState] = useState<User[]>(DEFAULT_USERS);
   const [drawerCash, setDrawerCashState] = useState<number>(350.00);
@@ -597,6 +652,21 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setPromos = (newVal: Promo[]) => {
     setPromosState(newVal);
     localStorage.setItem(`ll_${activeCompanyIdRef.current}_promos`, JSON.stringify(newVal));
+  };
+
+  const setPackages = (newVal: PrepaidPackage[]) => {
+    setPackagesState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_packages`, JSON.stringify(newVal));
+  };
+
+  const setCoupons = (newVal: Coupon[]) => {
+    setCouponsState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_coupons`, JSON.stringify(newVal));
+  };
+
+  const setCustomerPackages = (newVal: CustomerPackage[]) => {
+    setCustomerPackagesState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_customerPackages`, JSON.stringify(newVal));
   };
 
   const setNotifications = (newVal: Notification[]) => {
@@ -707,6 +777,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadJson('orders', setOrdersState, []);
     loadJson('expenses', setExpensesState, []);
     loadJson('promos', setPromosState, DEFAULT_PROMOS);
+    loadJson('packages', setPackagesState, DEFAULT_PACKAGES);
+    loadJson('coupons', setCouponsState, DEFAULT_COUPONS);
+    loadJson('customerPackages', setCustomerPackagesState, DEFAULT_CUSTOMER_PACKAGES);
     loadJson('notifications', setNotificationsState, []);
     loadJson('announcements', setAnnouncementsState, []);
     loadJson('leaveRequests', setLeaveRequestsState, []);
@@ -1019,6 +1092,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     orders,
     expenses,
     promos,
+    packages,
+    coupons,
+    customerPackages,
     notifications,
     users,
     drawerCash,
@@ -1048,6 +1124,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setOrders,
       setExpenses,
       setPromos,
+      setPackages,
+      setCoupons,
+      setCustomerPackages,
       setNotifications,
       setUsers,
       setDrawerCash,

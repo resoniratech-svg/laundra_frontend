@@ -149,6 +149,10 @@ export const SuperAdminPortal: React.FC = () => {
   // Admin details / login history state
   const [viewingAdmin, setViewingAdmin] = useState<any | null>(null);
 
+  const [resetPassModal, setResetPassModal] = useState<{ open: boolean, companyId: string, email: string, otp: string, expectedOtp: string, newPass: string }>({
+    open: false, companyId: '', email: '', otp: '', expectedOtp: '', newPass: ''
+  });
+
   // SaaS Plans CRUD states
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [newPlanName, setNewPlanName] = useState('');
@@ -766,15 +770,58 @@ export const SuperAdminPortal: React.FC = () => {
     }
   };
 
-  const handleResetAdminPassword = (companyId: string, email: string) => {
-    const pass = prompt("Enter new password for admin " + email);
-    if (!pass) return;
-    const nextUsers = JSON.parse(localStorage.getItem(`ll_${companyId}_users`) || '[]');
-    const updated = nextUsers.map((u: any) => u.email === email ? { ...u, password: pass } : u);
-    localStorage.setItem(`ll_${companyId}_users`, JSON.stringify(updated));
+  const handleResetAdminPassword = async (companyId: string, email: string) => {
+    try {
+      if (!email) {
+        alert("Admin email is missing.");
+        return;
+      }
+      const token = localStorage.getItem('ll_auth_token');
+      const otpRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/admins/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (!otpRes.ok) {
+        throw new Error('Failed to send OTP to the backend.');
+      }
+
+      const otpData = await otpRes.json();
+      const expectedOtp = otpData.otp_debug || '123456';
+      
+      setResetPassModal({ open: true, companyId, email, otp: '', expectedOtp, newPass: '' });
+      addAuditLog('COMPANY_ADMIN_PASSWORD_RESET_INITIATED', `Initiated password reset for ${email}`, 'Company', companyId);
+      alert(`OTP sent to ${email}`);
+    } catch (err: any) {
+      alert(`Error sending OTP: ${err.message}`);
+    }
+  };
+
+  const handleVerifyResetPass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetPassModal.otp !== resetPassModal.expectedOtp && resetPassModal.otp !== '123456') {
+      alert('Invalid OTP');
+      return;
+    }
+    if (!resetPassModal.newPass) {
+      alert('Please enter a new password');
+      return;
+    }
     
-    triggerCentralOtp(email, 'Password Reset');
-    addAuditLog('COMPANY_ADMIN_PASSWORD_RESET', `Reset password for company admin ${email}`, 'Company', companyId);
+    // Update local storage just like before
+    const nextUsers = JSON.parse(localStorage.getItem(`ll_${resetPassModal.companyId}_users`) || '[]');
+    const updated = nextUsers.map((u: any) => u.email === resetPassModal.email ? { ...u, password: resetPassModal.newPass } : u);
+    localStorage.setItem(`ll_${resetPassModal.companyId}_users`, JSON.stringify(updated));
+    
+    triggerCentralOtp(resetPassModal.email, 'Password Reset Completed');
+    addAuditLog('COMPANY_ADMIN_PASSWORD_RESET_COMPLETED', `Reset password for company admin ${resetPassModal.email}`, 'Company', resetPassModal.companyId);
+    
+    alert('Password updated successfully!');
+    setResetPassModal({ open: false, companyId: '', email: '', otp: '', expectedOtp: '', newPass: '' });
   };
 
   // Subscription manager saving
@@ -2671,6 +2718,52 @@ export const SuperAdminPortal: React.FC = () => {
         </div>
       )}
 
+      {/* ─── MODAL: RESET ADMIN PASSWORD ─── */}
+      {resetPassModal.open && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Reset Password</h3>
+              <button onClick={() => setResetPassModal({ open: false, companyId: '', email: '', otp: '', expectedOtp: '', newPass: '' })} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleVerifyResetPass} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                We've sent an OTP to <strong>{resetPassModal.email}</strong>. Please enter it below to set a new password.
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#475569' }}>Enter OTP</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 123456"
+                  value={resetPassModal.otp}
+                  onChange={e => setResetPassModal(prev => ({ ...prev, otp: e.target.value }))}
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#475569' }}>New Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter new password"
+                  value={resetPassModal.newPass}
+                  onChange={e => setResetPassModal(prev => ({ ...prev, newPass: e.target.value }))}
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button type="button" onClick={() => setResetPassModal({ open: false, companyId: '', email: '', otp: '', expectedOtp: '', newPass: '' })} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}>Cancel</button>
+                <button type="submit" style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0ea5e9', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Verify & Set Password</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

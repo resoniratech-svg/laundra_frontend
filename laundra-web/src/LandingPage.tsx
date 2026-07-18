@@ -388,6 +388,7 @@ export const LandingPage: React.FC = () => {
         localStorage.setItem('ll_activerole', 'Cashier');
         localStorage.removeItem('ll_active_delivery_boy');
         localStorage.setItem('ll_active_workspace', 'admin');
+        if (user.created_at) localStorage.setItem('ll_active_user_created_at', user.created_at);
         navigate('/admin');
       } else if (user.role === 'DELIVERY_BOY' || user.role === 'delivery') {
         saveDB({ activeRole: 'Delivery Boy', currentDeliveryBoy: user.name });

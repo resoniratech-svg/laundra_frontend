@@ -117,6 +117,12 @@ export const AdminPortal: React.FC = () => {
   const [payLaterModalOrder, setPayLaterModalOrder] = useState<Order | null>(null);
   const [payLaterSelectedMethod, setPayLaterSelectedMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const [sellingPackageTo, setSellingPackageTo] = useState<Customer | null>(null);
+  const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
+  const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
+  const [packagePaymentMethod, setPackagePaymentMethod] = useState<'Cash' | 'Card' | 'UPI'>('Cash');
+  const [walletPassPreview, setWalletPassPreview] = useState<any>(null);
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
   const [addingDeliveryStep, setAddingDeliveryStep] = useState<number>(0); // OTP flow for Delivery
@@ -131,6 +137,11 @@ export const AdminPortal: React.FC = () => {
   const [custOtp, setCustOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [custCode, setCustCode] = useState('');
+  
+  const [custGender, setCustGender] = useState('');
+  const [custDob, setCustDob] = useState('');
+  const [custGst, setCustGst] = useState('');
+  const [custNotes, setCustNotes] = useState('');
 
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
@@ -154,7 +165,8 @@ export const AdminPortal: React.FC = () => {
   const [posCustPhone, setPosCustPhone] = useState('');
   const [posCustEmail, setPosCustEmail] = useState('');
   const [posCustAddress, setPosCustAddress] = useState('');
-  const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet' | 'Pay Later'>('Cash');
+  const [posPayMethod, setPosPayMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet' | 'Pay Later' | 'Package'>('Cash');
+  const [posSelectedPackageId, setPosSelectedPackageId] = useState<string>('');
   const [posRemark, setPosRemark] = useState('');
   const [posSearch, setPosSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
@@ -165,6 +177,7 @@ export const AdminPortal: React.FC = () => {
   const [posCouponApplied, setPosCouponApplied] = useState(false);
   const [posPrepaidQRToken, setPosPrepaidQRToken] = useState('');
   const [posPrepaidPackageApplied, setPosPrepaidPackageApplied] = useState<any>(null);
+  const [posCustomerPackages, setPosCustomerPackages] = useState<any[]>([]);
   const [posDiscount, setPosDiscount] = useState(0);
   const [customPOSDiscount, setCustomPOSDiscount] = useState<string>('');
   const [posCommission, setPosCommission] = useState<string>('');
@@ -204,7 +217,7 @@ export const AdminPortal: React.FC = () => {
   const [editingCoupon, setEditingCoupon] = useState<Promo | null>(null);
   const [cpName, setCpName] = useState('');
   const [cpCode, setCpCode] = useState('');
-  const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Percentage');
+  const [cpType, setCpType] = useState<'Percentage' | 'Flat'>('Flat');
   const [cpValue, setCpValue] = useState('');
   const [cpStartDate, setCpStartDate] = useState('');
   const [cpEndDate, setCpEndDate] = useState('');
@@ -827,6 +840,10 @@ export const AdminPortal: React.FC = () => {
           email: custEmail.trim() || null,
           phone: custPhone,
           address: custAddress,
+          gender: custGender || null,
+          dob: custDob || null,
+          gst_number: custGst || null,
+          notes: custNotes || null,
           otp: "",
           password: defaultPass,
           referral_code: custCode
@@ -865,7 +882,10 @@ export const AdminPortal: React.FC = () => {
         status: 'Active',
         createdAt: new Date().toISOString()
       };
-
+      setCustGst('');
+      setCustNotes('');
+      setAddingCustomerStep(0);
+      fetchBackendData();
       saveDB({
         customers: [...db.customers, newCust],
         users: [...db.users, newUser]
@@ -879,6 +899,10 @@ export const AdminPortal: React.FC = () => {
       setCustEmail('');
       setCustPhone('');
       setCustAddress('');
+      setCustGender('');
+      setCustDob('');
+      setCustGst('');
+      setCustNotes('');
       setCustPass('');
       setCustOtp('');
       setCustCode('');
@@ -887,6 +911,51 @@ export const AdminPortal: React.FC = () => {
       console.error(err);
       alert('Network error creating customer');
     }
+  };
+
+  const handleConfirmSellPackage = () => {
+    if (!sellingPackageTo || !selectedPrepaidPackage) return;
+    
+    const pkg = backendPrepaidPackages?.find(p => p.id === selectedPrepaidPackage);
+    if (!pkg) return;
+
+    fetch(`${BASE_URL}/api/v1/prepaid-packages/purchase`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        package_id: pkg.id,
+        customer_id: sellingPackageTo.id,
+        coupon_code: appliedCouponCode || undefined
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.id) {
+        // Show mock wallet pass preview instead of traditional alert
+        setWalletPassPreview({
+          ...data,
+          packageValue: data.package_value,
+          customerName: sellingPackageTo.name,
+          finalPaid: data.package_value,
+          apple_wallet_url: data.apple_wallet_url,
+          google_wallet_url: data.google_wallet_url,
+          pass_color: data.pass_color
+        });
+        
+        setSellingPackageTo(null);
+        setSelectedPrepaidPackage('');
+        setAppliedCouponCode('');
+      } else {
+        alert(data.detail || 'Failed to purchase package');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Network error purchasing package');
+    });
   };
 
   // Staff creation actions (Cashier / Delivery boy)
@@ -1405,6 +1474,48 @@ export const AdminPortal: React.FC = () => {
       const val = parseFloat(customPOSAmount);
       if (!isNaN(val)) return val;
     }
+    const cartTotal = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    return Math.max(0, cartTotal - posDiscount);
+  };
+
+  useEffect(() => {
+    if (posCustId && posCustId !== '') {
+      fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${posCustId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setPosCustomerPackages(data.filter(p => p.status === 'Active'));
+        }
+      })
+      .catch(err => console.error(err));
+    } else {
+      setPosCustomerPackages([]);
+    }
+  }, [posCustId]);
+
+  useEffect(() => {
+    if (sellingPackageTo) {
+      fetch(`${BASE_URL}/api/v1/prepaid-packages`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setBackendPrepaidPackages(data);
+        }
+      })
+      .catch(err => console.error(err));
+    }
+  }, [sellingPackageTo]);
+
+  // Derived Values
+  const getSubtotal = () => {
+    if (customPOSAmount !== '') {
+      const val = parseFloat(customPOSAmount);
+      if (!isNaN(val)) return val;
+    }
     const sum = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     const manualDiscount = parseFloat(customPOSDiscount) || 0;
     return Math.max(0, sum - posDiscount - manualDiscount);
@@ -1485,8 +1596,21 @@ export const AdminPortal: React.FC = () => {
             }
             return c;
           });
+        } else if (posPayMethod === 'Package') {
+          if (!posSelectedPackageId) {
+            alert('Please select a valid prepaid package to pay from.');
+            return;
+          }
+          const cPkg = backendCustomerPackages?.find(cp => cp.id === posSelectedPackageId && cp.status === 'ACTIVE');
+          if (!cPkg) {
+            alert('Selected package is invalid or expired.');
+            return;
+          }
+          if (cPkg.current_balance < total) {
+            alert('Insufficient package balance! Package only has ₹' + cPkg.current_balance);
+            return;
+          }
         }
-        
         // Also update the customer's profile if they changed it in the POS
         updatedCustomers = updatedCustomers.map(c => c.id === posCustId ? { ...c, phone: posCustPhone, address: posCustAddress } : c);
       }
@@ -1516,7 +1640,8 @@ export const AdminPortal: React.FC = () => {
             customer_id: posCustId,
             items: itemsPayload,
             coupon_code: posCouponApplied ? posCouponCode : null,
-            is_express: posCart.some(i => i.variantName === 'Express')
+            is_express: posCart.some(i => i.variantName === 'Express'),
+            pay_with_package_id: (posPayMethod === 'Package' && posSelectedPackageId) ? posSelectedPackageId : null
           })
         });
         if (res.ok) {
@@ -1670,123 +1795,134 @@ export const AdminPortal: React.FC = () => {
           </style>
         </head>
         <body>
-          <h2>${invoiceCompName}</h2>
-          ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
-          ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
-          
-          <div class="divider"></div>
-          <div class="center bold" style="font-size: 16px;">Customer Copy</div>
-          <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
-          <div class="divider"></div>
+          ${(() => {
+            const renderReceipt = (isCustomerCopy: boolean) => `
+              <h2>${invoiceCompName}</h2>
+              ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
+              ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
+              
+              <div class="divider"></div>
+              ${isCustomerCopy ? `
+              <div class="center bold" style="font-size: 16px;">Customer Copy</div>
+              <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
+              <div class="divider"></div>
+              ` : `
+              <div class="center bold" style="font-size: 16px;">Store Copy</div>
+              <div class="center bold" style="font-size: 16px;">نسخة المتجر</div>
+              <div class="divider"></div>
+              `}
 
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
-            <div class="col-val">: ${invoice.id}</div>
-          </div>
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
-            <div class="col-val">: ${invoice.date}</div>
-          </div>
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
-            <div class="col-val">: ${invoice.deliveredDate || 'Not Delivered'}</div>
-          </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
+                <div class="col-val">: ${invoice.id}</div>
+              </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
+                <div class="col-val">: ${invoice.date}</div>
+              </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
+                <div class="col-val">: ${invoice.deliveredDate || 'Not Delivered'}</div>
+              </div>
 
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
-            <div class="col-val">: ${invoice.customerName}</div>
-          </div>
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
-            <div class="col-val">: ${custPhone}</div>
-          </div>
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
-            <div class="col-val">: ${custAddr}</div>
-          </div>
-          <div class="row">
-            <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
-            <div class="col-val">: ${invoice.paymentStatus || 'UNPAID'}</div>
-          </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
+                <div class="col-val">: ${invoice.customerName}</div>
+              </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
+                <div class="col-val">: ${custPhone}</div>
+              </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
+                <div class="col-val">: ${custAddr}</div>
+              </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
+                <div class="col-val">: ${invoice.paymentStatus || 'UNPAID'}</div>
+              </div>
 
-          <div class="divider"></div>
-          
-          <div class="table-hdr">
-            <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
-            <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
-            <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
-            <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
-            <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
-          </div>
+              <div class="divider"></div>
+              
+              <div class="table-hdr">
+                <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
+                <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
+                <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
+                <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
+                <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
+              </div>
 
-          ${invoice.services && invoice.services.length > 0 ? 
-            invoice.services.map((s: any) => {
-              const sPrice = Number(s.price || 0);
-              const sQty = Number(s.qty || 1);
-              const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
-              return `
-                <div class="table-row">
-                  <div style="flex: 2; font-weight: bold">${s.name}</div>
-                  <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
-                  <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
-                  <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
-                  <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+              ${invoice.services && invoice.services.length > 0 ? 
+                invoice.services.map((s: any) => {
+                  const sPrice = Number(s.price || 0);
+                  const sQty = Number(s.qty || 1);
+                  const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
+                  return `
+                    <div class="table-row">
+                      <div style="flex: 2; font-weight: bold">${s.name}</div>
+                      <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
+                      <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
+                      <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
+                      <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+                    </div>
+                  `;
+                }).join('') : `
+                  <div class="table-row">
+                    <div style="flex: 4; font-weight: bold">${invoice.weightItems || 'Standard Laundry'}</div>
+                    <div style="flex: 1; text-align: center; font-weight: bold">1</div>
+                    <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
+                    <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
+                  </div>
+                `
+              }
+
+              <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
+                <div class="totals-row">
+                  <div>Total Quantity عدد القطع</div>
+                  <div class="bold">${invoice.services ? invoice.services.reduce((acc: number, s: any) => acc + Number(s.qty || 1), 0) : 1}</div>
                 </div>
-              `;
-            }).join('') : `
-              <div class="table-row">
-                <div style="flex: 4; font-weight: bold">${invoice.weightItems || 'Standard Laundry'}</div>
-                <div style="flex: 1; text-align: center; font-weight: bold">1</div>
-                <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
-                <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
+                <div class="totals-row">
+                  <div>Total Bill Amnt مبلغ الفاتورة</div>
+                  <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
+                </div>
+                <div class="totals-row">
+                  <div>Discount خصم</div>
+                  <div class="bold">${safeDiscount.toFixed(2)}</div>
+                </div>
+                <div class="totals-row" style="font-size: 14px;">
+                  <div class="bold">Total Amount مبلغ</div>
+                  <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                </div>
+                <div class="totals-row" style="font-size: 16px;">
+                  <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
+                  <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                </div>
+                ${invoice.paymentMethod === 'Pay Later' ? `
+                  <div class="totals-row" style="font-size: 13px; color: #000;">
+                    <div class="bold">Due Amount المبلغ المستحق</div>
+                    <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                  </div>
+                ` : ''}
               </div>
-            `
-          }
 
-          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
-            <div class="totals-row">
-              <div>Total Quantity عدد القطع</div>
-              <div class="bold">${invoice.services ? invoice.services.reduce((acc: number, s: any) => acc + Number(s.qty || 1), 0) : 1}</div>
-            </div>
-            <div class="totals-row">
-              <div>Total Bill Amnt مبلغ الفاتورة</div>
-              <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
-            </div>
-            <div class="totals-row">
-              <div>Discount خصم</div>
-              <div class="bold">${safeDiscount.toFixed(2)}</div>
-            </div>
-            <div class="totals-row" style="font-size: 14px;">
-              <div class="bold">Total Amount مبلغ</div>
-              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
-            </div>
-            <div class="totals-row" style="font-size: 16px;">
-              <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
-              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
-            </div>
-            ${invoice.paymentMethod === 'Pay Later' ? `
-              <div class="totals-row" style="font-size: 13px; color: #000;">
-                <div class="bold">Due Amount المبلغ المستحق</div>
-                <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+              <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
+                ${invoice.deliveryType || 'TAKE AWAY'}
               </div>
-            ` : ''}
-          </div>
 
-          <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
-            ${invoice.deliveryType || 'TAKE AWAY'}
-          </div>
+              <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
+              </div>
+              <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
+              </div>
 
-          <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
-            The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
-          </div>
-          <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
-            المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
-          </div>
-
-          <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
-            <div>User: ${invoice.cashierName || 'Cashier'}</div>
-            <div>Printed: ${new Date().toLocaleString()}</div>
-          </div>
+              <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
+                <div>User: ${invoice.cashierName || 'Cashier'}</div>
+                <div>Printed: ${new Date().toLocaleString()}</div>
+              </div>
+            `;
+            return renderReceipt(true) + '<div style="page-break-after: always; margin-top: 40px; margin-bottom: 20px; border-top: 1px dashed #000;"></div>' + renderReceipt(false);
+          })()}
         </body>
       </html>
     `);
@@ -2339,30 +2475,77 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Recent activities */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
-              <h4 style={{ margin: '0 0 12px 0' }}>📜 Recent Operations Log</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                {activities.slice(0, 5).map(act => (
-                  <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.82rem' }}>
-                    <span>{act.description}</span>
-                    <span style={{ color: '#64748b' }}>{act.date.split(' ')[1]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {(() => {
+            const getActiveUserCreatedAt = () => {
+              if (db.activeRole !== 'Cashier') return null;
+              let createdAtStr = localStorage.getItem('ll_active_user_created_at');
+              if (createdAtStr) return new Date(createdAtStr);
+              try {
+                const token = localStorage.getItem('ll_auth_token');
+                if (token) {
+                  const parts = token.split('.');
+                  if (parts.length > 1) {
+                    const base64Url = parts[1];
+                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }).join(''));
+                    const parsed = JSON.parse(jsonPayload);
+                    if (parsed && parsed.sub) {
+                      const usr = db.users.find(u => u.email === parsed.sub);
+                      if (usr && usr.createdAt) return new Date(usr.createdAt);
+                    }
+                  }
+                }
+              } catch(e) {}
+              return null;
+            };
 
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
-              <h4 style={{ margin: '0 0 12px 0' }}>🔔 Recent Notifications</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {db.notifications.slice(0, 4).map(n => (
-                  <div key={n.id} style={{ padding: '8px', background: '#f0fdf4', borderRadius: '6px', fontSize: '0.82rem' }}>
-                    {n.text}
+            const activeUserCreatedAt = getActiveUserCreatedAt();
+
+            const filteredActivities = activeUserCreatedAt 
+              ? activities.filter(act => {
+                  const actDate = new Date(act.date);
+                  return isNaN(actDate.getTime()) ? true : actDate >= activeUserCreatedAt;
+                })
+              : activities;
+
+            const filteredNotifications = activeUserCreatedAt 
+              ? db.notifications.filter(n => {
+                  if (typeof n.id === 'number' && n.id < 1000) return false;
+                  return typeof n.id === 'number' && n.id >= activeUserCreatedAt.getTime();
+                })
+              : db.notifications;
+
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
+                  <h4 style={{ margin: '0 0 12px 0' }}>📜 Recent Operations Log</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                    {filteredActivities.slice(0, 5).map(act => (
+                      <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <span>{act.description}</span>
+                        <span style={{ color: '#64748b' }}>{act.date.split(' ')[1] || act.date}</span>
+                      </div>
+                    ))}
+                    {filteredActivities.length === 0 && <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No recent activities.</div>}
                   </div>
-                ))}
+                </div>
+
+                <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
+                  <h4 style={{ margin: '0 0 12px 0' }}>🔔 Recent Notifications</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {filteredNotifications.slice(0, 4).map(n => (
+                      <div key={n.id} style={{ padding: '8px', background: '#f0fdf4', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        {n.text}
+                      </div>
+                    ))}
+                    {filteredNotifications.length === 0 && <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No recent notifications.</div>}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
         </div>
       )}
@@ -3612,6 +3795,10 @@ export const AdminPortal: React.FC = () => {
                       <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Email (Read-only)</label>
                       <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
                     </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Wallet Balance</label>
+                      <input type="text" value={`₹${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
@@ -3650,24 +3837,39 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              {/* Prepaid Package QR input field */}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <input 
-                  type="text" 
-                  placeholder="Scan/Enter Package QR Code" 
-                  value={posPrepaidQRToken} 
-                  onChange={e => { setPosPrepaidQRToken(e.target.value); setPosPrepaidPackageApplied(null); setPosDiscount(0); }} 
-                  style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
-                />
-                <button 
-                  onClick={handleApplyPrepaidQR} 
-                  style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  Scan QR
-                </button>
-              </div>
+
+              {posCustomerPackages.length > 0 && (
+                <div style={{ marginTop: '12px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '8px', color: '#475569' }}>Customer's Active Packages:</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select 
+                      onChange={e => {
+                        const token = e.target.value;
+                        if (token) {
+                          setPosPrepaidQRToken(token);
+                          setPosPrepaidPackageApplied(null);
+                          setPosDiscount(0);
+                        }
+                      }}
+                      style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
+                    >
+                      <option value="">-- Choose a package --</option>
+                      {posCustomerPackages.map(cp => (
+                        <option key={cp.id} value={cp.secure_token}>{cp.package?.name} ({cp.total_quantity - cp.used_quantity} items left)</option>
+                      ))}
+                    </select>
+                    <button 
+                      onClick={handleApplyPrepaidQR} 
+                      style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {posPrepaidPackageApplied && (
-                <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '4px', background: '#f5f3ff', padding: '6px', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', background: '#f5f3ff', padding: '8px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
                   <strong>📦 {posPrepaidPackageApplied.package_name} Applied</strong><br/>
                   Redeeming {posPrepaidPackageApplied.qtyToRedeem} items. Discount: -QR {posPrepaidPackageApplied.discountAmount.toFixed(2)}
                 </div>
@@ -3716,12 +3918,13 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'UPI', 'Wallet', 'Package'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
                   <option value="Card">Card payment</option>
                   <option value="UPI">UPI payment</option>
                   <option value="Wallet">Wallet payment</option>
+                  <option value="Package">Prepaid Package</option>
                   <option value="Pay Later">Pay Later</option>
                 </select>
                 
@@ -3733,6 +3936,19 @@ export const AdminPortal: React.FC = () => {
                     placeholder="Add payment remark (e.g. Txn ID)"
                     style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
                   />
+                )}
+
+                {posPayMethod === 'Package' && (
+                  <select 
+                    value={posSelectedPackageId} 
+                    onChange={e => setPosSelectedPackageId(e.target.value)} 
+                    style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
+                  >
+                    <option value="">Select Package</option>
+                    {db.customerPackages?.filter(cp => cp.customerId === posCustId && cp.status === 'Active').map(cp => (
+                      <option key={cp.id} value={cp.id}>{cp.packageName} (₹{cp.currentBalance} left)</option>
+                    ))}
+                  </select>
                 )}
 
                 <button 
@@ -3776,7 +3992,7 @@ export const AdminPortal: React.FC = () => {
 
       {/* 📦 PREPAID PACKAGES MANAGER TAB */}
       {activeModule === 'prepaid-packages' && (
-        <PrepaidPackagesManager token={localStorage.getItem('ll_auth_token') || ''} db={db} />
+        <PrepaidPackagesManager token={localStorage.getItem('ll_auth_token') || ''} db={db} services={backendServices} />
       )}
 
       {/* 🎁 COUPONS MANAGER TAB */}
@@ -3946,10 +4162,10 @@ export const AdminPortal: React.FC = () => {
                 <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="e.g. SUMMERSPECIAL" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div style={{ marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Discount Value (%)</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Discount Value (Amount in QR)</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '700', color: '#64748b', fontSize: '1.2rem' }}>QR</span>
                   <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} placeholder="e.g. 15" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                  <span style={{ fontWeight: '700', color: '#64748b', fontSize: '1.2rem' }}>%</span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
@@ -3967,7 +4183,7 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ padding: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#166534' }}>Total Offer Price Amount:</span>
                   <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#15803d' }}>
-                    QR {(couponServices.reduce((acc, curr) => acc + (curr.price * curr.qty), 0) * (1 - parseFloat(cpValue) / 100)).toFixed(2)}
+                    QR {Math.max(0, couponServices.reduce((acc, curr) => acc + (curr.price * curr.qty), 0) - parseFloat(cpValue)).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -4434,6 +4650,15 @@ export const AdminPortal: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
                 <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Gender (Optional)</label>
+                <select value={custGender} onChange={e => setCustGender(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
               <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Create Customer</button>
             </form>
           </div>
@@ -4775,123 +5000,134 @@ export const AdminPortal: React.FC = () => {
                           </style>
                         </head>
                         <body>
-                          <h2>${invoiceCompName}</h2>
-                          ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
-                          ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
-                          
-                          <div class="divider"></div>
-                          <div class="center bold" style="font-size: 16px;">Customer Copy</div>
-                          <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
-                          <div class="divider"></div>
+                          ${(() => {
+                            const renderReceipt = (isCustomerCopy: boolean) => `
+                              <h2>${invoiceCompName}</h2>
+                              ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
+                              ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
+                              
+                              <div class="divider"></div>
+                              ${isCustomerCopy ? `
+                              <div class="center bold" style="font-size: 16px;">Customer Copy</div>
+                              <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
+                              <div class="divider"></div>
+                              ` : `
+                              <div class="center bold" style="font-size: 16px;">Store Copy</div>
+                              <div class="center bold" style="font-size: 16px;">نسخة المتجر</div>
+                              <div class="divider"></div>
+                              `}
 
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
-                            <div class="col-val">: ${viewingInvoice.id}</div>
-                          </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
-                            <div class="col-val">: ${viewingInvoice.date}</div>
-                          </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
-                            <div class="col-val">: ${viewingInvoice.deliveredDate || 'Not Delivered'}</div>
-                          </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
+                                <div class="col-val">: ${viewingInvoice.id}</div>
+                              </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
+                                <div class="col-val">: ${viewingInvoice.date}</div>
+                              </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
+                                <div class="col-val">: ${viewingInvoice.deliveredDate || 'Not Delivered'}</div>
+                              </div>
 
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
-                            <div class="col-val">: ${viewingInvoice.customerName}</div>
-                          </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
-                            <div class="col-val">: ${custPhone}</div>
-                          </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
-                            <div class="col-val">: ${custAddr}</div>
-                          </div>
-                          <div class="row">
-                            <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
-                            <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'}</div>
-                          </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
+                                <div class="col-val">: ${viewingInvoice.customerName}</div>
+                              </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
+                                <div class="col-val">: ${custPhone}</div>
+                              </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
+                                <div class="col-val">: ${custAddr}</div>
+                              </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
+                                <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'}</div>
+                              </div>
 
-                          <div class="divider"></div>
-                          
-                          <div class="table-hdr">
-                            <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
-                            <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
-                            <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
-                            <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
-                            <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
-                          </div>
+                              <div class="divider"></div>
+                              
+                              <div class="table-hdr">
+                                <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
+                                <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
+                                <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
+                                <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
+                                <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
+                              </div>
 
-                          ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
-                            viewingInvoice.services.map((s: any) => {
-                              const sPrice = Number(s.price || 0);
-                              const sQty = Number(s.qty || 1);
-                              const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
-                              return `
-                                <div class="table-row">
-                                  <div style="flex: 2; font-weight: bold">${s.name}</div>
-                                  <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
-                                  <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
-                                  <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
-                                  <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+                              ${viewingInvoice.services && viewingInvoice.services.length > 0 ? 
+                                viewingInvoice.services.map((s: any) => {
+                                  const sPrice = Number(s.price || 0);
+                                  const sQty = Number(s.qty || 1);
+                                  const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
+                                  return `
+                                    <div class="table-row">
+                                      <div style="flex: 2; font-weight: bold">${s.name}</div>
+                                      <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
+                                      <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
+                                      <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
+                                      <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+                                    </div>
+                                  `;
+                                }).join('') : `
+                                  <div class="table-row">
+                                    <div style="flex: 4; font-weight: bold">${viewingInvoice.weightItems || 'Standard Laundry'}</div>
+                                    <div style="flex: 1; text-align: center; font-weight: bold">1</div>
+                                    <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
+                                    <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
+                                  </div>
+                                `
+                              }
+
+                              <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
+                                <div class="totals-row">
+                                  <div>Total Quantity عدد القطع</div>
+                                  <div class="bold">${viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + (s.qty || 1), 0) : 1}</div>
                                 </div>
-                              `;
-                            }).join('') : `
-                              <div class="table-row">
-                                <div style="flex: 4; font-weight: bold">${viewingInvoice.weightItems || 'Standard Laundry'}</div>
-                                <div style="flex: 1; text-align: center; font-weight: bold">1</div>
-                                <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
-                                <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
+                                <div class="totals-row">
+                                  <div>Total Bill Amnt مبلغ الفاتورة</div>
+                                  <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
+                                </div>
+                                <div class="totals-row">
+                                  <div>Discount خصم</div>
+                                  <div class="bold">${safeDiscount.toFixed(2)}</div>
+                                </div>
+                                <div class="totals-row" style="font-size: 14px;">
+                                  <div class="bold">Total Amount مبلغ</div>
+                                  <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                                </div>
+                                <div class="totals-row" style="font-size: 16px;">
+                                  <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
+                                  <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                                </div>
+                                ${viewingInvoice.paymentMethod === 'Pay Later' ? `
+                                  <div class="totals-row" style="font-size: 13px; color: #000;">
+                                    <div class="bold">Due Amount المبلغ المستحق</div>
+                                    <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                                  </div>
+                                ` : ''}
                               </div>
-                            `
-                          }
 
-                          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
-                            <div class="totals-row">
-                              <div>Total Quantity عدد القطع</div>
-                              <div class="bold">${viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + (s.qty || 1), 0) : 1}</div>
-                            </div>
-                            <div class="totals-row">
-                              <div>Total Bill Amnt مبلغ الفاتورة</div>
-                              <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
-                            </div>
-                            <div class="totals-row">
-                              <div>Discount خصم</div>
-                              <div class="bold">${safeDiscount.toFixed(2)}</div>
-                            </div>
-                            <div class="totals-row" style="font-size: 14px;">
-                              <div class="bold">Total Amount مبلغ</div>
-                              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
-                            </div>
-                            <div class="totals-row" style="font-size: 16px;">
-                              <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
-                              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
-                            </div>
-                            ${viewingInvoice.paymentMethod === 'Pay Later' ? `
-                              <div class="totals-row" style="font-size: 13px; color: #000;">
-                                <div class="bold">Due Amount المبلغ المستحق</div>
-                                <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+                              <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
+                                ${viewingInvoice.deliveryType || 'TAKE AWAY'}
                               </div>
-                            ` : ''}
-                          </div>
 
-                          <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
-                            ${viewingInvoice.deliveryType || 'TAKE AWAY'}
-                          </div>
+                              <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                                The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
+                              </div>
+                              <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
+                                المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
+                              </div>
 
-                          <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
-                            The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
-                          </div>
-                          <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
-                            المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
-                          </div>
-
-                          <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
-                            <div>User: ${viewingInvoice.cashierName || 'Cashier'}</div>
-                            <div>Printed: ${new Date().toLocaleString()}</div>
-                          </div>
+                              <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
+                                <div>User: ${viewingInvoice.cashierName || 'Cashier'}</div>
+                                <div>Printed: ${new Date().toLocaleString()}</div>
+                              </div>
+                            `;
+                            return renderReceipt(true) + '<div style="page-break-after: always; margin-top: 40px; margin-bottom: 20px; border-top: 1px dashed #000;"></div>' + renderReceipt(false);
+                          })()}
                         </body>
                       </html>
                     `);
@@ -5121,12 +5357,298 @@ export const AdminPortal: React.FC = () => {
               </div>
 
               {/* Action */}
-              <div style={{ marginTop: '24px' }}>
+              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button 
+                  onClick={() => { setSellingPackageTo(viewingCustomer); setViewingCustomer(null); }}
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontWeight: '800', fontSize: '1rem', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  💳 Sell Prepaid Package
+                </button>
                 <button onClick={() => setViewingCustomer(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                   Close Profile
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SELL PREPAID PACKAGE MODAL */}
+      {sellingPackageTo && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', padding: '24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800' }}>Sell Prepaid Package</h3>
+              <p style={{ margin: '4px 0 0 0', opacity: 0.9, fontSize: '0.95rem' }}>Customer: {sellingPackageTo.name}</p>
+              <button onClick={() => { setSellingPackageTo(null); setSelectedPrepaidPackage(''); setAppliedCouponCode(''); }} style={{ position: 'absolute', right: '20px', top: '24px', color: 'rgba(255,255,255,0.8)', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', transition: 'color 0.2s' }}>✕</button>
+            </div>
+            
+              <div style={{ padding: '24px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Select Package</label>
+                <select 
+                  value={selectedPrepaidPackage}
+                  onChange={(e) => setSelectedPrepaidPackage(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '1rem', color: '#1e293b' }}
+                >
+                  <option value="">-- Choose a package --</option>
+                  {backendPrepaidPackages?.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>{pkg.name} - QR {parseFloat(pkg.offer_price).toFixed(2)} ({pkg.validity_days} Days)</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedPrepaidPackage && (
+                <>
+                  {/* STEP 3: Coupon Section */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      🎟️ Available Coupons
+                    </label>
+
+                    {/* List of available coupons */}
+                    {db.promos && db.promos.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                        {db.promos.map((p: any) => (
+                          <div
+                            key={p.code}
+                            onClick={() => setAppliedCouponCode(p.code)}
+                            style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                              border: `2px solid ${appliedCouponCode === p.code ? '#3b82f6' : '#e2e8f0'}`,
+                              background: appliedCouponCode === p.code ? '#eff6ff' : '#f8fafc'
+                            }}
+                          >
+                            <div>
+                              <span style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.9rem' }}>{p.code}</span>
+                              <span style={{ marginLeft: '8px', fontSize: '0.8rem', color: '#64748b' }}>{p.name}</span>
+                            </div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#16a34a' }}>
+                              {p.type === 'Percentage' ? `${p.value}% OFF` : `QR ${p.value} OFF`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Manual entry */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Or type coupon code, e.g. WELCOME500"
+                        value={appliedCouponCode}
+                        onChange={(e) => { setAppliedCouponCode(e.target.value.toUpperCase()); }}
+                        style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                      />
+                    </div>
+
+                    {/* Coupon Validation Display */}
+                    {appliedCouponCode && (() => {
+                      const today = new Date();
+                      const coupon = db.promos?.find((c: any) => c.code === appliedCouponCode.toUpperCase());
+                      const pkg = backendPrepaidPackages?.find(p => p.id === selectedPrepaidPackage);
+                      const pkgPrice = parseFloat(pkg?.offer_price || '0');
+
+                      if (!coupon) return (
+                        <div style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecaca', fontSize: '0.82rem', color: '#991b1b' }}>
+                          ❌ Coupon <strong>{appliedCouponCode}</strong> not found.
+                        </div>
+                      );
+
+                      const expiryDate = coupon.expiry ? new Date(coupon.expiry) : null;
+                      const isExpired = expiryDate && expiryDate < today;
+
+                      return (
+                        <div style={{ marginTop: '8px', padding: '12px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: '0.82rem' }}>
+                          <div style={{ fontWeight: '800', color: '#166534', marginBottom: '6px' }}>✅ Coupon Validation Status</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                            <span style={{ color: '#475569' }}>Coupon Active</span>
+                            <span style={{ color: '#16a34a', fontWeight: '700' }}>✅ YES</span>
+                            <span style={{ color: '#475569' }}>Min Purchase Met</span>
+                            <span style={{ color: '#16a34a', fontWeight: '700' }}>✅ YES</span>
+                            <span style={{ color: '#475569' }}>Applicable Package</span>
+                            <span style={{ color: '#16a34a', fontWeight: '700' }}>✅ YES</span>
+                            <span style={{ color: '#475569' }}>Expired</span>
+                            <span style={{ color: isExpired ? '#dc2626' : '#16a34a', fontWeight: '700' }}>{isExpired ? '❌ YES' : '✅ NO'}</span>
+                          </div>
+                          {!isExpired && <div style={{ marginTop: '8px', color: '#166534', fontWeight: '700' }}>🎉 Coupon Applied!</div>}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Payment Method</label>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      {['Cash', 'Card', 'UPI'].map(method => (
+                        <button
+                          key={method}
+                          onClick={() => setPackagePaymentMethod(method as any)}
+                          style={{
+                            flex: 1, padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', transition: 'all 0.2s',
+                            background: packagePaymentMethod === method ? '#eff6ff' : 'white',
+                            color: packagePaymentMethod === method ? '#2563eb' : '#64748b',
+                            border: `2px solid ${packagePaymentMethod === method ? '#3b82f6' : '#e2e8f0'}`
+                          }}
+                        >
+                          {method}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '24px' }}>
+                    {(() => {
+                      const pkg = backendPrepaidPackages?.find(p => p.id === selectedPrepaidPackage);
+                      let finalPrice = parseFloat(pkg?.offer_price || "0");
+                      let discount = 0;
+                      
+                      if (appliedCouponCode) {
+                        const coupon = db.promos?.find(c => c.code.toUpperCase() === appliedCouponCode.toUpperCase());
+                        if (coupon) {
+                          if (coupon.type === 'Flat Amount') discount = coupon.value;
+                          else if (coupon.type === 'Percentage') discount = finalPrice * (coupon.value / 100);
+                        }
+                      }
+                      
+                      return (
+                        <>
+                          <div style={{ paddingBottom: '12px', marginBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Package ID</span>
+                              <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 'bold' }}>{pkg?.code || pkg?.id?.substring(0,8)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Description</span>
+                              <span style={{ fontSize: '0.85rem', color: '#1e293b', textAlign: 'right' }}>{pkg?.description || 'Standard Package'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Validity</span>
+                              <span style={{ fontSize: '0.85rem', color: '#1e293b' }}>{pkg?.validity_days ? `${pkg.validity_days} Days` : 'Lifetime'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Status</span>
+                              <span style={{ fontSize: '0.75rem', background: pkg?.is_active !== false ? '#dcfce7' : '#fee2e2', color: pkg?.is_active !== false ? '#166534' : '#991b1b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                {pkg?.is_active !== false ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Applicable Services</span>
+                              <span style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: '600', textAlign: 'right', maxWidth: '60%' }}>
+                                {pkg?.eligible_services?.map((s: any) => s.name || s.id).join(', ') || 'All Services'}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.95rem', color: '#64748b' }}>
+                            <span>Package Value:</span>
+                            <span>QR {finalPrice.toFixed(2)}</span>
+                          </div>
+                          {discount > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.95rem', color: '#16a34a', fontWeight: '600' }}>
+                              <span>Coupon Discount:</span>
+                              <span>-QR {discount.toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '1.2rem', color: '#1e293b', fontWeight: '800' }}>
+                            <span>Total to Pay:</span>
+                            <span>QR {(finalPrice - discount).toFixed(2)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <button 
+                    onClick={handleConfirmSellPackage}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '800', fontSize: '1.1rem', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.3)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#1d4ed8'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#2563eb'}
+                  >
+                    Complete Purchase & Send Pass
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WHATSAPP & WALLET PASS MOCK (PREVIEW AFTER PURCHASE) */}
+      {walletPassPreview && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+          <div style={{ width: '100%', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.3s ease-out' }}>
+            
+            {/* WhatsApp Notification Bubble */}
+            <div style={{ background: '#dcf8c6', borderRadius: '16px 16px 16px 4px', padding: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', position: 'relative' }}>
+              <div style={{ fontSize: '0.85rem', color: '#075e54', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '1.2rem' }}>💬</span> Laundra HQ
+              </div>
+              <div style={{ fontSize: '0.95rem', color: '#111', lineHeight: '1.4' }}>
+                Hi {walletPassPreview.customerName},<br/>
+                Your <strong>{walletPassPreview.packageName}</strong> is now active! You paid ₹{walletPassPreview.finalPaid}.<br/><br/>
+                Tap below to add your Digital Laundry Pass to your wallet for seamless checkout.
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  🍎 Apple Wallet
+                </button>
+                <button style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  🔵 Google Wallet
+                </button>
+              </div>
+            </div>
+
+            {/* Wallet Pass UI Preview */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #fbbf24, #d97706)', // GOLD styling
+              borderRadius: '20px', 
+              padding: '24px', 
+              color: 'white',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Top pattern */}
+              <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', opacity: 0.9 }}>LAUNDRA</h4>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px' }}>Prepaid Pass</div>
+                </div>
+                <div style={{ background: 'white', padding: '6px', borderRadius: '8px' }}>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${walletPassPreview.qrToken}`} alt="QR" style={{ display: 'block', width: '60px', height: '60px' }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '4px' }}>Customer</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: '700' }}>{walletPassPreview.customerName}</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '4px' }}>{walletPassPreview.packageName}</div>
+                  <div style={{ fontSize: '2rem', fontWeight: '900' }}>₹{walletPassPreview.currentBalance}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>Valid Until</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>{walletPassPreview.expiryDate}</div>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setWalletPassPreview(null)}
+              style={{ padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              Close Simulator
+            </button>
           </div>
         </div>
       )}
