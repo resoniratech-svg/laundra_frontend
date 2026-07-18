@@ -1617,6 +1617,166 @@ export const AdminPortal: React.FC = () => {
     setPosCustomerSearch('');
   };
 
+  const handlePrintInvoice = (invoice: Order) => {
+    const win = window.open('', '_blank', 'width=450,height=600');
+    if (!win) return;
+    const custPhone = invoice.phone || db.customers.find(c => c.id === invoice.customerId)?.phone || 'N/A';
+    const custAddr = invoice.address || db.customers.find(c => c.id === invoice.customerId)?.address || 'N/A';
+    
+    const invoiceCompName = activeComp?.name || 'Laundry';
+    const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
+    const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+    const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
+    const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
+    const safeTotal = Number(invoice.totalAmount ?? invoice.total ?? 0);
+    const safeDiscount = Number(invoice.discount || 0);
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Invoice #${invoice.id}</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; font-size: 14px; padding: 0; margin: 0; width: 320px; line-height: 1.4; color: #000; }
+            h2 { text-align: center; margin: 0 0 5px 0; font-size: 22px; text-transform: uppercase; }
+            .center { text-align: center; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .row { display: flex; margin-bottom: 4px; }
+            .bold { font-weight: bold; }
+            .lbl-en { font-weight: bold; font-size: 12px; }
+            .lbl-ar { font-size: 10px; }
+            .col-lbl { width: 130px; }
+            .col-val { flex: 1; font-weight: bold; }
+            .table-hdr { display: flex; font-weight: bold; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+            .table-row { display: flex; font-size: 12px; margin-bottom: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; align-items: center; }
+            .totals-row { display: flex; justify-content: space-between; width: 220px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+            .rtl { direction: rtl; }
+          </style>
+        </head>
+        <body>
+          <h2>${invoiceCompName}</h2>
+          ${invoiceCompAddr ? \`<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>\` : ''}
+          ${invoicePhoneDisplay ? \`<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>\` : ''}
+          
+          <div class="divider"></div>
+          <div class="center bold" style="font-size: 16px;">Customer Copy</div>
+          <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
+          <div class="divider"></div>
+
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div>
+            <div class="col-val">: ${invoice.id}</div>
+          </div>
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div>
+            <div class="col-val">: ${invoice.date}</div>
+          </div>
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Delivery Date</div><div class="lbl-ar">تاريخ التسليم</div></div>
+            <div class="col-val">: ${invoice.deliveredDate || 'Not Delivered'}</div>
+          </div>
+
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div>
+            <div class="col-val">: ${invoice.customerName}</div>
+          </div>
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div>
+            <div class="col-val">: ${custPhone}</div>
+          </div>
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div>
+            <div class="col-val">: ${custAddr}</div>
+          </div>
+          <div class="row">
+            <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
+            <div class="col-val">: ${invoice.paymentStatus || 'UNPAID'}</div>
+          </div>
+
+          <div class="divider"></div>
+          
+          <div class="table-hdr">
+            <div style="flex: 2">Cloth<br/><span style="font-size: 9px">نوع</span></div>
+            <div style="flex: 2">Service<br/><span style="font-size: 9px">خدمة</span></div>
+            <div style="flex: 1; text-align: center">Qty<br/><span style="font-size: 9px">كمية</span></div>
+            <div style="flex: 1; text-align: right">Price<br/><span style="font-size: 9px">سعر</span></div>
+            <div style="flex: 1.5; text-align: right">Amount<br/><span style="font-size: 9px">مبلغ</span></div>
+          </div>
+
+          ${invoice.services && invoice.services.length > 0 ? 
+            invoice.services.map((s: any) => {
+              const sPrice = Number(s.price || 0);
+              const sQty = Number(s.qty || 1);
+              const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
+              return \`
+                <div class="table-row">
+                  <div style="flex: 2; font-weight: bold">${s.name}</div>
+                  <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
+                  <div style="flex: 1; text-align: center; font-weight: bold">${sQty}</div>
+                  <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
+                  <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
+                </div>
+              \`;
+            }).join('') : \`
+              <div class="table-row">
+                <div style="flex: 4; font-weight: bold">${invoice.weightItems || 'Standard Laundry'}</div>
+                <div style="flex: 1; text-align: center; font-weight: bold">1</div>
+                <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
+                <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
+              </div>
+            \`
+          }
+
+          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
+            <div class="totals-row">
+              <div>Total Quantity عدد القطع</div>
+              <div class="bold">${invoice.services ? invoice.services.reduce((acc: number, s: any) => acc + Number(s.qty || 1), 0) : 1}</div>
+            </div>
+            <div class="totals-row">
+              <div>Total Bill Amnt مبلغ الفاتورة</div>
+              <div class="bold">QR ${(safeTotal + safeDiscount).toFixed(2)}</div>
+            </div>
+            <div class="totals-row">
+              <div>Discount خصم</div>
+              <div class="bold">${safeDiscount.toFixed(2)}</div>
+            </div>
+            <div class="totals-row" style="font-size: 14px;">
+              <div class="bold">Total Amount مبلغ</div>
+              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+            </div>
+            <div class="totals-row" style="font-size: 16px;">
+              <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
+              <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+            </div>
+            ${invoice.paymentMethod === 'Pay Later' ? \`
+              <div class="totals-row" style="font-size: 13px; color: #000;">
+                <div class="bold">Due Amount المبلغ المستحق</div>
+                <div class="bold">QR ${safeTotal.toFixed(2)}</div>
+              </div>
+            \` : ''}
+          </div>
+
+          <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
+            ${invoice.deliveryType || 'TAKE AWAY'}
+          </div>
+
+          <div style="margin-top: 15px; font-size: 10px; text-align: justify; line-height: 1.4;">
+            The laundry is not responsible for any items not listed on the customer's invoice copy. The laundry reserves the right to dispose of clothes not collected within the 60 days mentioned on the invoice. THANK YOU...VISIT AGAIN
+          </div>
+          <div class="rtl" style="margin-top: 5px; font-size: 10px; text-align: justify; line-height: 1.4;">
+            المغسلة ليست مسؤولة عن أي عناصر غير مدرجة في نسخة فاتورة العميل. تحتفظ المغسلة بالحق في التخلص من الملابس التي لم يتم جمعها خلال 60 يوماً المذكورة في الفاتورة. شكراً لزيارتكم... نأمل زيارتكم مرة أخرى
+          </div>
+
+          <div class="bold" style="text-align: center; margin-top: 15px; font-size: 12px;">
+            <div>User: ${invoice.cashierName || 'Cashier'}</div>
+            <div>Printed: ${new Date().toLocaleString()}</div>
+          </div>
+        </body>
+      </html>
+    \`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 150);
+  };
+
   // Coupons actions
   const handleDeleteCoupon = async (couponId: string, couponCode: string) => {
     if (!confirm('Delete coupon?')) return;
@@ -3029,7 +3189,7 @@ export const AdminPortal: React.FC = () => {
                             ))}
                           </select>
                           <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ Timeline</button>
-                          <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
+                          <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
                               try {
