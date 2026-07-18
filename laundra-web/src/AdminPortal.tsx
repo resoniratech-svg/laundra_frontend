@@ -3626,7 +3626,9 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              {/* Coupon input field */}
+              {(posCustId !== '' || showGuestFields) && (
+                <>
+                  {/* Coupon input field */}
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <input 
                   type="text" 
@@ -3758,6 +3760,8 @@ export const AdminPortal: React.FC = () => {
                   Checkout
                 </button>
               </div>
+                </>
+              )}
 
             </div>
 
