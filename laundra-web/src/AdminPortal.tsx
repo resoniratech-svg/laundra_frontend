@@ -3933,15 +3933,16 @@ export const AdminPortal: React.FC = () => {
       {activeModule === 'wallet-loyalty' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
           <h3>💳 Wallet & Loyalty Points ledger</h3>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>Select wallet or loyalty options next to any customer profile in the Customer tab to adjust balances.</p>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>Click the action buttons below to adjust the wallet or loyalty balances for any customer.</p>
           
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                <th style={{ padding: '10px' }}>Client</th>
+                <th style={{ padding: '10px' }}>Customer</th>
                 <th style={{ padding: '10px' }}>Phone</th>
                 <th style={{ padding: '10px' }}>Current Wallet</th>
                 <th style={{ padding: '10px' }}>Current Loyalty points</th>
+                <th style={{ padding: '10px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -3951,6 +3952,12 @@ export const AdminPortal: React.FC = () => {
                   <td style={{ padding: '10px', color: '#64748b' }}>{c.phone || 'N/A'}</td>
                   <td style={{ padding: '10px', color: '#16a34a', fontWeight: '700' }}>QR {c.walletBalance.toFixed(2)}</td>
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
+                  <td style={{ padding: '10px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Add to Wallet</button>
+                      <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Add Loyalty</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
