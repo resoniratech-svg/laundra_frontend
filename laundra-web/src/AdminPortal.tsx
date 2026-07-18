@@ -1654,8 +1654,8 @@ export const AdminPortal: React.FC = () => {
         </head>
         <body>
           <h2>${invoiceCompName}</h2>
-          ${invoiceCompAddr ? \`<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>\` : ''}
-          ${invoicePhoneDisplay ? \`<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>\` : ''}
+          ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
+          ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
           
           <div class="divider"></div>
           <div class="center bold" style="font-size: 16px;">Customer Copy</div>
@@ -1707,7 +1707,7 @@ export const AdminPortal: React.FC = () => {
               const sPrice = Number(s.price || 0);
               const sQty = Number(s.qty || 1);
               const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
-              return \`
+              return `
                 <div class="table-row">
                   <div style="flex: 2; font-weight: bold">${s.name}</div>
                   <div style="flex: 2">${s.express ? 'Express' : 'Normal'}</div>
@@ -1715,15 +1715,15 @@ export const AdminPortal: React.FC = () => {
                   <div style="flex: 1; text-align: right">${sFinalPrice.toFixed(2)}</div>
                   <div style="flex: 1.5; text-align: right; font-weight: bold">${(sFinalPrice * sQty).toFixed(2)}</div>
                 </div>
-              \`;
-            }).join('') : \`
+              `;
+            }).join('') : `
               <div class="table-row">
                 <div style="flex: 4; font-weight: bold">${invoice.weightItems || 'Standard Laundry'}</div>
                 <div style="flex: 1; text-align: center; font-weight: bold">1</div>
                 <div style="flex: 1; text-align: right">${Number(safeTotal).toFixed(2)}</div>
                 <div style="flex: 1.5; text-align: right; font-weight: bold">${Number(safeTotal).toFixed(2)}</div>
               </div>
-            \`
+            `
           }
 
           <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px; font-size: 12px;">
@@ -1747,12 +1747,12 @@ export const AdminPortal: React.FC = () => {
               <div class="bold">Total Amnt to Pay المبلغ الإجمالي للدفع</div>
               <div class="bold">QR ${safeTotal.toFixed(2)}</div>
             </div>
-            ${invoice.paymentMethod === 'Pay Later' ? \`
+            ${invoice.paymentMethod === 'Pay Later' ? `
               <div class="totals-row" style="font-size: 13px; color: #000;">
                 <div class="bold">Due Amount المبلغ المستحق</div>
                 <div class="bold">QR ${safeTotal.toFixed(2)}</div>
               </div>
-            \` : ''}
+            ` : ''}
           </div>
 
           <div class="bold" style="margin-top: 15px; font-size: 16px; text-transform: uppercase;">
@@ -1772,7 +1772,7 @@ export const AdminPortal: React.FC = () => {
           </div>
         </body>
       </html>
-    \`);
+    `);
     win.document.close();
     setTimeout(() => { win.print(); }, 150);
   };
