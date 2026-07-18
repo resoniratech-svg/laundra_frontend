@@ -1498,7 +1498,7 @@ export const AdminPortal: React.FC = () => {
 
   useEffect(() => {
     if (sellingPackageTo) {
-      fetch(`${BASE_URL}/api/v1/prepaid-packages`, {
+      fetch(`${BASE_URL}/api/v1/prepaid-packages/`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}` }
       })
       .then(res => res.json())
