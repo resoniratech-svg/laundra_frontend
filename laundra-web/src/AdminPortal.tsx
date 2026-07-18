@@ -2801,8 +2801,25 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* 🧺 ORDER MANAGEMENT TAB */}
-      {activeModule === 'orders' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {(activeModule === 'orders' || showOrderModal) && (
+        <div style={showOrderModal ? {
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
+        } : { display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          <div style={showOrderModal ? {
+            background: '#f8fafc', padding: '24px', borderRadius: '16px', 
+            width: '95%', maxWidth: '1600px', maxHeight: '95vh', overflowY: 'auto',
+            display: 'flex', flexDirection: 'column', gap: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          } : { display: 'contents' }}>
+
+            {showOrderModal && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '12px', marginBottom: '8px' }}>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Order Management</h2>
+                <button onClick={() => setShowOrderModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>✖</button>
+              </div>
+            )}
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -3040,7 +3057,6 @@ export const AdminPortal: React.FC = () => {
               </tbody>
             </table>
           </div>
-
         </div>
         </div>
       )}
