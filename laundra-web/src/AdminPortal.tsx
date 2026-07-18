@@ -2192,7 +2192,7 @@ export const AdminPortal: React.FC = () => {
           
           <div style={showCustomerModal ? {
             background: '#f8fafc', padding: '24px', borderRadius: '16px', 
-            width: '100%', maxWidth: '1100px', maxHeight: '90vh', overflowY: 'auto',
+            width: '95%', maxWidth: '1600px', maxHeight: '95vh', overflowY: 'auto',
             display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
           } : { display: 'contents' }}>
 
