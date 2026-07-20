@@ -1481,6 +1481,11 @@ export const AdminPortal: React.FC = () => {
   };
 
   useEffect(() => {
+    // Reset any applied prepaid package when customer changes or is removed
+    setPosPrepaidPackageApplied(null);
+    setPosPrepaidQRToken('');
+    setPosDiscount(0);
+
     if (posCustId && posCustId !== '') {
       fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${posCustId}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}` }
