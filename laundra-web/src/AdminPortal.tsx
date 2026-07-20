@@ -2289,33 +2289,79 @@ export const AdminPortal: React.FC = () => {
           return;
         }
         
-        if (posCart.length === 0) {
-          alert('Your cart is empty! Please add laundry items to the cart first before applying a prepaid package.');
-          return;
+        let currentCart = [...posCart];
+        const eligibleList = data.package.eligible_services || [];
+
+        // If cart is empty, automatically populate cart with the services selected in the package!
+        if (currentCart.length === 0) {
+          const autoCartItems: any[] = [];
+          const allServices = [...(backendServices || []), ...(db.services || [])];
+
+          if (eligibleList.length > 0) {
+            eligibleList.forEach((srvItem: any) => {
+              const serviceId = typeof srvItem === 'string' ? srvItem : (srvItem.id || srvItem.service_id);
+              const itemQty = (typeof srvItem === 'object' && srvItem.qty) ? srvItem.qty : 1;
+              
+              if (serviceId === 'ALL') {
+                allServices.slice(0, data.package.remaining_quantity || 1).forEach(s => {
+                  autoCartItems.push({
+                    itemId: s.id,
+                    itemName: s.name,
+                    serviceTypeId: s.category || 'Wash',
+                    serviceTypeName: s.category || 'Wash',
+                    variantId: `normal_${s.id}`,
+                    variantName: 'Normal',
+                    price: parseFloat(s.price) || 0,
+                    qty: 1
+                  });
+                });
+              } else {
+                const matchedService = allServices.find((s: any) => s.id === serviceId || s.name === serviceId);
+                if (matchedService) {
+                  autoCartItems.push({
+                    itemId: matchedService.id,
+                    itemName: matchedService.name,
+                    serviceTypeId: matchedService.category || 'Wash',
+                    serviceTypeName: matchedService.category || 'Wash',
+                    variantId: `normal_${matchedService.id}`,
+                    variantName: 'Normal',
+                    price: parseFloat(matchedService.price) || 0,
+                    qty: itemQty
+                  });
+                }
+              }
+            });
+          }
+
+          if (autoCartItems.length > 0) {
+            currentCart = autoCartItems;
+            setPosCart(autoCartItems);
+          } else {
+            alert('Cart is empty and no eligible service items were found in this package definition.');
+            return;
+          }
         }
         
-        // Check if cart has eligible services
-        const eligibleInCart = posCart.filter(item => 
+        // Filter eligible items in current cart
+        const eligibleInCart = currentCart.filter(item => 
           !data.package.eligible_services ||
           data.package.eligible_services.length === 0 ||
           data.package.eligible_services.includes('ALL') || 
-          data.package.eligible_services.includes(item.serviceId) ||
-          data.package.eligible_services.includes(item.id) ||
-          data.package.eligible_services.includes(item.name)
+          data.package.eligible_services.some((srv: any) => {
+            const id = typeof srv === 'string' ? srv : (srv.id || srv.service_id);
+            return id === item.itemId || id === item.serviceId || id === item.itemName || id === item.name || id === 'ALL';
+          })
         );
-        if (eligibleInCart.length === 0) {
-          alert('Cart does not contain any services eligible for this prepaid package.');
-          return;
-        }
         
-        // Calculate total eligible items
-        const totalEligibleQty = eligibleInCart.reduce((sum, item) => sum + item.qty, 0);
-        const qtyToRedeem = Math.min(totalEligibleQty, data.package.remaining_quantity);
+        const cartToUse = eligibleInCart.length > 0 ? eligibleInCart : currentCart;
         
-        // Calculate discount (waive price of eligible items up to qtyToRedeem)
+        // Calculate total eligible items and discount
+        const totalEligibleQty = cartToUse.reduce((sum, item) => sum + item.qty, 0);
+        const qtyToRedeem = Math.min(totalEligibleQty, data.package.remaining_quantity || totalEligibleQty);
+        
         let discountAcc = 0;
         let remainingRedeem = qtyToRedeem;
-        for (const item of eligibleInCart) {
+        for (const item of cartToUse) {
           if (remainingRedeem <= 0) break;
           const redeemThisItem = Math.min(item.qty, remainingRedeem);
           discountAcc += (item.price * redeemThisItem);
