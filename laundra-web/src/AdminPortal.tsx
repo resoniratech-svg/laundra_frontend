@@ -5585,7 +5585,13 @@ export const AdminPortal: React.FC = () => {
 
             {/* Wallet Pass UI Preview */}
             <div style={{ 
-              background: 'linear-gradient(135deg, #fbbf24, #d97706)', // GOLD styling
+              background: walletPassPreview.pass_color === 'GREY' 
+                ? 'linear-gradient(135deg, #64748b, #334155)' // 🩶 GREY (In Use)
+                : walletPassPreview.pass_color === 'ORANGE' 
+                ? 'linear-gradient(135deg, #f97316, #c2410c)' // 🟧 ORANGE (Low Balance)
+                : walletPassPreview.pass_color === 'WHITE' 
+                ? 'linear-gradient(135deg, #94a3b8, #475569)' // ⬜ WHITE (Empty)
+                : 'linear-gradient(135deg, #fbbf24, #d97706)', // 🟨 GOLD (Full / Active)
               borderRadius: '20px', 
               padding: '24px', 
               color: 'white',
@@ -5599,7 +5605,9 @@ export const AdminPortal: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', opacity: 0.9 }}>LAUNDRA</h4>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px' }}>Prepaid Pass</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '800', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '1px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content' }}>
+                    {walletPassPreview.pass_color === 'GREY' ? '🩶 IN USE' : walletPassPreview.pass_color === 'ORANGE' ? '🟧 LOW BALANCE - RENEW SOON' : '🟨 ACTIVE'}
+                  </div>
                 </div>
                 <div style={{ background: 'white', padding: '6px', borderRadius: '8px' }}>
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${walletPassPreview.qrToken}`} alt="QR" style={{ display: 'block', width: '60px', height: '60px' }} />
