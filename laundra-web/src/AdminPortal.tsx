@@ -5568,10 +5568,16 @@ export const AdminPortal: React.FC = () => {
                 Tap below to add your Digital Laundry Pass to your wallet for seamless checkout.
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                <button style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <button 
+                  onClick={() => window.open(walletPassPreview.apple_wallet_url || 'https://wallet.apple.com', '_blank')} 
+                  style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                >
                   🍎 Apple Wallet
                 </button>
-                <button style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <button 
+                  onClick={() => window.open(walletPassPreview.google_wallet_url || 'https://pay.google.com', '_blank')} 
+                  style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                >
                   🔵 Google Wallet
                 </button>
               </div>
