@@ -1487,7 +1487,7 @@ export const AdminPortal: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setPosCustomerPackages(data.filter(p => p.status === 'Active'));
+          setPosCustomerPackages(data.filter(p => p.status?.toUpperCase() === 'ACTIVE'));
         }
       })
       .catch(err => console.error(err));
@@ -3946,7 +3946,7 @@ export const AdminPortal: React.FC = () => {
                     style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
                   >
                     <option value="">Select Package</option>
-                    {db.customerPackages?.filter(cp => cp.customerId === posCustId && cp.status === 'Active').map(cp => (
+                    {db.customerPackages?.filter(cp => cp.customerId === posCustId && (cp.status?.toUpperCase() === 'ACTIVE' || cp.status === 'Active')).map(cp => (
                       <option key={cp.id} value={cp.id}>{cp.packageName} (₹{cp.currentBalance} left)</option>
                     ))}
                   </select>
