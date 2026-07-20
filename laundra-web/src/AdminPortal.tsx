@@ -3858,6 +3858,10 @@ export const AdminPortal: React.FC = () => {
                       <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Wallet Balance</label>
                       <input type="text" value={`₹${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
                     </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Loyalty Points</label>
+                      <input type="text" value={`⭐ ${db.customers.find(c => c.id === posCustId)?.loyaltyPoints || 0} pts`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #fde68a', borderRadius: '4px', background: '#fffbeb', color: '#b45309', fontWeight: '800' }} />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
