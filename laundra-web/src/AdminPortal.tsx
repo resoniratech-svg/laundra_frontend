@@ -1601,7 +1601,7 @@ export const AdminPortal: React.FC = () => {
                 date: new Date().toLocaleString(),
                 amount: total,
                 type: 'use' as const,
-                note: `Order #${newOrderId}`
+                note: 'POS Checkout Order'
               }];
               return { ...c, walletBalance: c.walletBalance - total, walletHistory: hist };
             }
@@ -5606,7 +5606,7 @@ export const AdminPortal: React.FC = () => {
                 <div>
                   <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', opacity: 0.9 }}>LAUNDRA</h4>
                   <div style={{ fontSize: '0.75rem', fontWeight: '800', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '1px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content' }}>
-                    {walletPassPreview.pass_color === 'GREY' ? '🩶 IN USE' : walletPassPreview.pass_color === 'ORANGE' ? '🟧 LOW BALANCE - RENEW SOON' : '🟨 ACTIVE'}
+                    {walletPassPreview.pass_color === 'GREY' ? '🩶 IN USE' : walletPassPreview.pass_color === 'ORANGE' ? '🟧 LOW BALANCE - RENEW SOON' : walletPassPreview.pass_color === 'WHITE' ? '⬜ PACKAGE COMPLETED - PLEASE RENEW' : '🟨 ACTIVE'}
                   </div>
                 </div>
                 <div style={{ background: 'white', padding: '6px', borderRadius: '8px' }}>
