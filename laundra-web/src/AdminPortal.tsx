@@ -938,12 +938,16 @@ export const AdminPortal: React.FC = () => {
         // Show mock wallet pass preview instead of traditional alert
         setWalletPassPreview({
           ...data,
+          packageName: data.package?.name || pkg.name,
           packageValue: data.package_value,
+          currentBalance: data.current_balance || data.package_value,
           customerName: sellingPackageTo.name,
           finalPaid: data.package_value,
+          qrToken: data.secure_token,
+          expiryDate: data.expiry_date ? new Date(data.expiry_date).toLocaleDateString() : '365 Days',
           apple_wallet_url: data.apple_wallet_url,
           google_wallet_url: data.google_wallet_url,
-          pass_color: data.pass_color
+          pass_color: data.pass_color || 'GOLD'
         });
         
         setSellingPackageTo(null);
