@@ -1476,7 +1476,8 @@ export const AdminPortal: React.FC = () => {
       if (!isNaN(val)) return val;
     }
     const cartTotal = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    return Math.max(0, cartTotal - posDiscount);
+    const customDisc = parseFloat(customPOSDiscount) || 0;
+    return Math.max(0, cartTotal - posDiscount - customDisc);
   };
 
   useEffect(() => {
@@ -3931,42 +3932,66 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              {posPrepaidPackageApplied && (
-                <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', background: '#f5f3ff', padding: '8px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
-                  <strong>📦 {posPrepaidPackageApplied.package_name} Applied</strong><br/>
-                  Redeeming {posPrepaidPackageApplied.qtyToRedeem} items. Discount: -QR {posPrepaidPackageApplied.discountAmount.toFixed(2)}
+              {/* Cart Summary & Total Breakdown */}
+              <div style={{ marginTop: '14px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                
+                {/* Subtotal */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Cart Subtotal:</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
+                    QR {posCart.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}
+                  </span>
                 </div>
-              )}
 
-              {/* Discount input field */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                <span style={{ fontWeight: '700' }}>Discount (QR):</span>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={customPOSDiscount} 
-                  className="no-spinners"
-                  placeholder="0.00"
-                  onChange={e => setCustomPOSDiscount(e.target.value)} 
-                  style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '1rem', color: '#0f172a', textAlign: 'right' }} 
-                />
-              </div>
+                {/* Applied Prepaid Package Banner */}
+                {posPrepaidPackageApplied && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f3ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#7c3aed' }}>
+                        📦 {posPrepaidPackageApplied.name || posPrepaidPackageApplied.package_name || 'Prepaid Package'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#6d28d9' }}>
+                        Covering {posPrepaidPackageApplied.qtyToRedeem || 0} item(s)
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#7c3aed' }}>
+                      -QR {posDiscount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
 
-              {/* POS total amount field */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                <span style={{ fontWeight: '700' }}>POS total amount:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b' }}>QR</span>
+                {/* Manual Discount field */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Manual Discount (QR):</span>
                   <input 
                     type="number" 
                     step="0.01" 
-                    value={customPOSAmount} 
+                    value={customPOSDiscount} 
                     className="no-spinners"
-                    placeholder={(posCart.reduce((sum, item) => sum + (item.price * item.qty), 0) - posDiscount - (parseFloat(customPOSDiscount) || 0)).toFixed(2)}
-                    onChange={e => setCustomPOSAmount(e.target.value)} 
-                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '800', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                    placeholder="0.00"
+                    onChange={e => setCustomPOSDiscount(e.target.value)} 
+                    style={{ width: '90px', padding: '4px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.9rem', color: '#0f172a', textAlign: 'right' }} 
                   />
                 </div>
+
+                <div style={{ height: '1px', background: '#cbd5e1', margin: '2px 0' }} />
+
+                {/* Final POS Total Amount */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>POS Total Amount:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#2563eb' }}>QR</span>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={customPOSAmount !== '' ? customPOSAmount : getPOSCartTotal().toFixed(2)} 
+                      className="no-spinners"
+                      onChange={e => setCustomPOSAmount(e.target.value)} 
+                      style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '900', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                    />
+                  </div>
+                </div>
+
               </div>
 
               {posPayMethod === 'Wallet' && posCustId && (
