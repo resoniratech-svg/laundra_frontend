@@ -2289,8 +2289,20 @@ export const AdminPortal: React.FC = () => {
           return;
         }
         
+        if (posCart.length === 0) {
+          alert('Your cart is empty! Please add laundry items to the cart first before applying a prepaid package.');
+          return;
+        }
+        
         // Check if cart has eligible services
-        const eligibleInCart = posCart.filter(item => data.package.eligible_services.includes(item.serviceId));
+        const eligibleInCart = posCart.filter(item => 
+          !data.package.eligible_services ||
+          data.package.eligible_services.length === 0 ||
+          data.package.eligible_services.includes('ALL') || 
+          data.package.eligible_services.includes(item.serviceId) ||
+          data.package.eligible_services.includes(item.id) ||
+          data.package.eligible_services.includes(item.name)
+        );
         if (eligibleInCart.length === 0) {
           alert('Cart does not contain any services eligible for this prepaid package.');
           return;
