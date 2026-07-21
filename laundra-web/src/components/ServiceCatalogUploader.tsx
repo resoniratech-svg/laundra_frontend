@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useDatabase } from '../DatabaseContext';
 
+import { getApiBaseUrl } from '../config';
+
 interface Props {
   companyId: string;
 }
 
 export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
   const { db, setItems, setServiceTypes, setServiceVariants, setItemPrices } = useDatabase();
+  const BASE_URL = getApiBaseUrl();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -33,7 +36,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
     setFetchingServices(true);
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -165,7 +167,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const formData = new FormData();
       formData.append('file', selectedFile);
       
@@ -200,7 +201,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services`, {
         method: 'POST',
         headers: { 
@@ -234,7 +234,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services/${editingService.id}`, {
         method: 'PUT',
         headers: { 
@@ -268,7 +267,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
     if (!window.confirm('Are you sure you want to delete this service from the catalog?')) return;
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services/${serviceId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -304,7 +302,6 @@ export const ServiceCatalogUploader: React.FC<Props> = ({ companyId }) => {
   const handleExport = async () => {
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/companies/${companyId}/services/export`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });

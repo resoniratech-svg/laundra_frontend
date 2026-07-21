@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from './config';
+
+const BASE_URL = getApiBaseUrl();
 
 export const QRScanPage: React.FC = () => {
   const { qr_token } = useParams<{ qr_token: string }>();

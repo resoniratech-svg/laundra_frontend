@@ -1028,7 +1028,6 @@ export const AdminPortal: React.FC = () => {
       alert('Email already registered.');
       return;
     }
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     if (role === 'cashier') {
       try {
         const token = localStorage.getItem('ll_auth_token');
@@ -1096,7 +1095,6 @@ export const AdminPortal: React.FC = () => {
         return;
       }
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1117,7 +1115,6 @@ export const AdminPortal: React.FC = () => {
 
   const handleCompleteStaffSetup = async (e: React.FormEvent, role: 'cashier' | 'delivery') => {
     e.preventDefault();
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     
     if (role === 'cashier') {
       try {
@@ -1170,7 +1167,6 @@ export const AdminPortal: React.FC = () => {
       }
     } else {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1255,7 +1251,6 @@ export const AdminPortal: React.FC = () => {
   const handleDeleteStaff = async (user: User) => {
     if (confirm(`Remove staff member "${user.name}" permanently from the database? This cannot be undone.`)) {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/users/${user.id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
@@ -1603,7 +1598,6 @@ export const AdminPortal: React.FC = () => {
     }
     const cartTotal = posCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       const res = await fetch(`${BASE_URL}/api/v1/coupons/apply`, {
         method: 'POST',
@@ -1687,7 +1681,6 @@ export const AdminPortal: React.FC = () => {
     const commAmt = posPayMethod === 'Cash' ? parseFloat(posCommission) || 0 : 0;
 
     // --- Try to save to backend first ---
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     let backendOrderId: string | null = null;
     let backendOrderNumber: string | null = null;
 
@@ -2020,7 +2013,6 @@ export const AdminPortal: React.FC = () => {
   const handleDeleteCoupon = async (couponId: string, couponCode: string) => {
     if (!confirm('Delete coupon?')) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       if (couponId) {
         await fetch(`${BASE_URL}/api/v1/coupons/${couponId}`, {
@@ -2038,7 +2030,6 @@ export const AdminPortal: React.FC = () => {
   const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       
       const payload = {
@@ -2111,7 +2102,6 @@ export const AdminPortal: React.FC = () => {
     const diff = walletDir === 'in' ? val : -val;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       const res = await fetch(`${BASE_URL}/api/v1/customers/${walletCust.id}/wallet`, {
         method: 'POST',
@@ -2154,7 +2144,6 @@ export const AdminPortal: React.FC = () => {
     const diff = loyaltyDir === 'add' ? val : -val;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       const res = await fetch(`${BASE_URL}/api/v1/customers/${loyaltyCust.id}/loyalty`, {
         method: 'POST',
@@ -2244,7 +2233,6 @@ export const AdminPortal: React.FC = () => {
     if (!tktSubject || !tktMessage) return;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       
       const res = await fetch(`${BASE_URL}/api/v1/support/tickets`, {
@@ -2439,7 +2427,6 @@ export const AdminPortal: React.FC = () => {
     const targetToken = tokenOverride || posPrepaidQRToken;
     if (!targetToken) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/qr/${targetToken}`);
       
       if (res.ok) {
@@ -2579,7 +2566,6 @@ export const AdminPortal: React.FC = () => {
     if (!replyText.trim() || !activeReviewId) return;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       const res = await fetch(`${BASE_URL}/api/v1/reviews/${activeReviewId}/reply`, {
         method: 'POST',
@@ -3049,7 +3035,6 @@ export const AdminPortal: React.FC = () => {
               // 2. Try backend API update if it has backend UUID
               if (!lr.isLocal && token) {
                 try {
-                  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
                   await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
                     method: 'PATCH',
                     headers: { 
@@ -3670,7 +3655,6 @@ export const AdminPortal: React.FC = () => {
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
                               try {
-                                const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
                                 const res = await fetch(`${BASE_URL}/api/v1/orders/${o.backendId || o.id}`, {
                                   method: 'DELETE',
                                   headers: { 'Authorization': `Bearer ${token}` }
@@ -4877,7 +4861,6 @@ export const AdminPortal: React.FC = () => {
                           const replyText = customerTicketReply[t.id];
                           if (!replyText) return alert('Please enter a response.');
                           try {
-                            const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
                             const token = localStorage.getItem('ll_auth_token');
                             const res = await fetch(`${BASE_URL}/api/v1/admin/customer-support/${t.id}`, {
                               method: 'PATCH',

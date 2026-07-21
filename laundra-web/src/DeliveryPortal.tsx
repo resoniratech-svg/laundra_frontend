@@ -3,8 +3,11 @@ import { useDatabase } from './DatabaseContext';
 import type { User, Order } from './DatabaseContext';
 import { apiSendOrderOtp, apiVerifyOrderOtp } from './deliveryApi';
 
+import { getApiBaseUrl } from './config';
+
 export const DeliveryPortal: React.FC = () => {
   const { db, saveDB } = useDatabase();
+  const BASE_URL = getApiBaseUrl();
 
   // Authentication & Session States
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -92,7 +95,6 @@ export const DeliveryPortal: React.FC = () => {
     try {
       const token = localStorage.getItem('ll_auth_token');
       if (!token) return;
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const response = await fetch(`${BASE_URL}/api/v1/staff/support-tickets`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -115,7 +117,6 @@ export const DeliveryPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (!token) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/announcements/staff`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -382,7 +383,6 @@ export const DeliveryPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (token) {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         await fetch(`${BASE_URL}/api/v1/mobile-staff/leaves`, {
           method: 'POST',
           headers: {
@@ -572,7 +572,6 @@ export const DeliveryPortal: React.FC = () => {
     }
     try {
       const token = localStorage.getItem('ll_auth_token');
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const response = await fetch(`${BASE_URL}/api/v1/staff/support-tickets`, {
         method: 'POST',
         headers: {

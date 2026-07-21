@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase } from '../DatabaseContext';
+import { getApiBaseUrl } from '../config';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       const token = localStorage.getItem('ll_auth_token');
       if (token) {
         try {
-          const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+          const BASE_URL = getApiBaseUrl();
           const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });

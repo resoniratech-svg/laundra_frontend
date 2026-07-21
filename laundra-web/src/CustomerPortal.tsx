@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase, type Order, type Customer, type Promo } from './DatabaseContext';
 import CustomerPrepaidPackages from './CustomerPrepaidPackages';
+import { getApiBaseUrl } from './config';
 
 // Support ticket interface
 interface SupportTicket {
@@ -41,6 +42,7 @@ const getEmojiForService = (name: string) => {
 export const CustomerPortal: React.FC = () => {
   const navigate = useNavigate();
   const { db, saveDB, changeActiveCompany } = useDatabase();
+  const BASE_URL = getApiBaseUrl();
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -78,7 +80,6 @@ export const CustomerPortal: React.FC = () => {
       const token = localStorage.getItem('ll_auth_token');
       if (token && activeCustId) {
         try {
-          const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
           const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
@@ -128,7 +129,6 @@ export const CustomerPortal: React.FC = () => {
       }
       
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/customers/public/${activeCustId}`);
         if (res.ok) {
           const data = await res.json();
@@ -185,7 +185,6 @@ export const CustomerPortal: React.FC = () => {
 
     const fetchPublicServices = async () => {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/services/public/${db.activeCompanyId}`);
         if (res.ok) {
           const sData = await res.json();
@@ -272,7 +271,6 @@ export const CustomerPortal: React.FC = () => {
     const fetchPromos = async () => {
       try {
         if (!db.activeCompanyId) return;
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/coupons/public?tenant_id=${db.activeCompanyId}`);
         if (res.ok) {
           const data = await res.json();
@@ -323,7 +321,6 @@ export const CustomerPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (!token) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/announcements/customer`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -339,7 +336,6 @@ export const CustomerPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (!token) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/portal/support`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -361,7 +357,6 @@ export const CustomerPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (!token) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/reviews/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -379,7 +374,6 @@ export const CustomerPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     if (!token || !customer) return;
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/portal/orders`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -548,7 +542,6 @@ export const CustomerPortal: React.FC = () => {
       return;
     }
 
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('ll_auth_token');
 
     try {
@@ -682,7 +675,6 @@ export const CustomerPortal: React.FC = () => {
     if (val <= 0) return;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/customers/${customer.id}/add-funds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -714,7 +706,6 @@ export const CustomerPortal: React.FC = () => {
     if (!ticketSubject || !ticketMessage) return;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       
       const res = await fetch(`${BASE_URL}/api/v1/portal/support`, {
@@ -751,7 +742,6 @@ export const CustomerPortal: React.FC = () => {
     if (!ratingComment) return;
 
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('ll_auth_token');
       const res = await fetch(`${BASE_URL}/api/v1/reviews`, {
         method: 'POST',

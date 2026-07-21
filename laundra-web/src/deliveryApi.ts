@@ -12,7 +12,9 @@
  * when the backend is not yet deployed.
  */
 
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from './config';
+
+const BASE_URL = getApiBaseUrl();
 
 // ─── Shared helper ───────────────────────────────────────────────────────────
 
@@ -106,7 +108,6 @@ export async function apiApproveDeliveryBoy(
   userId: string,
   token?: string
 ): Promise<{ message: string }> {
-  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
   
   const res = await fetch(`${BASE_URL}/api/v1/users/${userId}/approve`, {
     method: 'POST',
@@ -130,7 +131,6 @@ export async function apiRejectDeliveryBoy(
   userId: string,
   token?: string
 ): Promise<{ message: string }> {
-  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
   
   const res = await fetch(`${BASE_URL}/api/v1/users/${userId}/reject`, {
     method: 'POST',
@@ -155,7 +155,6 @@ export async function apiSendOrderOtp(
   action: 'pickup' | 'delivery',
   token?: string
 ): Promise<{ message: string }> {
-  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
   
   const res = await fetch(`${BASE_URL}/api/v1/orders/${orderId}/send-otp`, {
     method: 'POST',
@@ -181,7 +180,6 @@ export async function apiVerifyOrderOtp(
   otp: string,
   token?: string
 ): Promise<any> {
-  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
   
   const res = await fetch(`${BASE_URL}/api/v1/orders/${orderId}/verify-otp`, {
     method: 'POST',

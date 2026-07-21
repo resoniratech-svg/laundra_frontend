@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDatabase, type Company, type User } from './DatabaseContext';
 import { ServiceCatalogUploader } from './components/ServiceCatalogUploader';
 import CompanyOnboardingWizard from './components/CompanyOnboardingWizard';
+import { getApiBaseUrl } from './config';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface Ticket {
@@ -179,7 +180,7 @@ export const SuperAdminPortal: React.FC = () => {
   const [backendAnnouncements, setBackendAnnouncements] = useState<any[]>([]);
   const [backendAuditLogs, setBackendAuditLogs] = useState<any[]>([]);
   const [backendTickets, setBackendTickets] = useState<any[]>([]);
-  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+  const BASE_URL = getApiBaseUrl();
 
   const fetchBackendData = async () => {
     if (!token) return;
@@ -466,7 +467,6 @@ export const SuperAdminPortal: React.FC = () => {
   const handleHardDeleteCompany = async (company: Company) => {
     if (confirm(`⚠️ WARNING: Are you sure you want to completely delete company "${company.name}" and all of its associated users, subscriptions, and data from the database? This action cannot be undone.`)) {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${company.id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
@@ -549,8 +549,6 @@ export const SuperAdminPortal: React.FC = () => {
       alert('A company with this domain path URL key slug already exists.');
       return;
     }
-
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
     try {
       // 1. Create Company via Backend
@@ -701,7 +699,6 @@ export const SuperAdminPortal: React.FC = () => {
       return;
     }
 
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
     try {
       // 1. Send OTP email via backend
       const otpRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${adminTargetCompId}/admins/send-otp`, {

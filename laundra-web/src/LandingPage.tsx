@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useDatabase } from './DatabaseContext';
 import { apiSendDeliveryOtp, apiRegisterDeliveryBoy } from './deliveryApi';
 
+import { getApiBaseUrl } from './config';
+
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { db, saveDB, changeActiveCompany, setToken } = useDatabase();
+  const BASE_URL = getApiBaseUrl();
 
   // Carousel State
   const [slideIndex, setSlideIndex] = useState(0);
@@ -16,7 +19,6 @@ export const LandingPage: React.FC = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/companies/public`);
         if (res.ok) {
           const data = await res.json();
@@ -184,7 +186,6 @@ export const LandingPage: React.FC = () => {
     setApiLoading(true);
     setApiError('');
     try {
-      const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
       const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -296,7 +297,6 @@ export const LandingPage: React.FC = () => {
     // Attempt backend login
     setApiLoading(true);
     setApiError('');
-    const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
     try {
       // 1. Authenticate to get token
