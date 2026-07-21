@@ -841,9 +841,10 @@ export const AdminPortal: React.FC = () => {
 
     try {
       const defaultPass = "customer123";
+      const adminToken = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || token || '';
       const res = await fetch(`${BASE_URL}/api/v1/customers`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
         body: JSON.stringify({
           name: custName,
           email: custEmail.trim() || null,

@@ -133,7 +133,7 @@ export const CustomerPortal: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           if (data.access_token) {
-            localStorage.setItem('ll_auth_token', data.access_token);
+            localStorage.setItem('ll_customer_token', data.access_token);
           }
           setCustomer({
             id: data.id,

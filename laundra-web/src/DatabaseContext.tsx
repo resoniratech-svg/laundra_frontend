@@ -589,8 +589,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTokenState(newToken);
     if (newToken) {
       localStorage.setItem('ll_auth_token', newToken);
+      localStorage.setItem('ll_admin_auth_token', newToken);
     } else {
       localStorage.removeItem('ll_auth_token');
+      localStorage.removeItem('ll_admin_auth_token');
     }
   };
 
