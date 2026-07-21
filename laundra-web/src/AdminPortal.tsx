@@ -499,23 +499,32 @@ export const AdminPortal: React.FC = () => {
         });
 
         // Merge locally-saved courier assignments so they aren't wiped on refresh.
-        // The backend does not store pickup/delivery courier info, so we preserve
-        // whatever was already saved in db.orders for each matching order.
-        const currentOrders: any[] = JSON.parse(localStorage.getItem('laundry_db') || '{}').orders || [];
+        const currentOrders: any[] = db.orders || [];
         const mergedOrders = mappedOrders.map((freshOrder: any) => {
-          const existing = currentOrders.find((e: any) => e.id === freshOrder.id);
+          const existing = currentOrders.find((e: any) => e.id === freshOrder.id || e.backendId === freshOrder.backendId);
           if (existing) {
             return {
               ...freshOrder,
-              pickupCourier: existing.pickupCourier ?? freshOrder.pickupCourier ?? null,
-              deliveryCourier: existing.deliveryCourier ?? freshOrder.deliveryCourier ?? null,
-              courier: existing.courier ?? freshOrder.courier ?? null,
-              deliveryStatus: existing.deliveryStatus ?? freshOrder.deliveryStatus,
-              deliveredDate: existing.deliveredDate ?? freshOrder.deliveredDate ?? null,
+              pickupCourier: existing.pickupCourier || freshOrder.courier || null,
+              deliveryCourier: existing.deliveryCourier || (freshOrder.status === 'Delivered' ? freshOrder.courier : null),
+              courier: freshOrder.courier || existing.courier || existing.pickupCourier || null,
+              deliveryStatus: existing.deliveryStatus || freshOrder.deliveryStatus,
+              deliveredDate: existing.deliveredDate || freshOrder.deliveredDate || null,
               discount: existing.discount ?? freshOrder.discount ?? 0,
+              pickupCommission: existing.pickupCommission || 5,
+              deliveryCommission: existing.deliveryCommission || 5,
+              pickupCommissionPaid: existing.pickupCommissionPaid || false,
+              deliveryCommissionPaid: existing.deliveryCommissionPaid || false,
+              pickupAccepted: existing.pickupAccepted || false,
+              deliveryAccepted: existing.deliveryAccepted || false,
             };
           }
-          return freshOrder;
+          return {
+            ...freshOrder,
+            pickupCourier: freshOrder.courier || null,
+            pickupCommission: 5,
+            deliveryCommission: 5,
+          };
         });
 
         saveDB({ orders: mergedOrders });
@@ -1466,6 +1475,7 @@ export const AdminPortal: React.FC = () => {
           ...o,
           pickupCourier: courierName || null,
           courier: courierName || o.deliveryCourier || null,
+          pickupCommission: o.pickupCommission || 5,
           deliveryStatus: nextDeliveryStatus
         };
       }
@@ -1486,6 +1496,7 @@ export const AdminPortal: React.FC = () => {
           ...o,
           deliveryCourier: courierName || null,
           courier: courierName || o.pickupCourier || null,
+          deliveryCommission: o.deliveryCommission || 5,
           deliveryStatus: nextDeliveryStatus
         };
       }
@@ -3076,19 +3087,19 @@ export const AdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {db.users.filter(u => u.role === 'delivery').map(u => {
+                {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Boy' || u.role === 'Delivery Staff').map(u => {
                   const unpaidPickupTasks = db.orders.filter(o => 
-                    o.courier === u.name && 
-                    o.pickupCommission > 0 &&
+                    (o.pickupCourier === u.name || o.courier === u.name) && 
+                    ['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes(String(o.status || '').toLowerCase()) &&
                     !o.pickupCommissionPaid
                   );
                   const unpaidDeliveryTasks = db.orders.filter(o => 
-                    o.courier === u.name && 
-                    o.deliveryCommission > 0 &&
+                    (o.deliveryCourier === u.name || o.courier === u.name) && 
+                    ['delivered'].includes(String(o.status || '').toLowerCase()) &&
                     !o.deliveryCommissionPaid
                   );
-                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission || 0), 0);
-                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission || 0), 0);
+                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission ?? 5), 0);
+                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission ?? 5), 0);
                   const unpaidAmount = unpaidPickupAmount + unpaidDeliveryAmount;
                   const totalUnpaidTasksCount = unpaidPickupTasks.length + unpaidDeliveryTasks.length;
                   
@@ -3101,27 +3112,27 @@ export const AdminPortal: React.FC = () => {
                           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {unpaidPickupTasks.map(t => {
                               const d = new Date(t.date);
-                              const dateStr = isNaN(d.getTime()) ? t.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                              const dateStr = isNaN(d.getTime()) ? (t.date ? String(t.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
                                 <div key={`pickup-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
                                     <span style={{ fontWeight: '700', color: '#b45309' }}>#{t.id} - Pickup</span>
                                     <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission || 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission ?? 5).toFixed(2)}</span>
                                 </div>
                               );
                             })}
                             {unpaidDeliveryTasks.map(t => {
                               const d = new Date(t.date);
-                              const dateStr = isNaN(d.getTime()) ? t.date.split(' ')[0] : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                              const dateStr = isNaN(d.getTime()) ? (t.date ? String(t.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
                                 <div key={`delivery-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
                                     <span style={{ fontWeight: '700', color: '#1e40af' }}>#{t.id} - Delivery</span>
                                     <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission || 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission ?? 5).toFixed(2)}</span>
                                 </div>
                               );
                             })}
@@ -3154,17 +3165,15 @@ export const AdminPortal: React.FC = () => {
                             if (window.confirm(`Mark QR ${unpaidAmount.toFixed(2)} as Paid via ${method} for ${u.name}?`)) {
                               const updatedOrders = db.orders.map(o => {
                                 let newOrder = { ...o };
-                                if (o.courier === u.name) {
-                                  if (!o.pickupCommissionPaid && o.pickupCommission > 0) {
-                                    newOrder.pickupCommissionPaid = true;
-                                    newOrder.pickupPaymentMethod = method;
-                                    newOrder.pickupPaymentDate = new Date().toISOString();
-                                  }
-                                  if (!o.deliveryCommissionPaid && o.deliveryCommission > 0) {
-                                    newOrder.deliveryCommissionPaid = true;
-                                    newOrder.deliveryPaymentMethod = method;
-                                    newOrder.deliveryPaymentDate = new Date().toISOString();
-                                  }
+                                if ((o.pickupCourier === u.name || o.courier === u.name) && !o.pickupCommissionPaid) {
+                                  newOrder.pickupCommissionPaid = true;
+                                  newOrder.pickupPaymentMethod = method;
+                                  newOrder.pickupPaymentDate = new Date().toISOString();
+                                }
+                                if ((o.deliveryCourier === u.name || o.courier === u.name) && !o.deliveryCommissionPaid) {
+                                  newOrder.deliveryCommissionPaid = true;
+                                  newOrder.deliveryPaymentMethod = method;
+                                  newOrder.deliveryPaymentDate = new Date().toISOString();
                                 }
                                 return newOrder;
                               });
@@ -3494,50 +3503,56 @@ export const AdminPortal: React.FC = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                               <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>📦 Pickup:</span>
                               <select
-                                value={o.pickupCourier || ''}
+                                value={o.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? o.courier : '') || ''}
                                 onChange={e => handleAssignPickupCourier(o.id, e.target.value)}
-                                disabled={!!(o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase()))}
+                                disabled={!!(o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase()))}
                                 style={{ 
                                   padding: '4px 6px', 
                                   border: '1.5px solid #cbd5e1', 
                                   borderRadius: '6px', 
                                   fontSize: '0.8rem', 
-                                  background: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase())) ? '#e2e8f0' : 'white', 
-                                  cursor: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(o.status.toLowerCase())) ? 'not-allowed' : 'pointer',
+                                  background: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase())) ? '#e2e8f0' : 'white', 
+                                  cursor: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase())) ? 'not-allowed' : 'pointer',
                                   width: '120px' 
                                 }}
                               >
                                 <option value="">-- Unassigned --</option>
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
-                                {db.users.filter(u => u.role === 'delivery').map(u => (
+                                {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
                                 ))}
+                                {o.pickupCourier && !db.users.some(u => u.name === o.pickupCourier) && (
+                                  <option value={o.pickupCourier}>{o.pickupCourier}</option>
+                                )}
                               </select>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                               <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>🚚 Delivery:</span>
                               <select
-                                value={o.deliveryCourier || ''}
+                                value={o.deliveryCourier || ((o.status || '').toLowerCase() === 'delivered' ? o.courier : '') || ''}
                                 onChange={e => handleAssignDeliveryCourier(o.id, e.target.value)}
-                                disabled={!!(o.deliveryAccepted || o.status.toLowerCase() === 'delivered')}
+                                disabled={!!(o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered')}
                                 style={{ 
                                   padding: '4px 6px', 
                                   border: '1.5px solid #cbd5e1', 
                                   borderRadius: '6px', 
                                   fontSize: '0.8rem', 
-                                  background: (o.deliveryAccepted || o.status.toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', 
-                                  cursor: (o.deliveryAccepted || o.status.toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer',
+                                  background: (o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', 
+                                  cursor: (o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer',
                                   width: '120px' 
                                 }}
                               >
                                 <option value="">-- Unassigned --</option>
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
-                                {db.users.filter(u => u.role === 'delivery').map(u => (
+                                {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
                                 ))}
+                                {o.deliveryCourier && !db.users.some(u => u.name === o.deliveryCourier) && (
+                                  <option value={o.deliveryCourier}>{o.deliveryCourier}</option>
+                                )}
                               </select>
                             </div>
                             
@@ -5469,42 +5484,48 @@ export const AdminPortal: React.FC = () => {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Pickup Courier</label>
                   <select 
-                    value={viewingOrder.pickupCourier || ''} 
+                    value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
                     onChange={e => {
                       handleAssignPickupCourier(viewingOrder.id, e.target.value);
                       const updated = db.orders.find(o => o.id === viewingOrder.id);
                       if (updated) setViewingOrder(updated);
                     }}
-                    disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase()))}
-                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes(viewingOrder.status.toLowerCase())) ? 'not-allowed' : 'pointer' }}
+                    disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
                   >
                     <option value="">Unassigned</option>
                     <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery').map(u => (
+                    {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
                     ))}
+                    {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
+                      <option value={viewingOrder.pickupCourier}>{viewingOrder.pickupCourier}</option>
+                    )}
                   </select>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Delivery Courier</label>
                   <select 
-                    value={viewingOrder.deliveryCourier || ''} 
+                    value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
                     onChange={e => {
                       handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
                       const updated = db.orders.find(o => o.id === viewingOrder.id);
                       if (updated) setViewingOrder(updated);
                     }}
-                    disabled={!!(viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered')}
-                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || viewingOrder.status.toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
+                    disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
                   >
                     <option value="">Unassigned</option>
                     <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery').map(u => (
+                    {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
                     ))}
+                    {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
+                      <option value={viewingOrder.deliveryCourier}>{viewingOrder.deliveryCourier}</option>
+                    )}
                   </select>
                 </div>
 

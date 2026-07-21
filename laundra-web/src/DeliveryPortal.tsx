@@ -419,18 +419,21 @@ export const DeliveryPortal: React.FC = () => {
   const updatePickupStatus = (order: Order, nextStatus: Order['status'], deliveryStatusText: string) => {
     const updatedOrders = db.orders.map(o => {
       if (o.id === order.id) {
-        const isPickupAction = ['courier on the way', 'reached customer'].includes(deliveryStatusText.toLowerCase());
-        const isDeliveryAction = ['out for delivery'].includes(deliveryStatusText.toLowerCase()) || nextStatus === 'Out for Delivery';
+        const isPickupAction = ['courier on the way', 'reached customer', 'received', 'in processing', 'picked up'].includes(deliveryStatusText.toLowerCase()) || nextStatus === 'Received';
+        const isDeliveryAction = ['out for delivery', 'delivered'].includes(deliveryStatusText.toLowerCase()) || nextStatus === 'Out for Delivery' || nextStatus === 'Delivered';
+        const currentDriverName = currentUser ? currentUser.name : (o.pickupCourier || o.courier);
         
         return {
           ...o,
           status: nextStatus,
           deliveryStatus: deliveryStatusText,
-          courier: currentUser ? currentUser.name : o.courier,
-          pickupCourier: isPickupAction ? (o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier)) : o.pickupCourier,
+          courier: currentDriverName || o.courier,
+          pickupCourier: isPickupAction ? ((o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' && o.pickupCourier !== '-- Unassigned --') ? o.pickupCourier : currentDriverName) : (o.pickupCourier || currentDriverName),
           pickupAccepted: isPickupAction ? true : o.pickupAccepted,
-          deliveryCourier: isDeliveryAction ? (o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' ? o.deliveryCourier : (currentUser ? currentUser.name : o.deliveryCourier)) : o.deliveryCourier,
-          deliveryAccepted: isDeliveryAction ? true : o.deliveryAccepted
+          deliveryCourier: isDeliveryAction ? ((o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' && o.deliveryCourier !== '-- Unassigned --') ? o.deliveryCourier : currentDriverName) : (o.deliveryCourier || currentDriverName),
+          deliveryAccepted: isDeliveryAction ? true : o.deliveryAccepted,
+          pickupCommission: o.pickupCommission || 5,
+          deliveryCommission: o.deliveryCommission || 5
         };
       }
       return o;
@@ -474,9 +477,10 @@ export const DeliveryPortal: React.FC = () => {
             deliveryStatus: deliveryStatusText,
             weightItems: pickupWeightItems,
             pickupNotes: pickupNotes,
-            courier: currentUser ? currentUser.name : o.courier,
-            pickupCourier: o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier),
-            pickupAccepted: true
+            courier: currentUser ? currentUser.name : (o.pickupCourier || o.courier),
+            pickupCourier: (o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' && o.pickupCourier !== '-- Unassigned --') ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier),
+            pickupAccepted: true,
+            pickupCommission: o.pickupCommission || 5
           };
         }
         return o;

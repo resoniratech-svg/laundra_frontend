@@ -1770,41 +1770,85 @@ export const SuperAdminPortal: React.FC = () => {
             {reportsSub === 'revenue' && (
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
-                  <h3 style={{ margin: '0 0 16px 0' }}>💰 Company-wise Revenue Report</h3>
+                  <h3 style={{ margin: '0 0 16px 0' }}>💰 Company-wise Revenue & Orders Report</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {backendCompanies.map(c => {
                       const tier = c.subscription?.tier || 'No Subscription';
-                      const price = c.subscription?.price ?? 0;
-                      const revenue = price.toFixed(2);
+                      const subPrice = c.subscription?.price ?? 0;
+                      
+                      // Calculate company's total orders revenue
+                      let ordersRevenue = Number(c.orders_revenue || 0);
+                      if (!ordersRevenue) {
+                        try {
+                          const localOrders = JSON.parse(localStorage.getItem(`ll_${c.id}_orders`) || '[]');
+                          ordersRevenue = localOrders.reduce((sum: number, o: any) => sum + Number(o.totalAmount || o.total || 0), 0);
+                        } catch (e) {}
+                      }
+                      if (!ordersRevenue && c.id === activeCompanyId) {
+                        ordersRevenue = db.orders.reduce((sum, o) => sum + Number(o.totalAmount || o.total || 0), 0);
+                      }
+
+                      const totalCompanyRev = ordersRevenue + subPrice;
                       const startDate = c.subscription?.startDate;
                       const endDate = c.subscription?.expiresAt;
+
                       return (
-                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                          <div>
-                            <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{c.name}</strong>
-                            <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', fontWeight: '600' }}>Subscription: <span style={{ color: '#2563eb' }}>{tier}</span></div>
-                            {c.subscription && (
-                              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', display: 'flex', gap: '8px' }}>
-                                <span>📅 Start: <strong>{startDate}</strong></span>
-                                <span>•</span>
-                                <span>📅 End: <strong>{endDate}</strong></span>
-                              </div>
-                            )}
+                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: '220px' }}>
+                            <strong style={{ fontSize: '1rem', color: '#0f172a' }}>{c.name}</strong>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px', fontWeight: '600' }}>
+                              Subscription: <span style={{ color: '#2563eb' }}>{tier}</span> (QR {subPrice.toFixed(2)})
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span>📦 Orders: <strong>{c.order_count || 0}</strong></span>
+                              <span>•</span>
+                              <span>🧺 Orders Rev: <strong style={{ color: '#16a34a' }}>QR {ordersRevenue.toFixed(2)}</strong></span>
+                              {c.subscription && (
+                                <>
+                                  <span>•</span>
+                                  <span>📅 {startDate} → {endDate}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: '800', color: '#10b981', fontSize: '1.05rem' }}>QR {revenue}</div>
+                          <div style={{ textAlign: 'right', background: '#f0fdf4', padding: '10px 14px', borderRadius: '10px', border: '1px solid #bbf7d0', minWidth: '130px' }}>
+                            <div style={{ fontSize: '0.68rem', color: '#166534', fontWeight: '800', textTransform: 'uppercase' }}>Company Total Revenue</div>
+                            <div style={{ fontWeight: '900', color: '#15803d', fontSize: '1.25rem' }}>QR {totalCompanyRev.toFixed(2)}</div>
+                            <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>Orders: QR {ordersRevenue.toFixed(2)}</div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>SaaS Subscription Revenue</h3>
-                  <div style={{ fontSize: '2rem', fontWeight: '900', color: '#059669', marginBottom: '10px' }}>
-                    QR {backendCompanies.reduce((sum, c) => sum + (c.subscription?.price ?? 0), 0).toFixed(2)}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#0f172a' }}>🧺 Total Companies Orders Revenue</h3>
+                    <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#2563eb', marginBottom: '6px' }}>
+                      QR {backendCompanies.reduce((sum, c) => {
+                        let rev = Number(c.orders_revenue || 0);
+                        if (!rev) {
+                          try {
+                            const lOrders = JSON.parse(localStorage.getItem(`ll_${c.id}_orders`) || '[]');
+                            rev = lOrders.reduce((s: number, o: any) => s + Number(o.totalAmount || o.total || 0), 0);
+                          } catch (e) {}
+                        }
+                        if (!rev && c.id === activeCompanyId) {
+                          rev = db.orders.reduce((s, o) => s + Number(o.totalAmount || o.total || 0), 0);
+                        }
+                        return sum + rev;
+                      }, 0).toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Combined order business volume generated by all registered companies.</div>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: '1.4' }}>Calculated from the total value of active subscription periods (Start Date to End Date).</div>
+
+                  <div style={{ background: 'white', borderRadius: '16px', padding: '24px', border: '1px solid #cbd5e1' }}>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#0f172a' }}>💳 SaaS Subscription Revenue</h3>
+                    <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#059669', marginBottom: '6px' }}>
+                      QR {backendCompanies.reduce((sum, c) => sum + (c.subscription?.price ?? 0), 0).toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Total revenue earned from active SaaS platform subscription plans.</div>
+                  </div>
                 </div>
               </div>
             )}
