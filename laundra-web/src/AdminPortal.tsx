@@ -4945,37 +4945,7 @@ export const AdminPortal: React.FC = () => {
       )}
 
 
-      {/* CREATE CASHIER MODAL */}
-      {addingCashierStep > 0 && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Cashier</h3>
-              <button onClick={() => setAddingCashierStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
-            </div>
 
-            <form onSubmit={e => handleCreateStaffInputs(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
-                <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone</label>
-                <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Password *</label>
-                <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} placeholder="Set initial password" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-              </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>➕ Create Cashier</button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* CREATE CASHIER MODAL */}
       {addingCashierStep > 0 && (
