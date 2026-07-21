@@ -432,8 +432,8 @@ export const DeliveryPortal: React.FC = () => {
           pickupAccepted: isPickupAction ? true : o.pickupAccepted,
           deliveryCourier: isDeliveryAction ? ((o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' && o.deliveryCourier !== '-- Unassigned --') ? o.deliveryCourier : currentDriverName) : (o.deliveryCourier || currentDriverName),
           deliveryAccepted: isDeliveryAction ? true : o.deliveryAccepted,
-          pickupCommission: o.pickupCommission || 5,
-          deliveryCommission: o.deliveryCommission || 5
+          pickupCommission: o.pickupCommission ?? 0,
+          deliveryCommission: o.deliveryCommission ?? 0
         };
       }
       return o;
@@ -480,7 +480,7 @@ export const DeliveryPortal: React.FC = () => {
             courier: currentUser ? currentUser.name : (o.pickupCourier || o.courier),
             pickupCourier: (o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' && o.pickupCourier !== '-- Unassigned --') ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier),
             pickupAccepted: true,
-            pickupCommission: o.pickupCommission || 5
+            pickupCommission: o.pickupCommission ?? 0
           };
         }
         return o;

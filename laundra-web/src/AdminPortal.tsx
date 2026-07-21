@@ -511,8 +511,8 @@ export const AdminPortal: React.FC = () => {
               deliveryStatus: existing.deliveryStatus || freshOrder.deliveryStatus,
               deliveredDate: existing.deliveredDate || freshOrder.deliveredDate || null,
               discount: existing.discount ?? freshOrder.discount ?? 0,
-              pickupCommission: existing.pickupCommission || 5,
-              deliveryCommission: existing.deliveryCommission || 5,
+              pickupCommission: existing.pickupCommission ?? freshOrder.pickupCommission ?? 0,
+              deliveryCommission: existing.deliveryCommission ?? freshOrder.deliveryCommission ?? 0,
               pickupCommissionPaid: existing.pickupCommissionPaid || false,
               deliveryCommissionPaid: existing.deliveryCommissionPaid || false,
               pickupAccepted: existing.pickupAccepted || false,
@@ -522,8 +522,8 @@ export const AdminPortal: React.FC = () => {
           return {
             ...freshOrder,
             pickupCourier: freshOrder.courier || null,
-            pickupCommission: 5,
-            deliveryCommission: 5,
+            pickupCommission: freshOrder.pickupCommission ?? 0,
+            deliveryCommission: freshOrder.deliveryCommission ?? 0,
           };
         });
 
@@ -1475,7 +1475,7 @@ export const AdminPortal: React.FC = () => {
           ...o,
           pickupCourier: courierName || null,
           courier: courierName || o.deliveryCourier || null,
-          pickupCommission: o.pickupCommission || 5,
+          pickupCommission: o.pickupCommission ?? 0,
           deliveryStatus: nextDeliveryStatus
         };
       }
@@ -1496,7 +1496,7 @@ export const AdminPortal: React.FC = () => {
           ...o,
           deliveryCourier: courierName || null,
           courier: courierName || o.pickupCourier || null,
-          deliveryCommission: o.deliveryCommission || 5,
+          deliveryCommission: o.deliveryCommission ?? 0,
           deliveryStatus: nextDeliveryStatus
         };
       }
@@ -3098,8 +3098,8 @@ export const AdminPortal: React.FC = () => {
                     ['delivered'].includes(String(o.status || '').toLowerCase()) &&
                     !o.deliveryCommissionPaid
                   );
-                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission ?? 5), 0);
-                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission ?? 5), 0);
+                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission ?? 0), 0);
+                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission ?? 0), 0);
                   const unpaidAmount = unpaidPickupAmount + unpaidDeliveryAmount;
                   const totalUnpaidTasksCount = unpaidPickupTasks.length + unpaidDeliveryTasks.length;
                   
@@ -3119,7 +3119,7 @@ export const AdminPortal: React.FC = () => {
                                     <span style={{ fontWeight: '700', color: '#b45309' }}>#{t.id} - Pickup</span>
                                     <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission ?? 5).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission ?? 0).toFixed(2)}</span>
                                 </div>
                               );
                             })}
@@ -3132,7 +3132,7 @@ export const AdminPortal: React.FC = () => {
                                     <span style={{ fontWeight: '700', color: '#1e40af' }}>#{t.id} - Delivery</span>
                                     <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission ?? 5).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission ?? 0).toFixed(2)}</span>
                                 </div>
                               );
                             })}
@@ -3566,9 +3566,9 @@ export const AdminPortal: React.FC = () => {
                                     <span style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: 'bold' }}>📦 Pick QR:</span>
                                     <input 
                                       type="number" 
-                                      placeholder="5.00"
+                                      placeholder="0.00"
                                       disabled={isPickupCompleted}
-                                      value={o.pickupCommission !== undefined && o.pickupCommission !== null ? o.pickupCommission : 5}
+                                      value={o.pickupCommission !== undefined && o.pickupCommission !== null ? o.pickupCommission : 0}
                                       onChange={e => {
                                         const val = parseFloat(e.target.value) || 0;
                                         const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
@@ -3582,9 +3582,9 @@ export const AdminPortal: React.FC = () => {
                                     <span style={{ fontSize: '0.65rem', color: '#1e40af', fontWeight: 'bold' }}>🚚 Deliv QR:</span>
                                     <input 
                                       type="number" 
-                                      placeholder="5.00"
+                                      placeholder="0.00"
                                       disabled={isDeliveryCompleted}
-                                      value={o.deliveryCommission !== undefined && o.deliveryCommission !== null ? o.deliveryCommission : 5}
+                                      value={o.deliveryCommission !== undefined && o.deliveryCommission !== null ? o.deliveryCommission : 0}
                                       onChange={e => {
                                         const val = parseFloat(e.target.value) || 0;
                                         const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
@@ -5540,9 +5540,9 @@ export const AdminPortal: React.FC = () => {
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#b45309' }}>📦 Pickup Commission (QR):</label>
                         <input 
                           type="number" 
-                          placeholder="5.00"
+                          placeholder="0.00"
                           disabled={isPickupCompleted}
-                          value={viewingOrder.pickupCommission !== undefined && viewingOrder.pickupCommission !== null ? viewingOrder.pickupCommission : 5}
+                          value={viewingOrder.pickupCommission !== undefined && viewingOrder.pickupCommission !== null ? viewingOrder.pickupCommission : 0}
                           onChange={e => {
                             const val = parseFloat(e.target.value) || 0;
                             setViewingOrder({...viewingOrder, pickupCommission: val});
@@ -5557,9 +5557,9 @@ export const AdminPortal: React.FC = () => {
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Commission (QR):</label>
                         <input 
                           type="number" 
-                          placeholder="5.00"
+                          placeholder="0.00"
                           disabled={isDeliveryCompleted}
-                          value={viewingOrder.deliveryCommission !== undefined && viewingOrder.deliveryCommission !== null ? viewingOrder.deliveryCommission : 5}
+                          value={viewingOrder.deliveryCommission !== undefined && viewingOrder.deliveryCommission !== null ? viewingOrder.deliveryCommission : 0}
                           onChange={e => {
                             const val = parseFloat(e.target.value) || 0;
                             setViewingOrder({...viewingOrder, deliveryCommission: val});
