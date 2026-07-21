@@ -2155,17 +2155,17 @@ export const SuperAdminPortal: React.FC = () => {
                   
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>
-                    <input type="text" value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                    <input type="text" maxLength={20} value={editCompAddress} onChange={e => setEditCompAddress(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                   </div>
 
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Company Phone Number</label>
-                      <input type="tel" value={editCompPhone} onChange={e => setEditCompPhone(e.target.value)} placeholder="e.g. +97450123456" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                      <input type="tel" maxLength={15} value={editCompPhone} onChange={e => setEditCompPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="e.g. +97450123456" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Alternate Phone Number</label>
-                      <input type="tel" value={editCompAltPhone} onChange={e => setEditCompAltPhone(e.target.value)} placeholder="e.g. +97455987654" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                      <input type="tel" maxLength={15} value={editCompAltPhone} onChange={e => setEditCompAltPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="e.g. +97455987654" style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
                   </div>
 
@@ -2173,11 +2173,11 @@ export const SuperAdminPortal: React.FC = () => {
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Name</label>
-                      <input type="text" value={editAdminName} onChange={e => setEditAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                      <input type="text" maxLength={20} value={editAdminName} onChange={e => setEditAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Admin Phone</label>
-                      <input type="text" value={editAdminPhone} onChange={e => setEditAdminPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
+                      <input type="text" maxLength={15} value={editAdminPhone} onChange={e => setEditAdminPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
                   </div>
                   
@@ -2339,7 +2339,7 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Full Name *</label>
-                <input type="text" required value={adminName} onChange={e => setAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                <input type="text" required maxLength={20} value={adminName} onChange={e => setAdminName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Email Address *</label>
@@ -2352,7 +2352,7 @@ export const SuperAdminPortal: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Phone</label>
-                  <input type="text" value={adminPhone} onChange={e => setAdminPhone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                  <input type="text" maxLength={15} value={adminPhone} onChange={e => setAdminPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Address</label>

@@ -237,36 +237,42 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
             <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '12px' }}>Eligible Services</label>
             
             {/* Category Tabs */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0' }}>
-              {['Pressing', 'Wash & Press', 'Dry Cleaning'].map((cat: any) => {
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setActiveCategory(cat)}
-                    style={{
-                      padding: '10px 20px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
-                      color: isActive ? '#2563eb' : '#64748b',
-                      fontWeight: '800',
-                      fontSize: '0.95rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      marginBottom: '-2px'
-                    }}
-                  >
-                    {cat === 'Pressing' ? '♨️' : cat === 'Wash & Press' ? '🌊' : '🧥'} {cat}
-                  </button>
-                );
-              })}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0', overflowX: 'auto' }}>
+              {(() => {
+                const defaultCats = ['Pressing', 'Wash & Press', 'Dry Cleaning', 'Premium Services', 'Wash & Fold'];
+                const customCats = (services || []).map((s: any) => s.category).filter(Boolean);
+                const packageCategories = Array.from(new Set([...defaultCats, ...customCats]));
+                return packageCategories.map((cat: any) => {
+                  const isActive = activeCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setActiveCategory(cat)}
+                      style={{
+                        padding: '10px 20px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                        color: isActive ? '#2563eb' : '#64748b',
+                        fontWeight: '800',
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        marginBottom: '-2px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {cat === 'Pressing' ? '♨️' : cat === 'Wash & Press' ? '🌊' : cat === 'Dry Cleaning' ? '🧥' : cat === 'Premium Services' ? '👑' : '🏷️'} {cat}
+                    </button>
+                  );
+                });
+              })()}
             </div>
 
             {/* Service Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
-              {services?.filter((s: any) => s.category === activeCategory).map((s: any) => {
+              {services?.filter((s: any) => activeCategory === 'All' || s.category === activeCategory).map((s: any) => {
                 const count = selectedServices[s.id] || 0;
                 const isSelected = count > 0;
                 return (

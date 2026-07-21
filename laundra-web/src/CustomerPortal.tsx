@@ -1524,9 +1524,9 @@ export const CustomerPortal: React.FC = () => {
                 <div>
                   <h3 style={{ margin: 0 }}>👤 Delivery contact information</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
-                    <input type="text" value={oName} onChange={e => setOName(e.target.value)} placeholder="Full name..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                    <input type="text" maxLength={20} value={oName} onChange={e => setOName(e.target.value)} placeholder="Full name..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                     <input type="email" value={oEmail} onChange={e => setOEmail(e.target.value)} placeholder="Email..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                    <input type="text" value={oPhone} onChange={e => setOPhone(e.target.value)} placeholder="Phone..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                    <input type="text" maxLength={15} value={oPhone} onChange={e => setOPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Phone..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                     <textarea value={oAddress} onChange={e => setOAddress(e.target.value)} placeholder="Address..." style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>

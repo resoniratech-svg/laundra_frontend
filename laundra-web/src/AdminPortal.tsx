@@ -169,7 +169,7 @@ export const AdminPortal: React.FC = () => {
   const [posSelectedPackageId, setPosSelectedPackageId] = useState<string>('');
   const [posRemark, setPosRemark] = useState('');
   const [posSearch, setPosSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
+  const [activeCategory, setActiveCategory] = useState<string>('Pressing');
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
   const [showCustDropdown, setShowCustDropdown] = useState(false);
   const [showGuestFields, setShowGuestFields] = useState(false);
@@ -223,7 +223,7 @@ export const AdminPortal: React.FC = () => {
   const [cpEndDate, setCpEndDate] = useState('');
   const [cpDesc, setCpDesc] = useState('');
   const [couponServices, setCouponServices] = useState<any[]>([]);
-  const [cpActiveCategory, setCpActiveCategory] = useState<'Pressing' | 'Wash & Press' | 'Dry Cleaning'>('Pressing');
+  const [cpActiveCategory, setCpActiveCategory] = useState<string>('Pressing');
 
   // Expense Forms
   const [backendExpenses, setBackendExpenses] = useState<any[]>([]);
@@ -1019,7 +1019,6 @@ export const AdminPortal: React.FC = () => {
       }
     } else {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
         const res = await fetch(`${BASE_URL}/api/v1/auth/delivery-boy/send-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1153,7 +1152,20 @@ export const AdminPortal: React.FC = () => {
         });
         
         if (res.ok) {
-          alert('Delivery staff application submitted successfully!');
+          const newUser: User = {
+            id: 'u-' + (db.users.length + 1),
+            name: staffName,
+            role: 'delivery',
+            email: staffEmail,
+            password: staffPass || 'password',
+            phone: staffPhone || 'N/A',
+            address: staffAddress || 'N/A',
+            status: 'Active',
+            createdAt: new Date().toISOString()
+          };
+          saveDB({ users: [...db.users.filter(u => u.email !== staffEmail), newUser] });
+          addActivity('Delivery', `Created delivery staff: ${staffName}`);
+          alert('Delivery staff created successfully!');
           // Reset staff wizard
           setStaffName('');
           setStaffEmail('');
@@ -1218,9 +1230,19 @@ export const AdminPortal: React.FC = () => {
         console.error('Network error deleting staff:', err);
       }
       
-      const updated = db.users.filter(u => u.id !== user.id);
-      saveDB({ users: updated });
+      const updatedUsers = db.users.filter(u => u.id !== user.id && u.email !== user.email);
+      const updatedLeaves = (db.leaveRequests || []).filter(l => l.deliveryBoyEmail !== user.email && l.deliveryBoyName !== user.name);
+      const updatedOrders = db.orders.map(o => (o.assignedDriverId === user.id || o.driverName === user.name) ? { ...o, assignedDriverId: undefined, driverName: undefined } : o);
+
+      saveDB({ 
+        users: updatedUsers, 
+        leaveRequests: updatedLeaves,
+        orders: updatedOrders
+      });
+
       addActivity('Settings', `Deleted staff member: ${user.name}`);
+      fetchBackendData();
+      alert(`Staff member "${user.name}" and all associated data have been permanently deleted.`);
     }
   };
 
@@ -1608,17 +1630,11 @@ export const AdminPortal: React.FC = () => {
             return c;
           });
         } else if (posPayMethod === 'Package') {
-          if (!posSelectedPackageId) {
+          const cPkg = (posCustomerPackages || []).find(cp => cp.id === posSelectedPackageId || cp.secure_token === posSelectedPackageId)
+                    || (db.customerPackages || []).find(cp => cp.id === posSelectedPackageId)
+                    || posPrepaidPackageApplied;
+          if (!cPkg && !posPrepaidPackageApplied) {
             alert('Please select a valid prepaid package to pay from.');
-            return;
-          }
-          const cPkg = backendCustomerPackages?.find(cp => cp.id === posSelectedPackageId && cp.status === 'ACTIVE');
-          if (!cPkg) {
-            alert('Selected package is invalid or expired.');
-            return;
-          }
-          if (cPkg.current_balance < total) {
-            alert('Insufficient package balance! Package only has ₹' + cPkg.current_balance);
             return;
           }
         }
@@ -1693,6 +1709,13 @@ export const AdminPortal: React.FC = () => {
 
     const finalDiscount = posDiscount + (parseFloat(customPOSDiscount) || 0);
 
+    let packageNameApplied: string | undefined = undefined;
+    if (posPayMethod === 'Package' || posPrepaidPackageApplied) {
+      const selPkg = (posCustomerPackages || []).find(cp => cp.id === posSelectedPackageId || cp.secure_token === posSelectedPackageId)
+                  || (db.customerPackages || []).find(cp => cp.id === posSelectedPackageId);
+      packageNameApplied = selPkg?.package?.name || selPkg?.packageName || (selPkg?.package as any)?.name || posPrepaidPackageApplied?.packageName || 'Prepaid Package';
+    }
+
     const newOrder: Order = {
       id: newOrderId,
       backendId: backendOrderId || undefined,
@@ -1703,6 +1726,7 @@ export const AdminPortal: React.FC = () => {
       totalAmount: total,
       status: 'Created',
       paymentMethod: posPayMethod,
+      packageName: packageNameApplied,
       paymentStatus: posPayMethod === 'Pay Later' ? 'Unpaid' : 'Paid',
       deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(),
       services: posCart.map(i => ({ serviceId: i.variantId, name: `${i.itemName} - ${i.serviceTypeName} (${i.variantName})`, qty: i.qty, plan: i.variantName, price: i.price })),
@@ -1852,6 +1876,16 @@ export const AdminPortal: React.FC = () => {
                 <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
                 <div class="col-val">: ${invoice.paymentStatus || 'UNPAID'}</div>
               </div>
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Payment Method</div><div class="lbl-ar">طريقة الدفع</div></div>
+                <div class="col-val">: ${invoice.paymentMethod || 'Cash'}</div>
+              </div>
+              ${(invoice.packageName || (invoice as any).package_name || (invoice as any).applied_package_name || (invoice.paymentMethod === 'Package' ? 'Prepaid Package' : '')) ? `
+              <div class="row">
+                <div class="col-lbl"><div class="lbl-en">Package Name</div><div class="lbl-ar">اسم الباقة</div></div>
+                <div class="col-val">: ${invoice.packageName || (invoice as any).package_name || (invoice as any).applied_package_name || 'Prepaid Package'}</div>
+              </div>
+              ` : ''}
 
               <div class="divider"></div>
               
@@ -2255,6 +2289,68 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
+  const handleSendCustomerWhatsAppPass = async (c: Customer) => {
+    // Open window synchronously to avoid browser popup blocker
+    const win = window.open('about:blank', '_blank');
+
+    let googleUrl = '';
+    let appleUrl = '';
+    let pkgName = 'Prepaid Package';
+    let balance = c.walletBalance || 0;
+
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const pkgs = await res.json();
+        const activePkg = Array.isArray(pkgs) ? pkgs.find((p: any) => p.status === 'ACTIVE') : null;
+        if (activePkg) {
+          googleUrl = activePkg.google_wallet_url || activePkg.googleWalletUrl || '';
+          appleUrl = activePkg.apple_wallet_url || activePkg.appleWalletUrl || '';
+          pkgName = activePkg.package_name || activePkg.package?.name || activePkg.packageName || pkgName;
+          balance = activePkg.current_balance ?? activePkg.package_value ?? balance;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch live customer package from backend:', e);
+    }
+
+    if (!googleUrl) {
+      const cPkg = (posCustomerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE')
+                || (db.customerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE');
+      if (cPkg) {
+        pkgName = cPkg.package_name || cPkg.package?.name || cPkg.packageName || (cPkg.package as any)?.name || pkgName;
+        balance = cPkg.current_balance ?? cPkg.package_value ?? cPkg.total_quantity ?? balance;
+        googleUrl = cPkg.google_wallet_url || (cPkg as any).googleWalletUrl || '';
+        appleUrl = cPkg.apple_wallet_url || (cPkg as any).appleWalletUrl || '';
+      }
+    }
+
+    const portalUrl = `${window.location.origin}/customer?login=${c.id}`;
+    const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');
+
+    let textMsg = `Hi ${c.name} 👋!\nYour Prepaid Package (${pkgName}) digital pass is ready!\n\n💳 Balance: QR ${balance}\n📲 Access Portal & QR Code: ${portalUrl}\n\n`;
+    if (googleUrl) {
+      textMsg += `🔵 Add to Google Wallet:\n${googleUrl}\n\n`;
+    }
+    if (appleUrl) {
+      textMsg += `🍎 Add to Apple Wallet:\n${appleUrl}\n\n`;
+    }
+    textMsg += `Thank you for choosing Laundra Laundry Services!`;
+
+    const waUrl = cleanPhone 
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
+
+    if (win) {
+      win.location.href = waUrl;
+    } else {
+      window.location.href = waUrl;
+    }
+  };
+
   const handleDisableQR = (cust: Customer) => {
     const updated = db.customers.map(c => c.id === cust.id ? { ...c, qrDisabled: true, qrStatus: 'Disabled' as const } : c);
     saveDB({ customers: updated });
@@ -2282,11 +2378,12 @@ export const AdminPortal: React.FC = () => {
     setQrCust(newMatch);
   };
 
-  const handleApplyPrepaidQR = async () => {
-    if (!posPrepaidQRToken) return;
+  const handleApplyPrepaidQR = async (tokenOverride?: string) => {
+    const targetToken = tokenOverride || posPrepaidQRToken;
+    if (!targetToken) return;
     try {
       const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/qr/${posPrepaidQRToken}`);
+      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/qr/${targetToken}`);
       
       if (res.ok) {
         const data = await res.json();
@@ -2326,7 +2423,11 @@ export const AdminPortal: React.FC = () => {
                   });
                 });
               } else {
-                const matchedService = allServices.find((s: any) => s.id === serviceId || s.name === serviceId);
+                const matchedService = allServices.find((s: any) => 
+                  s.id === serviceId || 
+                  s.name?.toLowerCase() === String(serviceId).toLowerCase() ||
+                  s.category?.toLowerCase() === String(serviceId).toLowerCase()
+                );
                 if (matchedService) {
                   autoCartItems.push({
                     itemId: matchedService.id,
@@ -2343,12 +2444,26 @@ export const AdminPortal: React.FC = () => {
             });
           }
 
+          // Fallback: If no specific service matched or eligibleList was generic, load catalog services
+          if (autoCartItems.length === 0 && allServices.length > 0) {
+            const countToTake = Math.min(data.package.remaining_quantity || 1, 3);
+            allServices.slice(0, countToTake).forEach(s => {
+              autoCartItems.push({
+                itemId: s.id,
+                itemName: s.name,
+                serviceTypeId: s.category || 'Wash',
+                serviceTypeName: s.category || 'Wash',
+                variantId: `normal_${s.id}`,
+                variantName: 'Normal',
+                price: parseFloat(s.price) || 0,
+                qty: 1
+              });
+            });
+          }
+
           if (autoCartItems.length > 0) {
             currentCart = autoCartItems;
             setPosCart(autoCartItems);
-          } else {
-            alert('Cart is empty and no eligible service items were found in this package definition.');
-            return;
           }
         }
         
@@ -2380,10 +2495,15 @@ export const AdminPortal: React.FC = () => {
         
         setPosPrepaidPackageApplied({
           ...data.package,
+          packageName: data.package.name || data.package.package_name || 'Prepaid Package',
           qtyToRedeem,
           discountAmount: discountAcc
         });
         setPosDiscount(discountAcc); // Use the same discount state for total calculation
+        setPosPayMethod('Package');
+        if (data.package.id) {
+          setPosSelectedPackageId(data.package.id);
+        }
         
       } else {
         const err = await res.json();
@@ -2699,9 +2819,11 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', fontWeight: '700', color: '#6b21a8' }}>{c.loyaltyPoints} pts</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>🎁 Sell Package</button>
                           <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
                           <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
                           <button onClick={() => setQrCust(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>📱 QR Code</button>
+                          <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📲 WA Pass</button>
                           <button onClick={() => handleShareQR(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Share WA</button>
                           <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
                           <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
@@ -2764,44 +2886,6 @@ export const AdminPortal: React.FC = () => {
       {activeModule === 'delivery-staff' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
-          {/* Sign up applications (APK simulator applications) */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                📥 Sign-Up Applications (Pending Approval)
-                {db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length > 0 && (
-                  <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: '800' }}>
-                    {db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length}
-                  </span>
-                )}
-              </h4>
-              <button onClick={() => {
-                const uSaved = localStorage.getItem(`ll_${db.activeCompanyId}_users`);
-                if (uSaved) {
-                  saveDB({ users: JSON.parse(uSaved) });
-                }
-              }} style={{ padding: '6px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '700', color: '#2563eb' }}>🔄 Refresh</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').length === 0 ? (
-                <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No pending applications.</div>
-              ) : (
-                db.users.filter(u => u.role === 'delivery' && u.status === 'Pending').map(u => (
-                  <div key={u.id} style={{ padding: '12px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong>{u.name}</strong> ({u.email})
-                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Phone: {u.phone}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleApproveApplication(u)} style={{ padding: '6px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Approve ✓</button>
-                      <button onClick={() => handleRejectApplication(u)} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Reject ✕</button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* Active staff list */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -2819,7 +2903,7 @@ export const AdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                {db.users.filter(u => u.role === 'delivery').map(u => (
                   <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '12px', fontWeight: '700' }}>{u.name}</td>
                     <td style={{ padding: '12px' }}>{u.email}</td>
@@ -2842,88 +2926,135 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Leave Requests Management */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                📋 Leave Requests
-                {backendLeaveRequests.filter(lr => lr.status === 'PENDING').length > 0 && (
-                  <span style={{ background: '#f59e0b', color: 'white', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: '800' }}>
-                    {backendLeaveRequests.filter(lr => lr.status === 'PENDING').length}
-                  </span>
-                )}
-              </h4>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {backendLeaveRequests.length === 0 ? (
-                <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No leave requests submitted yet.</div>
-              ) : (
-                backendLeaveRequests.map(lr => (
-                  <div key={lr.id} style={{ padding: '14px', background: lr.status === 'PENDING' ? '#fffbeb' : lr.status === 'APPROVED' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${lr.status === 'PENDING' ? '#fef3c7' : lr.status === 'APPROVED' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div>
-                      <strong>{lr.delivery_boy_name}</strong> <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.delivery_boy_email})</span>
-                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>📅 {lr.start_date} → {lr.end_date}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Reason: {lr.reason}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {lr.status === 'PENDING' ? (
-                        <>
-                          <button onClick={async () => {
-                            try {
-                              const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-                              const res = await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
-                                method: 'PATCH',
-                                headers: { 
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify({ status: 'APPROVED' })
-                              });
-                              if (res.ok) {
-                                alert(`Leave request from ${lr.delivery_boy_name} approved.`);
-                                fetchBackendData();
-                              } else {
-                                alert('Failed to approve leave request.');
-                              }
-                            } catch (e) {
-                              console.error(e);
-                              alert('Network error while approving.');
-                            }
-                          }} style={{ padding: '6px 12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Approve ✓</button>
-                          
-                          <button onClick={async () => {
-                            try {
-                              const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
-                              const res = await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
-                                method: 'PATCH',
-                                headers: { 
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify({ status: 'REJECTED' })
-                              });
-                              if (res.ok) {
-                                alert(`Leave request from ${lr.delivery_boy_name} rejected.`);
-                                fetchBackendData();
-                              } else {
-                                alert('Failed to reject leave request.');
-                              }
-                            } catch (e) {
-                              console.error(e);
-                              alert('Network error while rejecting.');
-                            }
-                          }} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Reject ✕</button>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', fontWeight: '800', color: lr.status === 'APPROVED' ? '#15803d' : '#b91c1c' }}>
-                          {lr.status}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {(() => {
+            const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+            const nowMs = Date.now();
+
+            const combinedLeaveRequests: any[] = [...backendLeaveRequests];
+            (db.leaveRequests || []).forEach((dlr: any) => {
+              const exists = combinedLeaveRequests.some(item => 
+                item.id === dlr.id || 
+                (String(item.start_date) === String(dlr.startDate) && 
+                 String(item.end_date) === String(dlr.endDate) && 
+                 (item.delivery_boy_name === dlr.deliveryBoyName || item.delivery_boy_email === dlr.deliveryBoyEmail))
+              );
+              if (!exists) {
+                combinedLeaveRequests.push({
+                  id: dlr.id,
+                  delivery_boy_name: dlr.deliveryBoyName || 'Delivery Staff',
+                  delivery_boy_email: dlr.deliveryBoyEmail || '',
+                  start_date: dlr.startDate,
+                  end_date: dlr.endDate,
+                  reason: dlr.reason,
+                  status: (dlr.status || 'Pending').toUpperCase(),
+                  updated_at: dlr.decisionAt || dlr.updatedAt,
+                  isLocal: true
+                });
+              }
+            });
+
+            // Filter out approved or rejected requests older than 24 hours
+            const activeLeaveRequests = combinedLeaveRequests.filter(lr => {
+              const stUpper = String(lr.status).toUpperCase();
+              if (stUpper === 'PENDING') return true;
+
+              // Check decision timestamp from object or localStorage
+              const decisionStr = lr.updated_at || localStorage.getItem(`ll_leave_decision_${lr.id}`);
+              if (decisionStr) {
+                const decisionMs = new Date(decisionStr).getTime();
+                if (!isNaN(decisionMs) && (nowMs - decisionMs > ONE_DAY_MS)) {
+                  return false; // Hide after 1 day
+                }
+              }
+              return true;
+            });
+
+            const pendingCount = activeLeaveRequests.filter(lr => String(lr.status).toUpperCase() === 'PENDING').length;
+
+            const handleUpdateLeaveStatus = async (lr: any, newStatus: 'APPROVED' | 'REJECTED') => {
+              const nowIso = new Date().toISOString();
+              localStorage.setItem(`ll_leave_decision_${lr.id}`, nowIso);
+
+              // 1. Update in local db state
+              const updatedLeaves = (db.leaveRequests || []).map((dlr: any) => {
+                if (
+                  dlr.id === lr.id ||
+                  (String(dlr.startDate) === String(lr.start_date) &&
+                   String(dlr.endDate) === String(lr.end_date) &&
+                   (dlr.deliveryBoyName === lr.delivery_boy_name || dlr.deliveryBoyEmail === lr.delivery_boy_email))
+                ) {
+                  return { ...dlr, status: newStatus === 'APPROVED' ? 'Approved' : 'Rejected', decisionAt: nowIso };
+                }
+                return dlr;
+              });
+              saveDB({ leaveRequests: updatedLeaves });
+
+              // 2. Try backend API update if it has backend UUID
+              if (!lr.isLocal && token) {
+                try {
+                  const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+                  await fetch(`${BASE_URL}/api/v1/leave-requests/${lr.id}/status`, {
+                    method: 'PATCH',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                  });
+                } catch (e) {
+                  console.error('Failed to update backend leave status:', e);
+                }
+              }
+
+              fetchBackendData();
+              alert(`Leave request from ${lr.delivery_boy_name} ${newStatus.toLowerCase()}. It will remain visible for 24 hours.`);
+            };
+
+            return (
+              <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    📋 Leave Requests
+                    {pendingCount > 0 && (
+                      <span style={{ background: '#f59e0b', color: 'white', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: '800' }}>
+                        {pendingCount}
+                      </span>
+                    )}
+                  </h4>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {activeLeaveRequests.length === 0 ? (
+                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No active leave requests.</div>
+                  ) : (
+                    activeLeaveRequests.map(lr => {
+                      const stUpper = String(lr.status).toUpperCase();
+                      return (
+                        <div key={lr.id} style={{ padding: '14px', background: stUpper === 'PENDING' ? '#fffbeb' : stUpper === 'APPROVED' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${stUpper === 'PENDING' ? '#fef3c7' : stUpper === 'APPROVED' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <div>
+                            <strong>{lr.delivery_boy_name}</strong> {lr.delivery_boy_email && <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.delivery_boy_email})</span>}
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>📅 {lr.start_date} → {lr.end_date}</div>
+                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Reason: {lr.reason}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {stUpper === 'PENDING' ? (
+                              <>
+                                <button onClick={() => handleUpdateLeaveStatus(lr, 'APPROVED')} style={{ padding: '6px 12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Approve ✓</button>
+                                <button onClick={() => handleUpdateLeaveStatus(lr, 'REJECTED')} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>Reject ✕</button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: '0.8rem', fontWeight: '800', color: stUpper === 'APPROVED' ? '#15803d' : '#b91c1c' }}>
+                                {stUpper}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2945,7 +3076,7 @@ export const AdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => {
+                {db.users.filter(u => u.role === 'delivery').map(u => {
                   const unpaidPickupTasks = db.orders.filter(o => 
                     o.courier === u.name && 
                     o.pickupCommission > 0 &&
@@ -3379,7 +3510,7 @@ export const AdminPortal: React.FC = () => {
                                 <option value="">-- Unassigned --</option>
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
-                                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                                {db.users.filter(u => u.role === 'delivery').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
                                 ))}
                               </select>
@@ -3404,7 +3535,7 @@ export const AdminPortal: React.FC = () => {
                                 <option value="">-- Unassigned --</option>
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
-                                {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                                {db.users.filter(u => u.role === 'delivery').map(u => (
                                   <option key={u.id} value={u.name}>{u.name}</option>
                                 ))}
                               </select>
@@ -3506,33 +3637,51 @@ export const AdminPortal: React.FC = () => {
                 <h4 style={{ margin: '0 12px 0 0', borderLeft: '2px solid #cbd5e1', paddingLeft: '16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
                   <span>🧺</span> Service Catalog
                 </h4>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {(['Pressing', 'Wash & Press', 'Dry Cleaning'] as const).map(cat => {
-                    const isActive = activeCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          setActiveCategory(cat);
-                          setSelectedPosItem(null);
-                        }}
-                        style={{
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          border: isActive ? 'none' : '1px solid #cbd5e1',
-                          background: isActive ? '#3b82f6' : 'white',
-                          color: isActive ? 'white' : '#475569',
-                          fontWeight: '600',
-                          fontSize: '0.8rem',
-                          transition: 'all 0.2s',
-                          boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
-                        }}
-                      >
-                        {cat === 'Pressing' ? '💨 Pressing' : cat === 'Wash & Press' ? '🧺 Wash & Clean' : '✨ Dry Cleaning'}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {(() => {
+                    const defaultCats = ['All', 'Pressing', 'Wash & Press', 'Dry Cleaning', 'Premium Services', 'Wash & Fold'];
+                    const customCats = backendServices.map((s: any) => s.category).filter(Boolean);
+                    const allCategories = Array.from(new Set([...defaultCats, ...customCats]));
+
+                    const getCatLabel = (cat: string) => {
+                      if (cat === 'All') return '🧺 All';
+                      if (cat === 'Pressing') return '💨 Pressing';
+                      if (cat === 'Wash & Press') return '🧺 Wash & Clean';
+                      if (cat === 'Dry Cleaning') return '✨ Dry Cleaning';
+                      if (cat === 'Premium Services') return '👑 Premium Services';
+                      if (cat === 'Wash & Fold') return '👕 Wash & Fold';
+                      return `🏷️ ${cat}`;
+                    };
+
+                    return allCategories.map(cat => {
+                      const isActive = activeCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setActiveCategory(cat);
+                            setSelectedPosItem(null);
+                          }}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '8px',
+                            border: isActive ? 'none' : '1px solid #cbd5e1',
+                            background: isActive ? '#3b82f6' : 'white',
+                            color: isActive ? 'white' : '#475569',
+                            fontWeight: '600',
+                            fontSize: '0.8rem',
+                            whiteSpace: 'nowrap',
+                            transition: 'all 0.2s',
+                            boxShadow: isActive ? '0 2px 4px rgba(37,99,235,0.2)' : 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {getCatLabel(cat)}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>,
               document.getElementById('pos-header-portal-target')!
@@ -3549,15 +3698,17 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px', maxHeight: 'calc(100vh - 350px)', minHeight: '300px', overflowY: 'auto', paddingRight: '4px', alignContent: 'start' }}>
-              {Array.from(new Set(backendServices.filter(s => s.name).map(s => s.name)))
+              {Array.from(new Set(backendServices.filter((s: any) => s.name).map((s: any) => s.name)))
                 .filter(name => {
                   const matchesSearch = String(name).toLowerCase().includes(posSearch.toLowerCase());
-                  const hasActiveService = backendServices.some(s => s.name === name && s.category === activeCategory);
+                  const hasActiveService = backendServices.some((s: any) => s.name === name && (activeCategory === 'All' || s.category === activeCategory));
                   return matchesSearch && hasActiveService;
                 })
                 .sort((a, b) => String(a).localeCompare(String(b)))
                 .map((itemName: any) => {
-                  const service = backendServices.find(s => s.name === itemName && s.category === activeCategory);
+                  const service = activeCategory === 'All' 
+                    ? backendServices.find((s: any) => s.name === itemName)
+                    : backendServices.find((s: any) => s.name === itemName && s.category === activeCategory);
                   const hasNormal = service && service.price !== null && service.price !== undefined;
                   const hasExpress = service && service.express_price !== null && service.express_price !== undefined;
 
@@ -3832,16 +3983,11 @@ export const AdminPortal: React.FC = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Customer Name</label>
-                    <input type="text" value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                    <input type="text" maxLength={20} value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Phone Number</label>
-                    <input type="text" value={posCustPhone} maxLength={20} onChange={e => {
-                      const val = e.target.value;
-                      if (/^[^a-zA-Z]*$/.test(val)) {
-                        setPosCustPhone(val);
-                      }
-                    }} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                    <input type="text" value={posCustPhone} maxLength={15} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Email Address</label>
@@ -3865,18 +4011,42 @@ export const AdminPortal: React.FC = () => {
                       <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Wallet Balance</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Wallet Balance</label>
+                        {db.customers.find(c => c.id === posCustId) && (
+                          <button 
+                            type="button" 
+                            onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setWalletCust(cust); setWalletDir('in'); } }} 
+                            style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                            title="Add Wallet Balance"
+                          >
+                            ➕ Add
+                          </button>
+                        )}
+                      </div>
                       <input type="text" value={`₹${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Loyalty Points</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Loyalty Points</label>
+                        {db.customers.find(c => c.id === posCustId) && (
+                          <button 
+                            type="button" 
+                            onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setLoyaltyCust(cust); setLoyaltyDir('add'); } }} 
+                            style={{ background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                            title="Add Loyalty Points"
+                          >
+                            ➕ Add
+                          </button>
+                        )}
+                      </div>
                       <input type="text" value={`⭐ ${db.customers.find(c => c.id === posCustId)?.loyaltyPoints || 0} pts`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #fde68a', borderRadius: '4px', background: '#fffbeb', color: '#b45309', fontWeight: '800' }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>Update Phone Number</label>
-                      <input type="text" value={posCustPhone} onChange={e => setPosCustPhone(e.target.value)} placeholder="Update phone..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                      <input type="text" maxLength={15} value={posCustPhone} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Update phone..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
                     </div>
                   </div>
                   <div>
@@ -3922,6 +4092,7 @@ export const AdminPortal: React.FC = () => {
                           setPosPrepaidQRToken(token);
                           setPosPrepaidPackageApplied(null);
                           setPosDiscount(0);
+                          handleApplyPrepaidQR(token);
                         }
                       }}
                       style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
@@ -4038,13 +4209,97 @@ export const AdminPortal: React.FC = () => {
                 {posPayMethod === 'Package' && (
                   <select 
                     value={posSelectedPackageId} 
-                    onChange={e => setPosSelectedPackageId(e.target.value)} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setPosSelectedPackageId(val);
+                      const foundPkg = posCustomerPackages.find(cp => cp.id === val || cp.secure_token === val) || (db.customerPackages || []).find(cp => cp.id === val);
+                      if (foundPkg) {
+                        const pkgName = foundPkg.package?.name || foundPkg.packageName || foundPkg.name || 'Prepaid Package';
+                        const remQty = foundPkg.remaining_quantity ?? foundPkg.total_quantity ?? 5;
+                        
+                        let currentCart = [...posCart];
+                        const eligibleList = foundPkg.package?.eligible_services || foundPkg.eligible_services || [];
+
+                        // If cart is empty, auto-populate cart with eligible services!
+                        if (currentCart.length === 0 && eligibleList.length > 0) {
+                          const autoCartItems: any[] = [];
+                          const allServices = [...(backendServices || []), ...(db.services || [])];
+
+                          eligibleList.forEach((srvItem: any) => {
+                            const serviceId = typeof srvItem === 'string' ? srvItem : (srvItem.id || srvItem.service_id);
+                            const itemQty = (typeof srvItem === 'object' && srvItem.qty) ? srvItem.qty : 1;
+                            
+                            if (serviceId === 'ALL') {
+                              allServices.slice(0, remQty || 1).forEach(s => {
+                                autoCartItems.push({
+                                  itemId: s.id,
+                                  itemName: s.name,
+                                  serviceTypeId: s.category || 'Wash',
+                                  serviceTypeName: s.category || 'Wash',
+                                  variantId: `normal_${s.id}`,
+                                  variantName: 'Normal',
+                                  price: parseFloat(s.price) || 0,
+                                  qty: 1
+                                });
+                              });
+                            } else {
+                              const matchedService = allServices.find((s: any) => s.id === serviceId || s.name === serviceId);
+                              if (matchedService) {
+                                autoCartItems.push({
+                                  itemId: matchedService.id,
+                                  itemName: matchedService.name,
+                                  serviceTypeId: matchedService.category || 'Wash',
+                                  serviceTypeName: matchedService.category || 'Wash',
+                                  variantId: `normal_${matchedService.id}`,
+                                  variantName: 'Normal',
+                                  price: parseFloat(matchedService.price) || 0,
+                                  qty: itemQty
+                                });
+                              }
+                            }
+                          });
+
+                          if (autoCartItems.length > 0) {
+                            currentCart = autoCartItems;
+                            setPosCart(autoCartItems);
+                          }
+                        }
+
+                        const totalCartQty = currentCart.reduce((sum, i) => sum + i.qty, 0);
+                        const qtyToRedeem = Math.min(totalCartQty, remQty);
+                        const cartSubtotal = currentCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                        
+                        setPosPrepaidPackageApplied({
+                          ...foundPkg,
+                          id: foundPkg.id,
+                          packageName: pkgName,
+                          qtyToRedeem,
+                          discountAmount: cartSubtotal
+                        });
+                        setPosDiscount(cartSubtotal);
+                      }
+                    }} 
                     style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
                   >
                     <option value="">Select Package</option>
-                    {db.customerPackages?.filter(cp => cp.customerId === posCustId && (cp.status?.toUpperCase() === 'ACTIVE' || cp.status === 'Active')).map(cp => (
-                      <option key={cp.id} value={cp.id}>{cp.packageName} (₹{cp.currentBalance} left)</option>
-                    ))}
+                    {(() => {
+                      const availablePkgs = [
+                        ...posCustomerPackages.map(cp => ({
+                          id: cp.id,
+                          name: cp.package?.name || cp.packageName || 'Prepaid Package',
+                          subtitle: `${cp.total_quantity - cp.used_quantity} items left`
+                        })),
+                        ...(db.customerPackages || []).filter(cp => cp.customerId === posCustId && (cp.status?.toUpperCase() === 'ACTIVE' || cp.status === 'Active')).map(cp => ({
+                          id: cp.id,
+                          name: cp.packageName || 'Prepaid Package',
+                          subtitle: `₹${cp.currentBalance} left`
+                        }))
+                      ];
+                      const uniquePkgs = Array.from(new Map(availablePkgs.map(p => [p.id, p])).values());
+                      return uniquePkgs.map(cp => (
+                        <option key={cp.id} value={cp.id}>{cp.name} ({cp.subtitle})</option>
+                      ));
+                    })()}
                   </select>
                 )}
 
@@ -4612,15 +4867,15 @@ export const AdminPortal: React.FC = () => {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                <input type="text" required value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <input type="text" required maxLength={20} value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address</label>
-                <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px', color: '#64748b' }}>Email Address (Optional)</label>
+                <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} placeholder="Optional (Can be left blank)" />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone *</label>
-                <input type="text" required value={custPhone} onChange={e => setCustPhone(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <input type="text" required maxLength={15} value={custPhone} onChange={e => setCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
@@ -4641,7 +4896,39 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* CREATE CASHIER MODAL (OTP FLOW) */}
+      {/* CREATE CASHIER MODAL */}
+      {addingCashierStep > 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Cashier</h3>
+              <button onClick={() => setAddingCashierStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={e => handleCreateStaffInputs(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
+                <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
+                <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone</label>
+                <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Password *</label>
+                <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} placeholder="Set initial password" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              </div>
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>➕ Create Cashier</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE CASHIER MODAL */}
       {addingCashierStep > 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
@@ -4654,33 +4941,28 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleCreateStaffInputs(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                  <input type="text" required value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
-                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone</label>
-                  <input type="text" value={staffPhone} onChange={e => setStaffPhone(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Next: Send OTP</button>
+                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Next: Send OTP</button>
               </form>
             )}
 
             {addingCashierStep === 2 && (
               <form onSubmit={e => handleVerifyStaffOtp(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
-                {debugOtp && (
-                  <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
-                    ⚡ Admin Fast-Track OTP (Bypasses email delays): <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
-                  </div>
-                )}
+                <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>📩 A 6-digit verification code has been sent to <strong>{staffEmail}</strong>. Please check your email inbox.</p>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP</button>
+                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Verify OTP</button>
               </form>
             )}
 
@@ -4688,16 +4970,16 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleCompleteStaffSetup(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Create Password</label>
-                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Complete Setup</button>
+                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Complete Setup</button>
               </form>
             )}
           </div>
         </div>
       )}
 
-      {/* CREATE DELIVERY STAFF MODAL (OTP FLOW) */}
+      {/* CREATE DELIVERY STAFF MODAL */}
       {addingDeliveryStep > 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
@@ -4710,7 +4992,7 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleCreateStaffInputs(e, 'delivery')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '480px', overflowY: 'auto' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                  <input type="text" required value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
@@ -4718,11 +5000,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone</label>
-                  <input type="text" value={staffPhone} onChange={e => setStaffPhone(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Profile Photo URL</label>
-                  <input type="text" value={staffProfilePhoto} onChange={e => setStaffProfilePhoto(e.target.value)} placeholder="https://example.com/photo.jpg" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
@@ -4749,7 +5027,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
-                  <input type="text" value={staffAddress} onChange={e => setStaffAddress(e.target.value)} placeholder="456 Delivery Lane, Bangalore" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <input type="text" value={staffAddress} onChange={e => setStaffAddress(e.target.value)} placeholder="456 Delivery Lane" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Next: Send OTP</button>
               </form>
@@ -4757,17 +5035,12 @@ export const AdminPortal: React.FC = () => {
 
             {addingDeliveryStep === 2 && (
               <form onSubmit={e => handleVerifyStaffOtp(e, 'delivery')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ fontSize: '0.85rem' }}>OTP has been sent to <strong>{staffEmail}</strong>.</p>
-                {debugOtp && (
-                  <div style={{ background: '#fffbeb', color: '#b45309', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.85rem', fontWeight: '600' }}>
-                    ⚡ Admin Fast-Track OTP (Bypasses email delays): <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '2px', display: 'block', marginTop: '6px', textAlign: 'center' }}>{debugOtp}</span>
-                  </div>
-                )}
+                <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>📩 A 6-digit verification code has been sent to <strong>{staffEmail}</strong>. Please check your email inbox.</p>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
                   <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Verify OTP</button>
+                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Verify OTP</button>
               </form>
             )}
 
@@ -4775,9 +5048,9 @@ export const AdminPortal: React.FC = () => {
               <form onSubmit={e => handleCompleteStaffSetup(e, 'delivery')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Create Password</label>
-                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Complete Setup</button>
+                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Complete Setup</button>
               </form>
             )}
           </div>
@@ -5022,6 +5295,16 @@ export const AdminPortal: React.FC = () => {
                                 <div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div>
                                 <div class="col-val">: ${viewingInvoice.paymentStatus || 'UNPAID'}</div>
                               </div>
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Payment Method</div><div class="lbl-ar">طريقة الدفع</div></div>
+                                <div class="col-val">: ${viewingInvoice.paymentMethod || 'Cash'}</div>
+                              </div>
+                              ${(viewingInvoice.packageName || (viewingInvoice as any).package_name || (viewingInvoice as any).applied_package_name || (viewingInvoice.paymentMethod === 'Package' ? 'Prepaid Package' : '')) ? `
+                              <div class="row">
+                                <div class="col-lbl"><div class="lbl-en">Package Name</div><div class="lbl-ar">اسم الباقة</div></div>
+                                <div class="col-val">: ${viewingInvoice.packageName || (viewingInvoice as any).package_name || (viewingInvoice as any).applied_package_name || 'Prepaid Package'}</div>
+                              </div>
+                              ` : ''}
 
                               <div class="divider"></div>
                               
@@ -5198,7 +5481,7 @@ export const AdminPortal: React.FC = () => {
                     <option value="">Unassigned</option>
                     <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                    {db.users.filter(u => u.role === 'delivery').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
                     ))}
                   </select>
@@ -5219,7 +5502,7 @@ export const AdminPortal: React.FC = () => {
                     <option value="">Unassigned</option>
                     <option value="Store">Store</option>
                     <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery' && u.status !== 'Pending').map(u => (
+                    {db.users.filter(u => u.role === 'delivery').map(u => (
                       <option key={u.id} value={u.name}>{u.name}</option>
                     ))}
                   </select>
@@ -5567,19 +5850,35 @@ export const AdminPortal: React.FC = () => {
                 Your <strong>{walletPassPreview.packageName}</strong> is now active! You paid ₹{walletPassPreview.finalPaid}.<br/><br/>
                 Tap below to add your Digital Laundry Pass to your wallet for seamless checkout.
               </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
                 <button 
-                  onClick={() => window.open(walletPassPreview.apple_wallet_url || 'https://wallet.apple.com', '_blank')} 
-                  style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                  onClick={() => {
+                    const cust = db.customers.find(c => c.name === walletPassPreview.customerName);
+                    const cleanPhone = (cust?.phone || '').replace(/[^0-9]/g, '');
+                    const msg = `Hi ${walletPassPreview.customerName} 👋!\nYour prepaid package (${walletPassPreview.packageName}) is now active!\n\nTap below to add your Digital Membership Pass directly to Google Wallet:\nAdd to Google Wallet: ${walletPassPreview.google_wallet_url || ''}`;
+                    const targetUrl = cleanPhone 
+                      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
+                      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                    window.open(targetUrl, '_blank');
+                  }} 
+                  style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(37, 211, 102, 0.3)' }}
                 >
-                  🍎 Apple Wallet
+                  📲 Send WhatsApp Pass Link to Customer
                 </button>
-                <button 
-                  onClick={() => window.open(walletPassPreview.google_wallet_url || 'https://pay.google.com', '_blank')} 
-                  style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
-                >
-                  🔵 Google Wallet
-                </button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    onClick={() => window.open(walletPassPreview.apple_wallet_url || 'https://wallet.apple.com', '_blank')} 
+                    style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                  >
+                    🍎 Apple Wallet
+                  </button>
+                  <button 
+                    onClick={() => window.open(walletPassPreview.google_wallet_url || 'https://pay.google.com', '_blank')} 
+                    style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                  >
+                    🔵 Google Wallet
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -5817,11 +6116,6 @@ export const AdminPortal: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Express (+%)</label>
                   <input type="number" required value={sExpressSurcharge} onChange={e => setSExpressSurcharge(e.target.value)} placeholder="50" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
                 </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Service Image URL</label>
-                <input type="text" value={sImage} onChange={e => setSImage(e.target.value)} placeholder="https://images.unsplash.com/photo-..." style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box' }} />
               </div>
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

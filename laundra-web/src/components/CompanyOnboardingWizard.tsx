@@ -311,20 +311,22 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
           {step === 1 && (
             <form onSubmit={handleStep1} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <h3>1. Create Company</h3>
-              <input required placeholder="Company Name" value={compName} onChange={e => setCompName(e.target.value)} style={inputStyle} />
-              <input placeholder="Company Address" value={compAddress} onChange={e => setCompAddress(e.target.value)} style={inputStyle} />
+              <input required maxLength={20} placeholder="Company Name" value={compName} onChange={e => setCompName(e.target.value)} style={inputStyle} />
+              <input maxLength={20} placeholder="Company Address" value={compAddress} onChange={e => setCompAddress(e.target.value)} style={inputStyle} />
               <input
                 type="tel"
+                maxLength={15}
                 placeholder="Company Phone Number"
                 value={compPhone}
-                onChange={e => setCompPhone(e.target.value)}
+                onChange={e => setCompPhone(e.target.value.replace(/[a-zA-Z]/g, ''))}
                 style={inputStyle}
               />
               <input
                 type="tel"
+                maxLength={15}
                 placeholder="Company Alternate Phone Number (optional)"
                 value={compAltPhone}
-                onChange={e => setCompAltPhone(e.target.value)}
+                onChange={e => setCompAltPhone(e.target.value.replace(/[a-zA-Z]/g, ''))}
                 style={inputStyle}
               />
               <button disabled={loading} type="submit" style={btnStyle}>{loading ? 'Saving...' : 'Next Step →'}</button>

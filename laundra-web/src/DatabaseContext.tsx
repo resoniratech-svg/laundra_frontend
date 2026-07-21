@@ -67,6 +67,7 @@ export interface Order {
   quantity?: number;
   planType?: string;
   paymentMethod: string;
+  packageName?: string;
   status: 'Created' | 'Pending' | 'Placed' | 'Accepted' | 'Received' | 'Washing' | 'Ironing' | 'Processing' | 'Ready' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   courier: string | null;
   pickupCourier?: string | null;

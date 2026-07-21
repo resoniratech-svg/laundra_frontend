@@ -360,7 +360,7 @@ export const DeliveryPortal: React.FC = () => {
   };
 
   // Submit Leave Request
-  const handleApplyLeave = (e: React.FormEvent) => {
+  const handleApplyLeave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!leaveStartDate || !leaveEndDate || !leaveReason) {
       alert('Please fill out all leave fields.');
@@ -377,6 +377,29 @@ export const DeliveryPortal: React.FC = () => {
       createdAt: new Date().toISOString(),
     };
     saveDB({ leaveRequests: [...db.leaveRequests, newLeave] });
+
+    // Send to backend API if authenticated
+    const token = localStorage.getItem('ll_auth_token');
+    if (token) {
+      try {
+        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        await fetch(`${BASE_URL}/api/v1/mobile-staff/leaves`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            start_date: leaveStartDate,
+            end_date: leaveEndDate,
+            reason: leaveReason
+          })
+        });
+      } catch (err) {
+        console.error('Failed to post leave to backend:', err);
+      }
+    }
+
     logAudit(`Delivery Staff submitted leave application starting ${leaveStartDate}`);
     alert('Leave request submitted to Company Admin.');
     setLeaveStartDate('');
@@ -428,7 +451,7 @@ export const DeliveryPortal: React.FC = () => {
     logAudit(`Updated Pickup status of order #${order.id} to: ${nextStatus} (${deliveryStatusText})`);
   };
 
-  // Complete Pickup with weight/notes -> Triggers OTP
+  // Complete Pickup with weight/notes -> Direct completion without OTP
   const submitPickupCompletion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pickupDetailsOrder) return;
@@ -436,29 +459,15 @@ export const DeliveryPortal: React.FC = () => {
     const token = localStorage.getItem('ll_auth_token');
     
     try {
-      await apiSendOrderOtp(pickupDetailsOrder.backendId || pickupDetailsOrder.id, 'pickup', token || undefined);
-      setVerifyingPickupOrder(pickupDetailsOrder);
-      setPickupDetailsOrder(null);
-      alert('OTP sent to the customer for Pickup verification.');
-    } catch (err: any) {
-      alert(`Failed to send OTP: ${err.message}`);
-    }
-  };
-
-  // Verify Pickup OTP and complete the process
-  const submitPickupVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!verifyingPickupOrder) return;
-
-    const token = localStorage.getItem('ll_auth_token');
-    try {
-      await apiVerifyOrderOtp(verifyingPickupOrder.backendId || verifyingPickupOrder.id, 'pickup', enteredPickupOtp, token || undefined);
+      if (pickupDetailsOrder.backendId) {
+        await apiVerifyOrderOtp(pickupDetailsOrder.backendId, 'pickup', 'BYPASS', token || undefined);
+      }
       
       const nextStatus = 'Received' as const;
       const deliveryStatusText = 'In Processing';
 
       const updatedOrders = db.orders.map(o => {
-        if (o.id === verifyingPickupOrder.id) {
+        if (o.id === pickupDetailsOrder.id) {
           return {
             ...o,
             status: nextStatus,
@@ -475,7 +484,7 @@ export const DeliveryPortal: React.FC = () => {
 
       const newNotification = {
         id: Date.now(),
-        text: `🚚 Delivery update: Order #${verifyingPickupOrder.id} status updated to: ${nextStatus} (${deliveryStatusText})`,
+        text: `🚚 Delivery update: Order #${pickupDetailsOrder.id} status updated to: ${nextStatus} (${deliveryStatusText})`,
         time: 'Just now',
         unread: true
       };
@@ -485,39 +494,33 @@ export const DeliveryPortal: React.FC = () => {
         notifications: [newNotification, ...db.notifications]
       });
 
-      logAudit(`Updated Pickup status of order #${verifyingPickupOrder.id} to: ${nextStatus} (${deliveryStatusText})`);
+      logAudit(`Updated Pickup status of order #${pickupDetailsOrder.id} to: ${nextStatus} (${deliveryStatusText})`);
 
-      setVerifyingPickupOrder(null);
+      setPickupDetailsOrder(null);
       setPickupNotes('');
       setEnteredPickupOtp('');
-      alert('OTP Verified! Pickup details saved and order status updated to "Received".');
+      alert('Pickup details saved and order status updated to "Received".');
     } catch (err: any) {
-      alert(`OTP Verification failed: ${err.message}`);
+      alert(`Pickup completion failed: ${err.message}`);
     }
   };
 
-  // Complete Delivery with OTP verification
+  // Verify Pickup OTP fallback (if ever invoked)
+  const submitPickupVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyingPickupOrder(null);
+  };
+
+  // Complete Delivery directly without OTP verification
   const triggerDeliveryOtpRequest = async (order: Order) => {
     const token = localStorage.getItem('ll_auth_token');
     try {
-      await apiSendOrderOtp(order.backendId || order.id, 'delivery', token || undefined);
-      setVerifyingDeliveryOrder(order);
-      alert('Delivery OTP sent to the customer.');
-    } catch (err: any) {
-      alert(`Failed to send Delivery OTP: ${err.message}`);
-    }
-  };
-
-  const submitDeliveryVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!verifyingDeliveryOrder) return;
-
-    const token = localStorage.getItem('ll_auth_token');
-    try {
-      await apiVerifyOrderOtp(verifyingDeliveryOrder.backendId || verifyingDeliveryOrder.id, 'delivery', enteredDeliveryOtp, token || undefined);
+      if (order.backendId) {
+        await apiVerifyOrderOtp(order.backendId, 'delivery', 'BYPASS', token || undefined);
+      }
 
       const updatedOrders = db.orders.map(o => {
-        if (o.id === verifyingDeliveryOrder.id) {
+        if (o.id === order.id) {
           return {
             ...o,
             status: 'Delivered' as const,
@@ -534,7 +537,7 @@ export const DeliveryPortal: React.FC = () => {
 
       const newNotification = {
         id: Date.now(),
-        text: `✅ Order #${verifyingDeliveryOrder.id} has been verified with OTP and marked DELIVERED!`,
+        text: `✅ Order #${order.id} has been marked DELIVERED!`,
         time: 'Just now',
         unread: true
       };
@@ -544,13 +547,16 @@ export const DeliveryPortal: React.FC = () => {
         notifications: [newNotification, ...db.notifications]
       });
 
-      logAudit(`Delivery successfully completed for order #${verifyingDeliveryOrder.id} using OTP.`);
-      alert('OTP Verified! Delivery Completed successfully.');
-      setVerifyingDeliveryOrder(null);
-      setEnteredDeliveryOtp('');
+      logAudit(`Delivery successfully completed for order #${order.id}.`);
+      alert('Delivery Completed successfully!');
     } catch (err: any) {
-      alert(`OTP Verification failed: ${err.message}`);
+      alert(`Delivery completion failed: ${err.message}`);
     }
+  };
+
+  const submitDeliveryVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyingDeliveryOrder(null);
   };
 
   // Support ticket creation
@@ -1217,7 +1223,7 @@ export const DeliveryPortal: React.FC = () => {
                               <div>🧺 <strong>Services:</strong> {o.services?.map(s => `${s.name} x${s.qty}`).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
                               <div>📅 <strong>Delivery Time:</strong> {o.date} (3:00 PM - 6:00 PM)</div>
                               <div>💳 <strong>Method:</strong> {o.paymentMethod} ({o.paymentStatus || 'Unpaid'})</div>
-                              <div>📝 <strong>Instructions:</strong> Verify OTP code upon arrival.</div>
+                              <div>📝 <strong>Instructions:</strong> Deliver order directly to customer upon arrival.</div>
                               <div style={{ marginTop: '6px', background: '#eff6ff', color: '#1e40af', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Delivery Commission: QR {(o.deliveryCommission || 0).toFixed(2)}</div>
                             </div>
                           </div>
@@ -1231,7 +1237,7 @@ export const DeliveryPortal: React.FC = () => {
                               <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 Mark Out For Delivery</button>
                             )}
                             {o.status === 'Out for Delivery' && (
-                              <button onClick={() => triggerDeliveryOtpRequest(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🔑 Verify OTP & Complete</button>
+                              <button onClick={() => triggerDeliveryOtpRequest(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>✅ Complete Delivery</button>
                             )}
                           </div>
                         </div>
