@@ -62,7 +62,7 @@ interface OTPLog {
 
 export const SuperAdminPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB, createCompany, updateCompany, changeActiveCompany, token } = useDatabase();
+  const { db, saveDB, createCompany, updateCompany, changeActiveCompany, token, activeCompanyId } = useDatabase();
 
   // Navigation main active tab matching the required SaaS workflow
   const [activeTab, setActiveTab] = useState<
