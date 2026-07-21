@@ -2304,10 +2304,7 @@ export const AdminPortal: React.FC = () => {
     // Open window synchronously to avoid browser popup blocker
     const win = window.open('about:blank', '_blank');
 
-    let googleUrl = '';
-    let appleUrl = '';
-    let pkgName = 'Prepaid Package';
-    let balance = c.walletBalance || 0;
+    let hasActivePkg = false;
 
     try {
       const token = localStorage.getItem('token') || '';
@@ -2318,9 +2315,10 @@ export const AdminPortal: React.FC = () => {
         const pkgs = await res.json();
         const activePkg = Array.isArray(pkgs) ? pkgs.find((p: any) => p.status === 'ACTIVE') : null;
         if (activePkg) {
+          hasActivePkg = true;
           googleUrl = activePkg.google_wallet_url || activePkg.googleWalletUrl || '';
           appleUrl = activePkg.apple_wallet_url || activePkg.appleWalletUrl || '';
-          pkgName = activePkg.package_name || activePkg.package?.name || activePkg.packageName || pkgName;
+          pkgName = activePkg.package_name || activePkg.package?.name || activePkg.packageName || 'Prepaid Package';
           balance = activePkg.current_balance ?? activePkg.package_value ?? balance;
         }
       }
@@ -2328,11 +2326,12 @@ export const AdminPortal: React.FC = () => {
       console.warn('Could not fetch live customer package from backend:', e);
     }
 
-    if (!googleUrl) {
+    if (!hasActivePkg) {
       const cPkg = (posCustomerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE')
                 || (db.customerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE');
       if (cPkg) {
-        pkgName = cPkg.package_name || cPkg.package?.name || cPkg.packageName || (cPkg.package as any)?.name || pkgName;
+        hasActivePkg = true;
+        pkgName = cPkg.package_name || cPkg.package?.name || cPkg.packageName || (cPkg.package as any)?.name || 'Prepaid Package';
         balance = cPkg.current_balance ?? cPkg.package_value ?? cPkg.total_quantity ?? balance;
         googleUrl = cPkg.google_wallet_url || (cPkg as any).googleWalletUrl || '';
         appleUrl = cPkg.apple_wallet_url || (cPkg as any).appleWalletUrl || '';
@@ -2342,18 +2341,24 @@ export const AdminPortal: React.FC = () => {
     const portalUrl = `${window.location.origin}/customer?login=${c.id}`;
     const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');
 
-    let textMsg = `Hi ${c.name} 👋!\nYour Prepaid Package (${pkgName}) digital pass is ready!\n\n💳 Balance: QR ${balance}\n📲 Access Portal & QR Code: ${portalUrl}\n\n`;
-    if (googleUrl) {
-      textMsg += `🔵 Add to Google Wallet:\n${googleUrl}\n\n`;
-    }
-    if (appleUrl) {
-      textMsg += `🍎 Add to Apple Wallet:\n${appleUrl}\n\n`;
+    let textMsg = '';
+    if (hasActivePkg) {
+      textMsg = `Hi ${c.name} 👋!\nYour Prepaid Package (${pkgName}) is active!\n\n💳 Balance: QR ${balance}\n📲 Access Portal & QR Code: ${portalUrl}\n\n`;
+      if (googleUrl) {
+        textMsg += `🔵 Add to Google Wallet:\n${googleUrl}\n\n`;
+      }
+      if (appleUrl) {
+        textMsg += `🍎 Add to Apple Wallet:\n${appleUrl}\n\n`;
+      }
+    } else {
+      textMsg = `Hi ${c.name} 👋!\nWelcome to Laundra Laundry Services! Your Customer Account & Digital QR Pass are ready.\n\n📲 Access Customer Portal & Pass: ${portalUrl}\n\n`;
     }
     textMsg += `Thank you for choosing Laundra Laundry Services!`;
 
     const waUrl = cleanPhone 
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
+
 
     if (win) {
       win.location.href = waUrl;
