@@ -2302,7 +2302,7 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleSendCustomerWhatsAppPass = async (c: Customer) => {
-    // Open window immediately on user click to prevent browser popup blocker
+    // Open a blank tab synchronously so modern browsers don't block the popup
     const win = window.open('about:blank', '_blank');
 
     let googleUrl = '';
@@ -2369,13 +2369,13 @@ export const AdminPortal: React.FC = () => {
     textMsg += `Thank you for choosing Laundra Laundry Services!`;
 
     const waUrl = cleanPhone 
-      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMsg)}`
-      : `https://wa.me/?text=${encodeURIComponent(textMsg)}`;
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
 
-    if (win) {
+    if (win && !win.closed) {
       win.location.href = waUrl;
     } else {
-      window.location.href = waUrl;
+      window.open(waUrl, '_blank');
     }
   };
 
