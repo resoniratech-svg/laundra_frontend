@@ -627,8 +627,8 @@ export const DeliveryPortal: React.FC = () => {
   const totalPendingTasksCount = pendingPickupsCount + pendingDeliveriesCount;
 
   // Actual commission earnings calculation (total of completed pickups and deliveries)
-  const completedPickupTasks = assignedOrders.filter(o => isMyPickupOrder(o) && !pickupStatuses.includes(o.status.toLowerCase()));
-  const completedDeliveryTasks = assignedOrders.filter(o => isMyDeliveryOrder(o) && o.status.toLowerCase() === 'delivered');
+  const completedPickupTasks = assignedOrders.filter(o => isMyPickupOrder(o) && (!pickupStatuses.includes(o.status.toLowerCase()) || !!o.pickupCommissionPaid));
+  const completedDeliveryTasks = assignedOrders.filter(o => isMyDeliveryOrder(o) && (o.status.toLowerCase() === 'delivered' || !!o.deliveryCommissionPaid));
   const actualPickupEarnings = completedPickupTasks.reduce((sum, o) => sum + (o.pickupCommission || 0), 0);
   const actualDeliveryEarnings = completedDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission || 0), 0);
   const totalCommissionEarnings = actualPickupEarnings + actualDeliveryEarnings;
@@ -1262,7 +1262,10 @@ export const DeliveryPortal: React.FC = () => {
                   assignedOrders.forEach(o => {
                     const isMyPickup = isMyPickupOrder(o);
                     const isMyDelivery = isMyDeliveryOrder(o);
-                    if (o.pickupCommission && o.pickupCommission > 0 && isMyPickup) {
+                    const isPickupDone = !pickupStatuses.includes((o.status || '').toLowerCase()) || !!o.pickupCommissionPaid;
+                    const isDeliveryDone = (o.status || '').toLowerCase() === 'delivered' || !!o.deliveryCommissionPaid;
+
+                    if (o.pickupCommission && o.pickupCommission > 0 && isMyPickup && isPickupDone) {
                       completed.push({
                         id: `${o.id}-pickup`,
                         date: o.pickupPaymentDate || o.date,
@@ -1273,7 +1276,7 @@ export const DeliveryPortal: React.FC = () => {
                         method: o.pickupPaymentMethod
                       });
                     }
-                    if (o.deliveryCommission && o.deliveryCommission > 0 && isMyDelivery) {
+                    if (o.deliveryCommission && o.deliveryCommission > 0 && isMyDelivery && isDeliveryDone) {
                       completed.push({
                         id: `${o.id}-delivery`,
                         date: o.deliveryPaymentDate || o.date,
