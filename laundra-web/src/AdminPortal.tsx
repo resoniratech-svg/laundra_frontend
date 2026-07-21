@@ -4049,7 +4049,7 @@ export const AdminPortal: React.FC = () => {
                           </button>
                         )}
                       </div>
-                      <input type="text" value={`₹${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
+                      <input type="text" value={`QR ${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
@@ -4317,7 +4317,7 @@ export const AdminPortal: React.FC = () => {
                         ...(db.customerPackages || []).filter(cp => cp.customerId === posCustId && (cp.status?.toUpperCase() === 'ACTIVE' || cp.status === 'Active')).map(cp => ({
                           id: cp.id,
                           name: cp.packageName || 'Prepaid Package',
-                          subtitle: `₹${cp.currentBalance} left`
+                          subtitle: `QR ${cp.currentBalance} left`
                         }))
                       ];
                       const uniquePkgs = Array.from(new Map(availablePkgs.map(p => [p.id, p])).values());
@@ -4330,8 +4330,13 @@ export const AdminPortal: React.FC = () => {
 
                 <button 
                   onClick={() => {
+                    const posTotal = customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal();
                     if (posCart.length === 0) {
                       alert('Please add at least one laundry service to the cart before checking out.');
+                      return;
+                    }
+                    if (posTotal <= 0) {
+                      alert('POS Total Amount must be greater than 0 to checkout.');
                       return;
                     }
                     if (['Card', 'UPI', 'Wallet'].includes(posPayMethod) && !posRemark.trim()) {
@@ -4340,14 +4345,16 @@ export const AdminPortal: React.FC = () => {
                     }
                     handleCheckoutPOS();
                   }} 
+                  disabled={posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0}
                   style={{ 
                     padding: '10px', 
-                    background: posCart.length === 0 ? '#94a3b8' : '#16a34a', 
+                    background: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? '#94a3b8' : '#16a34a', 
                     color: 'white', 
                     border: 'none', 
                     borderRadius: '6px', 
                     fontWeight: '700', 
-                    cursor: posCart.length === 0 ? 'not-allowed' : 'pointer' 
+                    cursor: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 'not-allowed' : 'pointer',
+                    opacity: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 0.6 : 1
                   }}
                 >
                   Checkout
@@ -5888,7 +5895,7 @@ export const AdminPortal: React.FC = () => {
               </div>
               <div style={{ fontSize: '0.95rem', color: '#111', lineHeight: '1.4' }}>
                 Hi {walletPassPreview.customerName},<br/>
-                Your <strong>{walletPassPreview.packageName}</strong> is now active! You paid ₹{walletPassPreview.finalPaid}.<br/><br/>
+                Your <strong>{walletPassPreview.packageName}</strong> is now active! You paid QR {walletPassPreview.finalPaid}.<br/><br/>
                 Tap below to add your Digital Laundry Pass to your wallet for seamless checkout.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
@@ -5962,7 +5969,7 @@ export const AdminPortal: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
                   <div style={{ fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '4px' }}>{walletPassPreview.packageName}</div>
-                  <div style={{ fontSize: '2rem', fontWeight: '900' }}>₹{walletPassPreview.currentBalance}</div>
+                  <div style={{ fontSize: '2rem', fontWeight: '900' }}>QR {walletPassPreview.currentBalance}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '0.75rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>Valid Until</div>
