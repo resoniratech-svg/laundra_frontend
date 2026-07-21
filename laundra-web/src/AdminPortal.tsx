@@ -3556,43 +3556,37 @@ export const AdminPortal: React.FC = () => {
                               </select>
                             </div>
                             
-                            {((o.pickupCourier && o.pickupCourier !== 'Store') || (o.deliveryCourier && o.deliveryCourier !== 'Store')) && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0', width: '120px' }}>
-                                {o.pickupCourier && o.pickupCourier !== 'Store' && (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-                                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>📦 Pick QR:</span>
-                                    <input 
-                                      type="number" 
-                                      placeholder="0.00"
-                                      disabled={!['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase())}
-                                      value={o.pickupCommission || ''}
-                                      onChange={e => {
-                                        const val = parseFloat(e.target.value) || 0;
-                                        const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
-                                        saveDB({ orders: updatedOrders });
-                                      }}
-                                      style={{ width: '40px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase()) ? '#e2e8f0' : 'white', cursor: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(o.status.toLowerCase()) ? 'not-allowed' : 'text' }}
-                                    />
-                                  </div>
-                                )}
+                            {((o.pickupCourier && o.pickupCourier !== 'Store') || (o.deliveryCourier && o.deliveryCourier !== 'Store') || (o.courier && o.courier !== 'Store')) && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0', width: '130px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                  <span style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: 'bold' }}>📦 Pick QR:</span>
+                                  <input 
+                                    type="number" 
+                                    placeholder="5.00"
+                                    value={o.pickupCommission !== undefined && o.pickupCommission !== null ? o.pickupCommission : 5}
+                                    onChange={e => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
+                                      saveDB({ orders: updatedOrders });
+                                    }}
+                                    style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: 'white', cursor: 'text' }}
+                                  />
+                                </div>
                                 
-                                {o.deliveryCourier && o.deliveryCourier !== 'Store' && ['ready', 'out for delivery', 'delivered'].includes(o.status.toLowerCase()) && (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-                                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold' }}>🚚 Deliv QR:</span>
-                                    <input 
-                                      type="number" 
-                                      placeholder="0.00"
-                                      disabled={o.status.toLowerCase() === 'delivered'}
-                                      value={o.deliveryCommission || ''}
-                                      onChange={e => {
-                                        const val = parseFloat(e.target.value) || 0;
-                                        const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
-                                        saveDB({ orders: updatedOrders });
-                                      }}
-                                      style={{ width: '40px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: o.status.toLowerCase() === 'delivered' ? '#e2e8f0' : 'white', cursor: o.status.toLowerCase() === 'delivered' ? 'not-allowed' : 'text' }}
-                                    />
-                                  </div>
-                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                  <span style={{ fontSize: '0.65rem', color: '#1e40af', fontWeight: 'bold' }}>🚚 Deliv QR:</span>
+                                  <input 
+                                    type="number" 
+                                    placeholder="5.00"
+                                    value={o.deliveryCommission !== undefined && o.deliveryCommission !== null ? o.deliveryCommission : 5}
+                                    onChange={e => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
+                                      saveDB({ orders: updatedOrders });
+                                    }}
+                                    style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: 'white', cursor: 'text' }}
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>
@@ -5529,45 +5523,39 @@ export const AdminPortal: React.FC = () => {
                   </select>
                 </div>
 
-                {((viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store') || (viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store')) && (
+                {((viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store') || (viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store') || (viewingOrder.courier && viewingOrder.courier !== 'Store')) && (
                   <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    {viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>📦 Pickup Commission (QR):</label>
-                        <input 
-                          type="number" 
-                          placeholder="0.00"
-                          disabled={!['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase())}
-                          value={viewingOrder.pickupCommission || ''}
-                          onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setViewingOrder({...viewingOrder, pickupCommission: val});
-                            const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
-                            saveDB({ orders: updatedOrders });
-                          }}
-                          style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase()) ? '#e2e8f0' : 'white', cursor: !['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'].includes(viewingOrder.status.toLowerCase()) ? 'not-allowed' : 'text' }}
-                        />
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#b45309' }}>📦 Pickup Commission (QR):</label>
+                      <input 
+                        type="number" 
+                        placeholder="5.00"
+                        value={viewingOrder.pickupCommission !== undefined && viewingOrder.pickupCommission !== null ? viewingOrder.pickupCommission : 5}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setViewingOrder({...viewingOrder, pickupCommission: val});
+                          const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
+                          saveDB({ orders: updatedOrders });
+                        }}
+                        style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: 'white', cursor: 'text' }}
+                      />
+                    </div>
                     
-                    {viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && ['ready', 'out for delivery', 'delivered'].includes(viewingOrder.status.toLowerCase()) && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' ? '1px solid #e2e8f0' : 'none', paddingTop: viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' ? '8px' : '0' }}>
-                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#0f172a' }}>🚚 Delivery Commission (QR):</label>
-                        <input 
-                          type="number" 
-                          placeholder="0.00"
-                          disabled={viewingOrder.status.toLowerCase() === 'delivered'}
-                          value={viewingOrder.deliveryCommission || ''}
-                          onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setViewingOrder({...viewingOrder, deliveryCommission: val});
-                            const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
-                            saveDB({ orders: updatedOrders });
-                          }}
-                          style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: viewingOrder.status.toLowerCase() === 'delivered' ? '#e2e8f0' : 'white', cursor: viewingOrder.status.toLowerCase() === 'delivered' ? 'not-allowed' : 'text' }}
-                        />
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Commission (QR):</label>
+                      <input 
+                        type="number" 
+                        placeholder="5.00"
+                        value={viewingOrder.deliveryCommission !== undefined && viewingOrder.deliveryCommission !== null ? viewingOrder.deliveryCommission : 5}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setViewingOrder({...viewingOrder, deliveryCommission: val});
+                          const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
+                          saveDB({ orders: updatedOrders });
+                        }}
+                        style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: 'white', cursor: 'text' }}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
