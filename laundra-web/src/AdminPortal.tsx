@@ -2305,6 +2305,10 @@ export const AdminPortal: React.FC = () => {
     const win = window.open('about:blank', '_blank');
 
     let hasActivePkg = false;
+    let googleUrl = '';
+    let appleUrl = '';
+    let pkgName = 'Prepaid Package';
+    let balance = c.walletBalance || 0;
 
     try {
       const token = localStorage.getItem('token') || '';
@@ -2359,11 +2363,10 @@ export const AdminPortal: React.FC = () => {
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
 
-
-    if (win) {
+    if (win && !win.closed) {
       win.location.href = waUrl;
     } else {
-      window.location.href = waUrl;
+      window.open(waUrl, '_blank');
     }
   };
 
