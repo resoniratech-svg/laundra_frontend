@@ -2309,8 +2309,12 @@ export const AdminPortal: React.FC = () => {
 
     try {
       const token = localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const tenantId = localStorage.getItem('ll_tenant_id') || '';
       const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
       });
       if (res.ok) {
         const pkgs = await res.json();
