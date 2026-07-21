@@ -4885,48 +4885,65 @@ export const AdminPortal: React.FC = () => {
 
       {/* ADD CUSTOMER MODAL */}
       {addingCustomerStep > 0 && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 28px', color: 'white', position: 'relative' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Customer</h3>
-              <button onClick={() => setAddingCustomerStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', opacity: 0.85 }}>Fill in the details below to register a new customer</p>
+              <button onClick={() => setAddingCustomerStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleCreateCustomer} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
+
+              {/* Customer ID - full width */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px', color: '#64748b' }}>Customer ID (Auto Generated)</label>
-                <input type="text" readOnly disabled value={custCode} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: '#f1f5f9', cursor: 'not-allowed', color: '#64748b', fontWeight: '700' }} />
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>Customer ID (Auto Generated)</label>
+                <input type="text" readOnly disabled value={custCode} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', cursor: 'not-allowed', color: '#64748b', fontWeight: '700', fontSize: '0.95rem', boxSizing: 'border-box' }} />
               </div>
+
+              {/* Row 1: Full Name + Phone */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+                  <input type="text" required maxLength={20} value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Phone *</label>
+                  <input type="text" required maxLength={15} value={custPhone} onChange={e => setCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {/* Row 2: Email + Gender */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>Email Address <span style={{ fontWeight: '400' }}>(Optional)</span></label>
+                  <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder="Can be left blank" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Gender <span style={{ fontWeight: '400', color: '#64748b' }}>(Optional)</span></label>
+                  <select value={custGender} onChange={e => setCustGender(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white' }}>
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Address - full width */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                <input type="text" required maxLength={20} value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Address</label>
+                <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Street, Area, City" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px', color: '#64748b' }}>Email Address (Optional)</label>
-                <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} placeholder="Optional (Can be left blank)" />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone *</label>
-                <input type="text" required maxLength={15} value={custPhone} onChange={e => setCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Address</label>
-                <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Gender (Optional)</label>
-                <select value={custGender} onChange={e => setCustGender(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Create Customer</button>
+
+              <button type="submit" style={{ padding: '13px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px' }}>
+                Create Customer
+              </button>
             </form>
           </div>
         </div>
       )}
+
 
       {/* CREATE CASHIER MODAL */}
       {addingCashierStep > 0 && (
