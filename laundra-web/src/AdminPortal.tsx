@@ -2302,6 +2302,9 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleSendCustomerWhatsAppPass = async (c: Customer) => {
+    // Open window immediately on user click to prevent browser popup blocker
+    const win = window.open('about:blank', '_blank');
+
     let googleUrl = '';
     let appleUrl = '';
     let pkgName = 'Prepaid Package';
@@ -2309,7 +2312,7 @@ export const AdminPortal: React.FC = () => {
     let hasActivePkg = false;
 
     try {
-      const token = localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const tenantId = localStorage.getItem('ll_tenant_id') || '';
       const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
         headers: { 
@@ -2369,7 +2372,11 @@ export const AdminPortal: React.FC = () => {
       ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMsg)}`
       : `https://wa.me/?text=${encodeURIComponent(textMsg)}`;
 
-    window.open(waUrl, '_blank');
+    if (win) {
+      win.location.href = waUrl;
+    } else {
+      window.location.href = waUrl;
+    }
   };
 
   const handleDisableQR = (cust: Customer) => {
