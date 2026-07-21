@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from './config';
+
+const BASE_URL = getApiBaseUrl();
 
 export default function PrepaidPackagesManager({ token, db, services }: { token: string, db: any, services: any[] }) {
   const [packages, setPackages] = useState<any[]>([]);

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { getApiBaseUrl } from './config';
 
 // Type definitions matching vanilla application schema
 export interface Service {
@@ -844,7 +845,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Auto-sync real companies from backend
     const fetchCompanies = async () => {
       try {
-        const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+        const BASE_URL = getApiBaseUrl();
         const res = await fetch(`${BASE_URL}/api/v1/companies/public`);
         if (res.ok) {
           const data = await res.json();
