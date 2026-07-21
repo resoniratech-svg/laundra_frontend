@@ -2308,7 +2308,7 @@ export const AdminPortal: React.FC = () => {
     let hasActivePkg = false;
 
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -2337,6 +2337,10 @@ export const AdminPortal: React.FC = () => {
         googleUrl = cPkg.google_wallet_url || (cPkg as any).googleWalletUrl || '';
         appleUrl = cPkg.apple_wallet_url || (cPkg as any).appleWalletUrl || '';
       }
+    }
+
+    if (appleUrl && !appleUrl.startsWith('http')) {
+      appleUrl = `${BASE_URL.replace(/\/$/, '')}${appleUrl.startsWith('/') ? '' : '/'}${appleUrl}`;
     }
 
     const portalUrl = `${window.location.origin}/customer?login=${c.id}`;
