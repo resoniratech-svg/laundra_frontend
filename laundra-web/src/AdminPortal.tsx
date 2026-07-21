@@ -4979,54 +4979,75 @@ export const AdminPortal: React.FC = () => {
 
       {/* CREATE CASHIER MODAL */}
       {addingCashierStep > 0 && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Cashier (Step {addingCashierStep}/3)</h3>
-              <button onClick={() => setAddingCashierStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 28px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Cashier</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', opacity: 0.85 }}>
+                {addingCashierStep === 1 && 'Step 1 of 3 — Enter cashier details'}
+                {addingCashierStep === 2 && 'Step 2 of 3 — Verify email with OTP'}
+                {addingCashierStep === 3 && 'Step 3 of 3 — Set account password'}
+              </p>
+              {/* Step progress dots */}
+              <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                {[1,2,3].map(s => (
+                  <div key={s} style={{ width: s <= addingCashierStep ? '24px' : '8px', height: '8px', borderRadius: '4px', background: s <= addingCashierStep ? 'white' : 'rgba(255,255,255,0.35)', transition: 'all 0.3s' }} />
+                ))}
+              </div>
+              <button onClick={() => setAddingCashierStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
             {addingCashierStep === 1 && (
-              <form onSubmit={e => handleCreateStaffInputs(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Full Name *</label>
-                  <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              <form onSubmit={e => handleCreateStaffInputs(e, 'cashier')} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
+                {/* Row 1: Full Name + Phone */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+                    <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Phone</label>
+                    <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                  </div>
                 </div>
+                {/* Email - full width */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Email Address *</label>
-                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Email Address *</label>
+                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="An OTP will be sent to this email" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Phone</label>
-                  <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
-                </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Next: Send OTP</button>
+                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px', width: '100%' }}>Next: Send OTP →</button>
               </form>
             )}
 
             {addingCashierStep === 2 && (
-              <form onSubmit={e => handleVerifyStaffOtp(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>📩 A 6-digit verification code has been sent to <strong>{staffEmail}</strong>. Please check your email inbox.</p>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Enter OTP Code</label>
-                  <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', textAlign: 'center', fontWeight: '800', letterSpacing: '4px' }} />
+              <form onSubmit={e => handleVerifyStaffOtp(e, 'cashier')} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
+                <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: '10px', padding: '14px 18px', color: '#1e40af', fontSize: '0.9rem' }}>
+                  📩 A 6-digit verification code has been sent to <strong>{staffEmail}</strong>. Please check your inbox.
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Verify OTP</button>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Enter OTP Code</label>
+                  <input type="text" required value={staffOtp} onChange={e => setStaffOtp(e.target.value)} maxLength={6} placeholder="• • • • • •" style={{ width: '100%', padding: '14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', textAlign: 'center', fontWeight: '800', letterSpacing: '8px', fontSize: '1.4rem', boxSizing: 'border-box' }} />
+                </div>
+                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', width: '100%' }}>Verify OTP →</button>
               </form>
             )}
 
             {addingCashierStep === 3 && (
-              <form onSubmit={e => handleCompleteStaffSetup(e, 'cashier')} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Create Password</label>
-                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+              <form onSubmit={e => handleCompleteStaffSetup(e, 'cashier')} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
+                <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '10px', padding: '14px 18px', color: '#15803d', fontSize: '0.9rem' }}>
+                  ✅ Email verified! Set a secure password for this cashier account.
                 </div>
-                <button type="submit" style={{ padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', width: '100%' }}>Complete Setup</button>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Create Password</label>
+                  <input type="password" required value={staffPass} onChange={e => setStaffPass(e.target.value)} placeholder="Minimum 8 characters" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #16a34a, #059669)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', width: '100%' }}>✓ Complete Setup</button>
               </form>
             )}
           </div>
         </div>
       )}
+
 
       {/* CREATE DELIVERY STAFF MODAL */}
       {addingDeliveryStep > 0 && (
