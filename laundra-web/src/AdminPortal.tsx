@@ -2301,14 +2301,11 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleSendCustomerWhatsAppPass = async (c: Customer) => {
-    // Open window synchronously to avoid browser popup blocker
-    const win = window.open('about:blank', '_blank');
-
-    let hasActivePkg = false;
     let googleUrl = '';
     let appleUrl = '';
     let pkgName = 'Prepaid Package';
     let balance = c.walletBalance || 0;
+    let hasActivePkg = false;
 
     try {
       const token = localStorage.getItem('token') || '';
@@ -2360,14 +2357,10 @@ export const AdminPortal: React.FC = () => {
     textMsg += `Thank you for choosing Laundra Laundry Services!`;
 
     const waUrl = cleanPhone 
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMsg)}`
+      : `https://wa.me/?text=${encodeURIComponent(textMsg)}`;
 
-    if (win && !win.closed) {
-      win.location.href = waUrl;
-    } else {
-      window.open(waUrl, '_blank');
-    }
+    window.open(waUrl, '_blank');
   };
 
   const handleDisableQR = (cust: Customer) => {
