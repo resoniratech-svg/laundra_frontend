@@ -177,7 +177,7 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
   if (loading) return <div style={{ padding: '20px' }}>Loading...</div>;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', width: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2>Prepaid Subscription Packages</h2>
         <button 
