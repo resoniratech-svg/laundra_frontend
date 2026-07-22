@@ -1,5 +1,5 @@
 export const getApiBaseUrl = (): string => {
-  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  const envUrl = (import.meta as any).env?.VITE_BACKEND_BASE_URL || (import.meta as any).env?.VITE_API_BASE_URL;
   if (envUrl && envUrl.startsWith('http') && !envUrl.includes('localhost')) {
     return envUrl.replace(/\/$/, '');
   }
@@ -19,5 +19,6 @@ export const getApiBaseUrl = (): string => {
     }
   }
 
-  return (envUrl || 'http://localhost:8000').replace(/\/$/, '');
+  // Final fallback to explicit prod URL if all else fails
+  return (envUrl || 'https://laundry-project-laundry-backend.cocjl5.easypanel.host').replace(/\/$/, '');
 };
