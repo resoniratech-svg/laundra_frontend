@@ -1277,22 +1277,32 @@ export const AdminPortal: React.FC = () => {
   const handleDeleteCustomer = async (cust: Customer) => {
     if (confirm(`Are you sure you want to delete customer "${cust.name}"?`)) {
       try {
-        const res = await fetch(`${BASE_URL}/api/v1/customers/by-email/${encodeURIComponent(cust.email)}`, {
+        const deleteUrl = (cust.id && cust.id.length > 20)
+          ? `${BASE_URL}/api/v1/customers/${cust.id}`
+          : `${BASE_URL}/api/v1/customers/by-email/${encodeURIComponent(cust.email)}`;
+
+        const res = await fetch(deleteUrl, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        
         if (!res.ok) {
-          console.warn('Backend delete may have failed or customer was only in mock DB');
+          const err = await res.json().catch(() => ({}));
+          alert(`Failed to delete customer from server: ${err.detail || err.message || 'Server error'}`);
+          return;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Network error deleting customer:', err);
+        alert('Network error deleting customer. Please try again.');
+        return;
       }
 
       const updatedCustomers = db.customers.filter(c => c.id !== cust.id);
       const updatedUsers = db.users.filter(u => !(u.role === 'customer' && u.email.toLowerCase() === cust.email.toLowerCase()));
       saveDB({ customers: updatedCustomers, users: updatedUsers });
       addActivity('Customer', `Deleted customer: ${cust.name}`);
-      alert(`Customer "${cust.name}" deleted successfully from all systems.`);
+      fetchBackendData();
+      alert(`Customer "${cust.name}" deleted successfully.`);
     }
   };
 
