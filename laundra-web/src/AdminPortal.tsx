@@ -2292,7 +2292,7 @@ export const AdminPortal: React.FC = () => {
     saveDB({ customers: updated });
 
     const portalUrl = `${window.location.origin}/customer?login=${cust.id}`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+    const qrImageUrl = `${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(portalUrl)}`;
     const message = `Hi ${cust.name}! Here is your secure QR code to access your laundry portal. Scan the image or use this link: ${portalUrl}`;
 
     try {
@@ -6107,7 +6107,7 @@ export const AdminPortal: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ background: 'white', padding: '6px', borderRadius: '8px' }}>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${walletPassPreview.qrToken}`} alt="QR" style={{ display: 'block', width: '60px', height: '60px' }} />
+                  <img src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${walletPassPreview.qrToken}`} alt="QR" style={{ display: 'block', width: '60px', height: '60px' }} />
                 </div>
               </div>
 
@@ -6224,7 +6224,7 @@ export const AdminPortal: React.FC = () => {
                   </div>
                 ) : (
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${qrCust.id}`)}`}
+                    src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(`${window.location.origin}/customer?login=${qrCust.id}`)}`}
                     alt={`QR Code for ${qrCust.name}`}
                     style={{ width: '180px', height: '180px', borderRadius: '8px' }}
                     onError={(e) => {
@@ -6257,7 +6257,7 @@ export const AdminPortal: React.FC = () => {
                     <button onClick={() => handleShareQR(qrCust)} style={{ flex: 1, padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.82rem' }}>📲 Share QR via WA</button>
                     <button onClick={async () => {
                       const portalUrl = `${window.location.origin}/customer?login=${qrCust.id}`;
-                      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+                      const qrImageUrl = `${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(portalUrl)}`;
                       const res = await fetch(qrImageUrl);
                       const blob = await res.blob();
                       const url = URL.createObjectURL(blob);
@@ -6318,7 +6318,7 @@ export const AdminPortal: React.FC = () => {
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
               <div style={{ width: '180px', height: '180px', background: '#f1f5f9', border: '2px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', overflow: 'hidden' }}>
                 <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${packageQRPreview.qrPreview}`)}`}
+                    src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(`${window.location.origin}/customer?login=${packageQRPreview.qrPreview}`)}`}
                     alt="QR Code Preview"
                     style={{ width: '180px', height: '180px', borderRadius: '8px' }}
                 />
@@ -6329,7 +6329,7 @@ export const AdminPortal: React.FC = () => {
               <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                 <button onClick={async () => {
                       const portalUrl = `${window.location.origin}/customer?login=${packageQRPreview.qrPreview}`;
-                      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+                      const qrImageUrl = `${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(portalUrl)}`;
                       const res = await fetch(qrImageUrl);
                       const blob = await res.blob();
                       const url = URL.createObjectURL(blob);
@@ -6494,7 +6494,7 @@ export const AdminPortal: React.FC = () => {
             {/* QR Code */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'auto' }}>
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${viewingWalletHistoryCust.id}`)}`} 
+                src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(`${window.location.origin}/customer?login=${viewingWalletHistoryCust.id}`)}`} 
                 alt="QR" 
                 style={{ width: '160px', height: '160px', marginBottom: '8px' }} 
               />

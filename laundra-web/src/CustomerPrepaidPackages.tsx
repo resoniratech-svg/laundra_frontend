@@ -145,7 +145,7 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
               
               {/* QR Code display */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px' }}>
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(mp.qr_token)}`} alt="Package QR Code" width="150" height="150" />
+                <img src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(mp.qr_token)}`} alt="Package QR Code" width="150" height="150" />
                 <p style={{ margin: '10px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>Show this QR Code at checkout</p>
                 <div style={{ fontSize: '0.7rem', fontFamily: 'monospace', marginTop: '4px', color: '#94a3b8' }}>{mp.qr_token}</div>
               </div>
