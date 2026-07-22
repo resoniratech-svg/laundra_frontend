@@ -215,6 +215,11 @@ export const AdminPortal: React.FC = () => {
   const [loyaltyPts, setLoyaltyPts] = useState('');
   const [loyaltyDir, setLoyaltyDir] = useState<'add' | 'redeem'>('add');
 
+  // Package Wallet Integrations
+  const [packageWalletDetails, setPackageWalletDetails] = useState<any>(null);
+  const [packageQRPreview, setPackageQRPreview] = useState<any>(null);
+
+
   // Coupon Forms
   const [editingCoupon, setEditingCoupon] = useState<Promo | null>(null);
   const [cpName, setCpName] = useState('');
@@ -959,10 +964,14 @@ export const AdminPortal: React.FC = () => {
     const pkg = backendPrepaidPackages?.find(p => p.id === selectedPrepaidPackage);
     if (!pkg) return;
 
+    const tokenToUse = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+    const tenantIdToUse = localStorage.getItem('ll_tenant_id') || '';
+
     fetch(`${BASE_URL}/api/v1/prepaid-packages/purchase`, {
       method: 'POST',
       headers: { 
-        'Authorization': `Bearer ${localStorage.getItem('ll_auth_token')}`,
+        'Authorization': `Bearer ${tokenToUse}`,
+        'X-Tenant-ID': tenantIdToUse,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -2318,81 +2327,172 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
-  const handleSendCustomerWhatsAppPass = async (c: Customer) => {
-    // Open a blank tab synchronously so modern browsers don't block the popup
-    const win = window.open('about:blank', '_blank');
-
-    let googleUrl = '';
-    let appleUrl = '';
-    let pkgName = 'Prepaid Package';
-    let balance = c.walletBalance || 0;
-    let hasActivePkg = false;
-
+  const handleWalletClick = async (c: Customer) => {
     try {
       const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const tenantId = localStorage.getItem('ll_tenant_id') || '';
-      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
+      
+      const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'X-Tenant-ID': tenantId
         }
       });
-      if (res.ok) {
-        const pkgs = await res.json();
-        const activePkg = Array.isArray(pkgs) ? pkgs.find((p: any) => p.status === 'ACTIVE') : null;
-        if (activePkg) {
-          hasActivePkg = true;
-          googleUrl = activePkg.google_wallet_url || activePkg.googleWalletUrl || '';
-          appleUrl = activePkg.apple_wallet_url || activePkg.appleWalletUrl || '';
-          pkgName = activePkg.package_name || activePkg.package?.name || activePkg.packageName || 'Prepaid Package';
-          balance = activePkg.current_balance ?? activePkg.package_value ?? balance;
+      let activePkg = null;
+      if (pkgRes.ok) {
+        const pkgs = await pkgRes.json();
+        if (Array.isArray(pkgs)) {
+          activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
         }
       }
+      
+      if (!activePkg) {
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
+      }
+
+      
+      const url = `${BASE_URL}/api/v1/wallet/admin/package/${activePkg.id}/details`;
+      const res = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
+      });
+      
+      if (res.status === 404) {
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
+      }
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Wallet Details Error - URL:", url, "Method: GET", "Status:", res.status, "Response:", errorText);
+        alert(`Failed to load wallet details. Status: ${res.status}`);
+        return;
+      }
+      
+      const data = await res.json();
+      setPackageWalletDetails(data);
     } catch (e) {
-      console.warn('Could not fetch live customer package from backend:', e);
+      console.error("Fetch Wallet Details Error:", e);
+      alert("Network error while fetching wallet details. See console for details.");
     }
+  };
 
-    if (!hasActivePkg) {
-      const cPkg = (posCustomerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE')
-                || (db.customerPackages || []).find(cp => (cp.customerId === c.id || cp.customer_id === c.id) && cp.status === 'ACTIVE');
-      if (cPkg) {
-        hasActivePkg = true;
-        pkgName = cPkg.package_name || cPkg.package?.name || cPkg.packageName || (cPkg.package as any)?.name || 'Prepaid Package';
-        balance = cPkg.current_balance ?? cPkg.package_value ?? cPkg.total_quantity ?? balance;
-        googleUrl = cPkg.google_wallet_url || (cPkg as any).googleWalletUrl || '';
-        appleUrl = cPkg.apple_wallet_url || (cPkg as any).appleWalletUrl || '';
+  const handleQRClick = async (c: Customer) => {
+    try {
+      const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const tenantId = localStorage.getItem('ll_tenant_id') || '';
+      
+      const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
+      });
+      let activePkg = null;
+      if (pkgRes.ok) {
+        const pkgs = await pkgRes.json();
+        if (Array.isArray(pkgs)) {
+          activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
+        }
       }
-    }
-
-    if (appleUrl && !appleUrl.startsWith('http')) {
-      appleUrl = `${BASE_URL.replace(/\/$/, '')}${appleUrl.startsWith('/') ? '' : '/'}${appleUrl}`;
-    }
-
-    const portalUrl = `${window.location.origin}/customer?login=${c.id}`;
-    const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');
-
-    let textMsg = '';
-    if (hasActivePkg) {
-      textMsg = `Hi ${c.name} 👋!\nYour Prepaid Package (${pkgName}) is active!\n\n💳 Balance: QR ${balance}\n📲 Access Portal & QR Code: ${portalUrl}\n\n`;
-      if (googleUrl) {
-        textMsg += `🔵 Add to Google Wallet:\n${googleUrl}\n\n`;
+      
+      if (!activePkg) {
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
       }
-      if (appleUrl) {
-        textMsg += `🍎 Add to Apple Wallet:\n${appleUrl}\n\n`;
+
+      
+      const url = `${BASE_URL}/api/v1/wallet/admin/package/${activePkg.id}/details`;
+      const res = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
+      });
+      
+      if (res.status === 404) {
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
       }
-    } else {
-      textMsg = `Hi ${c.name} 👋!\nWelcome to Laundra Laundry Services! Your Customer Account & Digital QR Pass are ready.\n\n📲 Access Customer Portal & Pass: ${portalUrl}\n\n`;
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("QR Details Error - URL:", url, "Method: GET", "Status:", res.status, "Response:", errorText);
+        alert(`Failed to load QR details. Status: ${res.status}`);
+        return;
+      }
+      
+      const data = await res.json();
+      setPackageQRPreview(data);
+    } catch (e) {
+      console.error("Fetch QR Details Error:", e);
+      alert("Network error while fetching QR details. See console for details.");
     }
-    textMsg += `Thank you for choosing Laundra Laundry Services!`;
+  };
 
-    const waUrl = cleanPhone 
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(textMsg)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
-
-    if (win && !win.closed) {
-      win.location.href = waUrl;
-    } else {
-      window.open(waUrl, '_blank');
+  const handleSendCustomerWhatsAppPass = async (c: Customer) => {
+    const win = window.open('about:blank', '_blank');
+    try {
+      const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const tenantId = localStorage.getItem('ll_tenant_id') || '';
+      
+      const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
+      });
+      let activePkg = null;
+      if (pkgRes.ok) {
+        const pkgs = await pkgRes.json();
+        if (Array.isArray(pkgs)) {
+          activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
+        }
+      }
+      
+      if (!activePkg) {
+        if (win && !win.closed) win.close();
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
+      }
+      
+      const portalUrl = `${window.location.origin}/customer?login=${c.id}`;
+      const url = `${BASE_URL}/api/v1/wallet/admin/package/${activePkg.id}/whatsapp-link?portal_url=${encodeURIComponent(portalUrl)}`;
+      
+      const res = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId
+        }
+      });
+      
+      if (res.status === 404) {
+        if (win && !win.closed) win.close();
+        alert("This customer does not have an active prepaid package. Please sell a package first.");
+        return;
+      }
+      
+      if (!res.ok) {
+        if (win && !win.closed) win.close();
+        const errorText = await res.text();
+        console.error("WhatsApp Link Error - URL:", url, "Method: GET", "Status:", res.status, "Response:", errorText);
+        alert(`Failed to get WhatsApp deep link. Status: ${res.status}`);
+        return;
+      }
+      
+      const data = await res.json();
+      if (win && !win.closed) {
+        win.location.href = data.deep_link;
+      } else {
+        window.open(data.deep_link, '_blank');
+      }
+    } catch (e) {
+      console.error("Fetch WhatsApp Link Error:", e);
+      if (win && !win.closed) win.close();
+      alert("Network error while generating WhatsApp link. See console for details.");
     }
   };
 
@@ -2863,9 +2963,9 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>🎁 Sell Package</button>
-                          <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
+                          <button onClick={() => handleWalletClick(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
                           <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
-                          <button onClick={() => setQrCust(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>📱 QR Code</button>
+                          <button onClick={() => handleQRClick(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>📱 QR Code</button>
                           <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📲 WA Pass</button>
                           <button onClick={() => handleShareQR(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Share WA</button>
                           <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
@@ -6174,6 +6274,72 @@ export const AdminPortal: React.FC = () => {
               ) : (
                 <button onClick={() => handleGenerateNewSecureQR(qrCust)} style={{ width: '100%', padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}>🔑 Generate New Secure QR</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PACKAGE WALLET DETAILS MODAL */}
+      {packageWalletDetails && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Package Wallet Details</h3>
+              <button onClick={() => setPackageWalletDetails(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div><strong>Customer Name:</strong> {packageWalletDetails.customerName}</div>
+              <div><strong>Package Name:</strong> {packageWalletDetails.packageName}</div>
+              <div><strong>Original Amount:</strong> QR {packageWalletDetails.originalAmount.toFixed(2)}</div>
+              <div><strong>Remaining Amount:</strong> QR {packageWalletDetails.remainingBalance.toFixed(2)}</div>
+              <div><strong>Expiry Date:</strong> {packageWalletDetails.expiryDate ? new Date(packageWalletDetails.expiryDate).toLocaleDateString() : 'N/A'}</div>
+              <div><strong>Status:</strong> {packageWalletDetails.packageStatus}</div>
+              <div><strong>Apple Wallet Status:</strong> {packageWalletDetails.appleWalletStatus}</div>
+              <div><strong>Google Wallet Status:</strong> {packageWalletDetails.googleWalletStatus}</div>
+              
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button onClick={() => { if(packageWalletDetails.appleWalletUrl) window.open(packageWalletDetails.appleWalletUrl, '_blank'); else alert('Apple Wallet not available'); }} style={{ padding: '10px', background: '#000', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}>Download Apple Wallet</button>
+                <button onClick={() => { if(packageWalletDetails.googleWalletUrl) window.open(packageWalletDetails.googleWalletUrl, '_blank'); else alert('Google Wallet not available'); }} style={{ padding: '10px', background: '#4285F4', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}>Download Google Wallet</button>
+                <button onClick={() => { setPackageQRPreview(packageWalletDetails); setPackageWalletDetails(null); }} style={{ padding: '10px', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}>View QR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PACKAGE QR PREVIEW MODAL */}
+      {packageQRPreview && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #16a34a, #10b981)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>QR Preview</h3>
+              <button onClick={() => setPackageQRPreview(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '180px', height: '180px', background: '#f1f5f9', border: '2px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', overflow: 'hidden' }}>
+                <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/customer?login=${packageQRPreview.qrPreview}`)}`}
+                    alt="QR Code Preview"
+                    style={{ width: '180px', height: '180px', borderRadius: '8px' }}
+                />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '0.9rem' }}>
+                <strong>{packageQRPreview.customerName}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <button onClick={async () => {
+                      const portalUrl = `${window.location.origin}/customer?login=${packageQRPreview.qrPreview}`;
+                      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(portalUrl)}`;
+                      const res = await fetch(qrImageUrl);
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `QR_${packageQRPreview.customerName.replace(/\s+/g, '_')}.png`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                }} style={{ flex: 1, padding: '10px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>⬇ Download QR</button>
+              </div>
             </div>
           </div>
         </div>
