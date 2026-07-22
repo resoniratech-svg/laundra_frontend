@@ -124,7 +124,6 @@ export const AdminPortal: React.FC = () => {
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
   const [packagePaymentMethod, setPackagePaymentMethod] = useState<'Cash' | 'Card' | 'UPI'>('Cash');
-  const [walletPassPreview, setWalletPassPreview] = useState<any>(null);
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
   const [addingDeliveryStep, setAddingDeliveryStep] = useState<number>(0); // OTP flow for Delivery
@@ -983,21 +982,7 @@ export const AdminPortal: React.FC = () => {
     .then(res => res.json())
     .then(data => {
       if (data.id) {
-        // Show mock wallet pass preview instead of traditional alert
-        setWalletPassPreview({
-          ...data,
-          packageName: data.package?.name || pkg.name,
-          packageValue: data.package_value,
-          currentBalance: data.current_balance || data.package_value,
-          customerName: sellingPackageTo.name,
-          finalPaid: data.package_value,
-          qrToken: data.secure_token,
-          expiryDate: data.expiry_date ? new Date(data.expiry_date).toLocaleDateString() : '365 Days',
-          apple_wallet_url: data.apple_wallet_url,
-          google_wallet_url: data.google_wallet_url,
-          pass_color: data.pass_color || 'GOLD'
-        });
-        
+        alert(`Prepaid package (${pkg.name}) successfully activated for ${sellingPackageTo.name}!`);
         setSellingPackageTo(null);
         setSelectedPrepaidPackage('');
         setAppliedCouponCode('');
@@ -6033,112 +6018,7 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* WHATSAPP & WALLET PASS MOCK (PREVIEW AFTER PURCHASE) */}
-      {walletPassPreview && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.3s ease-out' }}>
-            
-            {/* WhatsApp Notification Bubble */}
-            <div style={{ background: '#dcf8c6', borderRadius: '16px 16px 16px 4px', padding: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', position: 'relative' }}>
-              <div style={{ fontSize: '0.85rem', color: '#075e54', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '1.2rem' }}>💬</span> Laundra HQ
-              </div>
-              <div style={{ fontSize: '0.95rem', color: '#111', lineHeight: '1.4' }}>
-                Hi {walletPassPreview.customerName},<br/>
-                Your <strong>{walletPassPreview.packageName}</strong> is now active! You paid QR {walletPassPreview.finalPaid}.<br/><br/>
-                Tap below to add your Digital Laundry Pass to your wallet for seamless checkout.
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-                <button 
-                  onClick={() => {
-                    const cust = db.customers.find(c => c.name === walletPassPreview.customerName);
-                    const cleanPhone = (cust?.phone || '').replace(/[^0-9]/g, '');
-                    const msg = `Hi ${walletPassPreview.customerName} 👋!\nYour prepaid package (${walletPassPreview.packageName}) is now active!\n\nTap below to add your Digital Membership Pass directly to Google Wallet:\nAdd to Google Wallet: ${walletPassPreview.google_wallet_url || ''}`;
-                    const targetUrl = cleanPhone 
-                      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-                      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                    window.open(targetUrl, '_blank');
-                  }} 
-                  style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(37, 211, 102, 0.3)' }}
-                >
-                  📲 Send WhatsApp Pass Link to Customer
-                </button>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button 
-                    onClick={() => window.open(walletPassPreview.apple_wallet_url || 'https://wallet.apple.com', '_blank')} 
-                    style={{ flex: 1, padding: '8px', background: 'black', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
-                  >
-                    🍎 Apple Wallet
-                  </button>
-                  <button 
-                    onClick={() => window.open(walletPassPreview.google_wallet_url || 'https://pay.google.com', '_blank')} 
-                    style={{ flex: 1, padding: '8px', background: '#4285f4', color: 'white', borderRadius: '8px', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
-                  >
-                    🔵 Google Wallet
-                  </button>
-                </div>
-              </div>
-            </div>
 
-            {/* Wallet Pass UI Preview */}
-            <div style={{ 
-              background: walletPassPreview.pass_color === 'GREY' 
-                ? 'linear-gradient(135deg, #64748b, #334155)' // 🩶 GREY (In Use)
-                : walletPassPreview.pass_color === 'ORANGE' 
-                ? 'linear-gradient(135deg, #f97316, #c2410c)' // 🟧 ORANGE (Low Balance)
-                : walletPassPreview.pass_color === 'WHITE' 
-                ? 'linear-gradient(135deg, #94a3b8, #475569)' // ⬜ WHITE (Empty)
-                : 'linear-gradient(135deg, #fbbf24, #d97706)', // 🟨 GOLD (Full / Active)
-              borderRadius: '20px', 
-              padding: '24px', 
-              color: 'white',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              {/* Top pattern */}
-              <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', opacity: 0.9 }}>LAUNDRA</h4>
-                  <div style={{ fontSize: '0.75rem', fontWeight: '800', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '1px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content' }}>
-                    {walletPassPreview.pass_color === 'GREY' ? '🩶 IN USE' : walletPassPreview.pass_color === 'ORANGE' ? '🟧 LOW BALANCE - RENEW SOON' : walletPassPreview.pass_color === 'WHITE' ? '⬜ PACKAGE COMPLETED - PLEASE RENEW' : '🟨 ACTIVE'}
-                  </div>
-                </div>
-                <div style={{ background: 'white', padding: '6px', borderRadius: '8px' }}>
-                  <img src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${walletPassPreview.qrToken}`} alt="QR" style={{ display: 'block', width: '60px', height: '60px' }} />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '4px' }}>Customer</div>
-                <div style={{ fontSize: '1.3rem', fontWeight: '700' }}>{walletPassPreview.customerName}</div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '4px' }}>{walletPassPreview.packageName}</div>
-                  <div style={{ fontSize: '2rem', fontWeight: '900' }}>QR {walletPassPreview.currentBalance}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>Valid Until</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>{walletPassPreview.expiryDate}</div>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setWalletPassPreview(null)}
-              style={{ padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              Close Simulator
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* WALLET ADJUSTMENT MODAL */}
       {walletCust && (
