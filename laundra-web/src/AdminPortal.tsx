@@ -123,7 +123,7 @@ export const AdminPortal: React.FC = () => {
   const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
-  const [packagePaymentMethod, setPackagePaymentMethod] = useState<'Cash' | 'Card' | 'UPI'>('Cash');
+  const [packagePaymentMethod, setPackagePaymentMethod] = useState<'Cash' | 'Card'>('Cash');
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
   const [addingCashierStep, setAddingCashierStep] = useState<number>(0);   // OTP flow for Cashier
   const [addingDeliveryStep, setAddingDeliveryStep] = useState<number>(0); // OTP flow for Delivery
@@ -5935,7 +5935,7 @@ export const AdminPortal: React.FC = () => {
                   <div style={{ marginBottom: '24px' }}>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Payment Method</label>
                     <div style={{ display: 'flex', gap: '12px' }}>
-                      {['Cash', 'Card', 'UPI'].map(method => (
+                      {['Cash', 'Card'].map(method => (
                         <button
                           key={method}
                           onClick={() => setPackagePaymentMethod(method as any)}
@@ -5985,12 +5985,6 @@ export const AdminPortal: React.FC = () => {
                               <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Status</span>
                               <span style={{ fontSize: '0.75rem', background: pkg?.is_active !== false ? '#dcfce7' : '#fee2e2', color: pkg?.is_active !== false ? '#166534' : '#991b1b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
                                 {pkg?.is_active !== false ? 'ACTIVE' : 'INACTIVE'}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Applicable Services</span>
-                              <span style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: '600', textAlign: 'right', maxWidth: '60%' }}>
-                                {pkg?.eligible_services?.map((s: any) => s.name || s.id).join(', ') || 'All Services'}
                               </span>
                             </div>
                           </div>
