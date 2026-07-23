@@ -184,6 +184,8 @@ export const AdminPortal: React.FC = () => {
   const [posCommission, setPosCommission] = useState<string>('');
   const [customPOSAmount, setCustomPOSAmount] = useState<string>('');
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyFilter, setHistoryFilter] = useState('All');
 
   const custDropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -512,9 +514,13 @@ export const AdminPortal: React.FC = () => {
           if (existing) {
             return {
               ...freshOrder,
-              pickupCourier: existing.pickupCourier || freshOrder.courier || null,
-              deliveryCourier: existing.deliveryCourier || (freshOrder.status === 'Delivered' ? freshOrder.courier : null),
-              courier: freshOrder.courier || existing.courier || existing.pickupCourier || null,
+              status: existing.status || freshOrder.status,
+              paymentStatus: existing.paymentStatus === 'Paid' ? 'Paid' : (freshOrder.paymentStatus || 'Unpaid'),
+              assignedPickupCourier: existing.assignedPickupCourier || existing.pickupCourier || freshOrder.courier || null,
+              pickupCourier: existing.pickupCourier || existing.assignedPickupCourier || freshOrder.courier || null,
+              assignedDeliveryCourier: (existing.assignedDeliveryCourier && existing.assignedDeliveryCourier !== (existing.assignedPickupCourier || existing.pickupCourier)) ? existing.assignedDeliveryCourier : null,
+              deliveryCourier: (existing.deliveryCourier && existing.deliveryCourier !== (existing.pickupCourier || existing.assignedPickupCourier)) ? existing.deliveryCourier : (freshOrder.status === 'Delivered' ? freshOrder.courier : null),
+              courier: freshOrder.courier || existing.courier || existing.pickupCourier || existing.assignedPickupCourier || null,
               deliveryStatus: existing.deliveryStatus || freshOrder.deliveryStatus,
               deliveredDate: existing.deliveredDate || freshOrder.deliveredDate || null,
               discount: existing.discount ?? freshOrder.discount ?? 0,
@@ -1475,6 +1481,43 @@ export const AdminPortal: React.FC = () => {
     });
 
     addActivity('Order', `Updated status of order #${orderId} to: ${nextStatus}`);
+
+    // Sync status change to backend database so it persists across page reloads
+    const token = localStorage.getItem('ll_auth_token');
+    const targetId = orderObj?.backendId || orderId;
+    if (token && targetId) {
+      try {
+        const BASE_URL = getApiBaseUrl();
+        const stMap: Record<string, string> = {
+          'Created': 'CREATED',
+          'Accepted': 'RECEIVED',
+          'Pickup Assigned': 'RECEIVED',
+          'Picked Up': 'RECEIVED',
+          'Received': 'RECEIVED',
+          'Sorting': 'WASHING',
+          'Washing': 'WASHING',
+          'Drying': 'IRONING',
+          'Ironing': 'IRONING',
+          'Quality Check': 'READY',
+          'Packing': 'READY',
+          'Ready': 'READY',
+          'Out For Delivery': 'OUT_FOR_DELIVERY',
+          'Delivered': 'DELIVERED',
+          'Cancelled': 'CANCELLED'
+        };
+        const backendStatus = stMap[nextStatus] || 'RECEIVED';
+        fetch(`${BASE_URL}/api/v1/orders/${targetId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: backendStatus })
+        }).catch(err => console.error('Failed to sync order status to backend:', err));
+      } catch (err) {
+        console.error('Error syncing order status:', err);
+      }
+    }
     
     // Simulated central notifications trigger
     if (nextStatus === 'Ready') {
@@ -2929,9 +2972,7 @@ export const AdminPortal: React.FC = () => {
                           <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>🎁 Sell Package</button>
                           <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
                           <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
-                          <button onClick={() => handleQRClick(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>📱 QR Code</button>
                           <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📲 WA Pass</button>
-                          <button onClick={() => handleShareQR(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Share WA</button>
                           <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
                           <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
                         </div>
@@ -3244,7 +3285,6 @@ export const AdminPortal: React.FC = () => {
                           style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
                         >
                           <option value="Cash">Cash</option>
-                          <option value="UPI">UPI</option>
                           <option value="Card">Card</option>
                           <option value="Check">Check</option>
                           <option value="PhonePe">PhonePe</option>
@@ -3508,8 +3548,9 @@ export const AdminPortal: React.FC = () => {
                 <option value="All">All statuses</option>
                 <option value="Created">Created</option>
                 <option value="Accepted">Accepted</option>
-                <option value="Washing">Washing</option>
+                <option value="Received">Received</option>
                 <option value="Ready">Ready</option>
+                <option value="Out For Delivery">Out For Delivery</option>
                 <option value="Delivered">Delivered</option>
               </select>
             </div>
@@ -3710,7 +3751,7 @@ export const AdminPortal: React.FC = () => {
                             onChange={e => handleUpdateOrderStatus(o.id, e.target.value as any)}
                             style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
                           >
-                            {['Created', 'Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].map(s => (
+                            {['Created', 'Accepted', 'Received', 'Ready', 'Out For Delivery', 'Delivered'].map(s => (
                               <option key={s} value={s}>{s}</option>
                             ))}
                           </select>
@@ -3743,6 +3784,173 @@ export const AdminPortal: React.FC = () => {
             </table>
           </div>
         </div>
+        </div>
+      )}
+
+      {/* 📜 ORDER HISTORY MODULE TAB */}
+      {activeModule === 'order-history' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* KPI Summary Cards */}
+          {(() => {
+            const allHistoryOrders = db.orders.filter(o => !o.isDeleted).filter(o => {
+              const st = (o.status || '').toLowerCase();
+              if (!st || st === 'created') return false;
+              return st === 'received' || st === 'picked up' || st === 'delivered' || st === 'completed' || st === 'ready' || st === 'ready for delivery' || st === 'out for delivery' || st.includes('received') || st.includes('picked') || st.includes('delivered') || st.includes('completed');
+            });
+
+            const pickedUpCount = allHistoryOrders.filter(o => {
+              const st = (o.status || '').toLowerCase();
+              return st === 'received' || st === 'picked up' || st.includes('received') || st.includes('picked');
+            }).length;
+
+            const deliveredCount = allHistoryOrders.filter(o => {
+              const st = (o.status || '').toLowerCase();
+              return st === 'delivered' || st === 'completed' || st.includes('delivered');
+            }).length;
+
+            const totalRevenue = allHistoryOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.amount) || 0), 0);
+
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '700' }}>TOTAL HISTORY ORDERS</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>📜 {allHistoryOrders.length}</div>
+                </div>
+                <div style={{ background: '#eff6ff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: '700' }}>RECEIVED / PICKED UP</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2563eb', marginTop: '4px' }}>🧺 {pickedUpCount}</div>
+                </div>
+                <div style={{ background: '#ecfdf5', padding: '16px 20px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: '700' }}>DELIVERED ORDERS</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#059669', marginTop: '4px' }}>🚚 {deliveredCount}</div>
+                </div>
+                <div style={{ background: '#faf5ff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e9d5ff' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#7e22ce', fontWeight: '700' }}>TOTAL HISTORY REVENUE</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#9333ea', marginTop: '4px' }}>QR {totalRevenue.toFixed(2)}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Search & Filter Toolbar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <input 
+                type="text" 
+                value={historySearch} 
+                onChange={e => setHistorySearch(e.target.value)} 
+                placeholder="🔍 Search History by Order ID, Customer, Phone..." 
+                style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px', fontSize: '0.85rem' }} 
+              />
+              <select 
+                value={historyFilter} 
+                onChange={e => setHistoryFilter(e.target.value)} 
+                style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.85rem', fontWeight: '600' }}
+              >
+                <option value="All">All Received & Delivered Orders</option>
+                <option value="PickedUp">🧺 Received / Picked Up Orders Only</option>
+                <option value="Delivered">🚚 Delivered Orders Only</option>
+                <option value="Completed">✅ Fully Completed Orders</option>
+              </select>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
+              Showing archives of Received & Delivered Orders
+            </div>
+          </div>
+
+          {/* Orders Table */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                  <th style={{ padding: '12px' }}>Order ID</th>
+                  <th style={{ padding: '12px' }}>Customer</th>
+                  <th style={{ padding: '12px' }}>Customer Number</th>
+                  <th style={{ padding: '12px' }}>Order Date</th>
+                  <th style={{ padding: '12px' }}>Delivery / Completed Date</th>
+                  <th style={{ padding: '12px' }}>Total Amount</th>
+                  <th style={{ padding: '12px' }}>Status</th>
+                  <th style={{ padding: '12px' }}>Payment Status</th>
+                  <th style={{ padding: '12px' }}>Assigned Courier</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...db.orders]
+                  .reverse()
+                  .filter(o => !o.isDeleted)
+                  .filter(o => {
+                    const st = (o.status || '').toLowerCase();
+                    // Exclude Created status
+                    if (!st || st === 'created') return false;
+
+                    const isHist = st === 'received' || st === 'picked up' || st === 'delivered' || st === 'completed' || st === 'ready' || st === 'ready for delivery' || st === 'out for delivery' || st.includes('received') || st.includes('picked') || st.includes('delivered') || st.includes('completed');
+                    if (!isHist) return false;
+
+                    // Filter dropdown match
+                    if (historyFilter === 'PickedUp') {
+                      if (st !== 'received' && st !== 'picked up' && !st.includes('received') && !st.includes('picked')) return false;
+                    } else if (historyFilter === 'Delivered') {
+                      if (st !== 'delivered' && !st.includes('delivered')) return false;
+                    } else if (historyFilter === 'Completed') {
+                      if (st !== 'completed' && st !== 'delivered') return false;
+                    }
+
+                    // Search input match
+                    const term = historySearch.toLowerCase();
+                    if (!term) return true;
+                    const name = (o.customerName || '').toLowerCase();
+                    const phone = (o.phone || '').toLowerCase();
+                    const orderId = String(o.id).toLowerCase();
+                    const rawPhone = phone.replace(/[^0-9]/g, '');
+                    const termDigits = term.replace(/[^0-9]/g, '');
+                    
+                    return name.includes(term) || phone.includes(term) || orderId.includes(term) || (termDigits.length > 2 && rawPhone.includes(termDigits));
+                  })
+                  .map(o => (
+                    <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#1e293b' }}>#{o.id}</td>
+                      <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
+                      <td style={{ padding: '12px' }}>{o.phone || 'N/A'}</td>
+                      <td style={{ padding: '12px' }}>{o.date ? new Date(o.date).toLocaleDateString() : 'N/A'}</td>
+                      <td style={{ padding: '12px', color: o.deliveryDate ? '#16a34a' : '#64748b', fontWeight: '600' }}>
+                        {o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString() : (o.date ? new Date(o.date).toLocaleDateString() : 'N/A')}
+                      </td>
+                      <td style={{ padding: '12px', fontWeight: 'bold' }}>QR {(Number(o.totalAmount || o.amount) || 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ 
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
+                          background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Picked Up' ? '#eff6ff' : o.status === 'Completed' ? '#dcfce7' : '#fef3c7',
+                          color: o.status === 'Delivered' ? '#15803d' : o.status === 'Picked Up' ? '#1d4ed8' : o.status === 'Completed' ? '#15803d' : '#b45309'
+                        }}>
+                          {o.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ 
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
+                          background: o.paymentStatus === 'Paid' ? '#dcfce7' : '#fee2e2',
+                          color: o.paymentStatus === 'Paid' ? '#15803d' : '#dc2626'
+                        }}>
+                          {o.paymentStatus || 'Pending'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '0.75rem' }}>
+                        <div><strong style={{ color: '#ea580c' }}>Pickup:</strong> {o.assignedPickupCourier || o.pickupCourier || o.courier || 'Unassigned'}</div>
+                        <div><strong style={{ color: '#16a34a' }}>Delivery:</strong> {(o.assignedDeliveryCourier || o.deliveryCourier) && (o.status === 'Delivered' || o.deliveryStatus === 'Delivered') ? (o.assignedDeliveryCourier || o.deliveryCourier) : 'Unassigned'}</div>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ View</button>
+                          <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🧾 Invoice</button>
+                          <button onClick={() => setTimelineOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📜 Timeline</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -6440,7 +6648,7 @@ export const AdminPortal: React.FC = () => {
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Select Payment Method</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {['Cash', 'Card', 'UPI', 'Wallet'].map(m => (
+                {['Cash', 'Card', 'Wallet'].map(m => (
                   <button 
                     key={m}
                     onClick={() => setPayLaterSelectedMethod(m as any)}
@@ -6456,13 +6664,33 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <button 
-              onClick={() => {
+              onClick={async () => {
                 const updatedOrders = db.orders.map(o => 
                   o.id === payLaterModalOrder.id 
                     ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod } 
                     : o
                 );
                 saveDB({ orders: updatedOrders });
+                
+                // Sync to backend DB so it persists across page reloads
+                const token = localStorage.getItem('ll_auth_token');
+                const targetId = payLaterModalOrder.backendId || payLaterModalOrder.id;
+                if (token && targetId) {
+                  try {
+                    const BASE_URL = getApiBaseUrl();
+                    await fetch(`${BASE_URL}/api/v1/orders/${targetId}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({ payment_status: 'PAID' })
+                    });
+                  } catch (err) {
+                    console.error('Failed to update payment status on backend:', err);
+                  }
+                }
+
                 setPayLaterModalOrder(null);
                 alert(`Order #${payLaterModalOrder.id} successfully marked as Paid via ${payLaterSelectedMethod}!`);
               }}
