@@ -3287,8 +3287,6 @@ export const AdminPortal: React.FC = () => {
                           <option value="Cash">Cash</option>
                           <option value="Card">Card</option>
                           <option value="Check">Check</option>
-                          <option value="PhonePe">PhonePe</option>
-                          <option value="Google Pay">Google Pay</option>
                         </select>
                         <button 
                           onClick={() => {
@@ -3755,7 +3753,7 @@ export const AdminPortal: React.FC = () => {
                               <option key={s} value={s}>{s}</option>
                             ))}
                           </select>
-                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ Timeline</button>
+                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ View</button>
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
@@ -3943,7 +3941,6 @@ export const AdminPortal: React.FC = () => {
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ View</button>
                           <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🧾 Invoice</button>
-                          <button onClick={() => setTimelineOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📜 Timeline</button>
                         </div>
                       </td>
                     </tr>
@@ -4513,17 +4510,16 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'UPI', 'Wallet', 'Package'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet', 'Package'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
                   <option value="Card">Card payment</option>
-                  <option value="UPI">UPI payment</option>
                   <option value="Wallet">Wallet payment</option>
                   <option value="Package">Prepaid Package</option>
                   <option value="Pay Later">Pay Later</option>
                 </select>
                 
-                {['Card', 'UPI', 'Wallet'].includes(posPayMethod) && (
+                {['Card', 'Wallet'].includes(posPayMethod) && (
                   <input 
                     type="text"
                     value={posRemark}
@@ -4863,12 +4859,9 @@ export const AdminPortal: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Source</label>
                   <select required value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                     <option value="" disabled>Select</option>
-                    <option value="UPI">UPI</option>
+                    <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
                     <option value="Check">Check</option>
-                    <option value="PhonePe">PhonePe</option>
-                    <option value="Google Pay">Google Pay</option>
-                    <option value="Cash">Cash</option>
                   </select>
                 </div>
                 <div>
