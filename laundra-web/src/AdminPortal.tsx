@@ -2347,34 +2347,33 @@ export const AdminPortal: React.FC = () => {
     try {
       const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const tenantId = localStorage.getItem('ll_tenant_id') || '';
-      const isUuid = c.id && c.id.length > 20 && !c.id.startsWith('CUST-') && !c.id.startsWith('cust-');
       let activePkg: any = null;
 
-      if (isUuid) {
-        try {
-          const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'X-Tenant-ID': tenantId
-            }
-          });
-          if (pkgRes.ok) {
-            const pkgs = await pkgRes.json();
-            if (Array.isArray(pkgs)) {
-              activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
-            }
+      try {
+        const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${encodeURIComponent(c.id)}`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'X-Tenant-ID': tenantId
           }
-        } catch (e) {
-          console.warn('Backend prepaid package fetch skipped/failed:', e);
+        });
+        if (pkgRes.ok) {
+          const pkgs = await pkgRes.json();
+          if (Array.isArray(pkgs) && pkgs.length > 0) {
+            activePkg = pkgs.find((pkg: any) => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE') || pkgs[0];
+          }
         }
+      } catch (e) {
+        console.warn('Backend prepaid package fetch skipped/failed:', e);
       }
       
+      const walletUrl = activePkg?.apple_wallet_url || (activePkg?.secure_token ? `/api/v1/wallet/apple/pass/${activePkg.secure_token}` : '');
+
       setPackageWalletDetails({
         customer_name: c.name,
         package_name: activePkg?.package?.name || activePkg?.name || 'Prepaid Package',
         current_balance: activePkg?.current_balance !== undefined ? activePkg.current_balance : (c.walletBalance || 0),
-        expiry_date: activePkg?.expiry_date || 'N/A',
-        apple_wallet_url: activePkg?.apple_wallet_url || ''
+        expiry_date: activePkg?.expiry_date ? new Date(activePkg.expiry_date).toLocaleDateString() : 'N/A',
+        apple_wallet_url: walletUrl
       });
     } catch (e) {
       console.error("Fetch Wallet Details Error:", e);
@@ -2385,35 +2384,34 @@ export const AdminPortal: React.FC = () => {
     try {
       const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const tenantId = localStorage.getItem('ll_tenant_id') || '';
-      const isUuid = c.id && c.id.length > 20 && !c.id.startsWith('CUST-') && !c.id.startsWith('cust-');
       let activePkg: any = null;
 
-      if (isUuid) {
-        try {
-          const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'X-Tenant-ID': tenantId
-            }
-          });
-          if (pkgRes.ok) {
-            const pkgs = await pkgRes.json();
-            if (Array.isArray(pkgs)) {
-              activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
-            }
+      try {
+        const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${encodeURIComponent(c.id)}`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'X-Tenant-ID': tenantId
           }
-        } catch (e) {
-          console.warn('Backend prepaid package fetch skipped/failed:', e);
+        });
+        if (pkgRes.ok) {
+          const pkgs = await pkgRes.json();
+          if (Array.isArray(pkgs) && pkgs.length > 0) {
+            activePkg = pkgs.find((pkg: any) => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE') || pkgs[0];
+          }
         }
+      } catch (e) {
+        console.warn('Backend prepaid package fetch skipped/failed:', e);
       }
+
+      const walletUrl = activePkg?.apple_wallet_url || (activePkg?.secure_token ? `/api/v1/wallet/apple/pass/${activePkg.secure_token}` : '');
 
       setPackageQRPreview({
         customer_name: c.name,
         package_name: activePkg?.package?.name || activePkg?.name || 'Prepaid Package',
         current_balance: activePkg?.current_balance !== undefined ? activePkg.current_balance : (c.walletBalance || 0),
-        expiry_date: activePkg?.expiry_date || 'N/A',
+        expiry_date: activePkg?.expiry_date ? new Date(activePkg.expiry_date).toLocaleDateString() : 'N/A',
         qrPreview: c.id,
-        apple_wallet_url: activePkg?.apple_wallet_url || ''
+        apple_wallet_url: walletUrl
       });
     } catch (e) {
       console.error("Fetch QR Details Error:", e);
@@ -2424,32 +2422,29 @@ export const AdminPortal: React.FC = () => {
     try {
       const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
       const tenantId = localStorage.getItem('ll_tenant_id') || '';
-      const isUuid = c.id && c.id.length > 20 && !c.id.startsWith('CUST-') && !c.id.startsWith('cust-');
       let activePkg: any = null;
       
-      if (isUuid) {
-        try {
-          const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}`, {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'X-Tenant-ID': tenantId
-            }
-          });
-          if (pkgRes.ok) {
-            const pkgs = await pkgRes.json();
-            if (Array.isArray(pkgs)) {
-              activePkg = pkgs.find(pkg => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE');
-            }
+      try {
+        const pkgRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${encodeURIComponent(c.id)}`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'X-Tenant-ID': tenantId
           }
-        } catch (e) {
-          console.warn('Backend prepaid package fetch skipped/failed:', e);
+        });
+        if (pkgRes.ok) {
+          const pkgs = await pkgRes.json();
+          if (Array.isArray(pkgs) && pkgs.length > 0) {
+            activePkg = pkgs.find((pkg: any) => pkg.status?.toUpperCase() === 'ACTIVE' || pkg.status?.toUpperCase() === 'IN USE') || pkgs[0];
+          }
         }
+      } catch (e) {
+        console.warn('Backend prepaid package fetch skipped/failed:', e);
       }
       
       const pkgName = activePkg ? (activePkg.package?.name || activePkg.name || 'Prepaid Package') : 'Laundry Service';
       const balance = activePkg ? (activePkg.current_balance !== undefined ? activePkg.current_balance : activePkg.package_value) : (c.walletBalance || 0);
       const expiry = activePkg?.expiry_date ? new Date(activePkg.expiry_date).toLocaleDateString() : 'N/A';
-      const appleWalletUrl = activePkg?.apple_wallet_url || '';
+      const walletUrl = activePkg?.apple_wallet_url || (activePkg?.secure_token ? `/api/v1/wallet/apple/pass/${activePkg.secure_token}` : '');
 
       setWalletPassPreview({
         customerName: c.name,
@@ -2457,7 +2452,7 @@ export const AdminPortal: React.FC = () => {
         packageName: pkgName,
         balance: balance,
         expiryDate: expiry,
-        appleWalletUrl: appleWalletUrl,
+        appleWalletUrl: walletUrl,
         customerId: c.id
       });
     } catch (e) {
