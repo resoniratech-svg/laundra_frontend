@@ -1,6 +1,6 @@
 export const getApiBaseUrl = (): string => {
   const envUrl = (import.meta as any).env?.VITE_BACKEND_BASE_URL || (import.meta as any).env?.VITE_API_BASE_URL;
-  if (envUrl && envUrl.startsWith('http') && !envUrl.includes('localhost')) {
+  if (envUrl && envUrl.startsWith('http')) {
     return envUrl.replace(/\/$/, '');
   }
   
@@ -8,6 +8,11 @@ export const getApiBaseUrl = (): string => {
     const host = window.location.hostname;
     const protocol = window.location.protocol;
     
+    // Auto-detect localhost / dev environment
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `${protocol}//${host}:8000`;
+    }
+
     // Auto-detect Easypanel production host pattern
     if (host.includes('easypanel.host')) {
       if (host.includes('laundry-frontend')) {
@@ -20,5 +25,5 @@ export const getApiBaseUrl = (): string => {
   }
 
   // Final fallback to explicit prod URL if all else fails
-  return (envUrl || 'https://laundry-project-laundry-backend.cocjl5.easypanel.host').replace(/\/$/, '');
+  return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
 };
