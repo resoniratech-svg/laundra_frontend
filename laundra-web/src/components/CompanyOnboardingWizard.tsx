@@ -158,9 +158,12 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: adminEmail })
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(errData.detail || 'Failed to send OTP');
+        throw new Error(data.detail || 'Failed to send OTP');
+      }
+      if (data.otp_debug) {
+        alert(`ℹ️ [TEST MODE - SMTP Unconfigured]\n\nYour OTP code is: ${data.otp_debug}\n\n(To receive real emails, configure your SMTP credentials in Super Admin -> Global Settings).`);
       }
       setStep(4);
     } catch (err: any) {
