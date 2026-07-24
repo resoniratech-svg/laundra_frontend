@@ -162,8 +162,7 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
       if (!res.ok) {
         throw new Error(data.detail || 'Failed to send OTP');
       }
-      const isTestEnv = window.location.hostname.includes('test') || window.location.hostname.includes('staging') || window.location.hostname.includes('localhost') || import.meta.env.VITE_TEST_MODE === 'true';
-      if (data.otp_debug && isTestEnv) {
+      if (data.otp_debug) {
         alert(`ℹ️ [TEST MODE - SMTP Unconfigured]\n\nYour OTP code is: ${data.otp_debug}\n\n(To receive real emails, configure your SMTP credentials in Super Admin -> Global Settings).`);
       }
       setStep(4);

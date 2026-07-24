@@ -72,6 +72,7 @@ export const DeliveryPortal: React.FC = () => {
   const [pickupDetailsOrder, setPickupDetailsOrder] = useState<Order | null>(null);
   const [pickupWeightItems, setPickupWeightItems] = useState('1 Bag (Wash & Fold)');
   const [pickupNotes, setPickupNotes] = useState('');
+  const [pickupItemQuantities, setPickupItemQuantities] = useState<{ [itemId: string]: number }>({});
   
   // Pickup OTP Verification Modal
   const [verifyingPickupOrder, setVerifyingPickupOrder] = useState<Order | null>(null);
@@ -460,9 +461,39 @@ export const DeliveryPortal: React.FC = () => {
     if (!pickupDetailsOrder) return;
     
     const token = localStorage.getItem('ll_auth_token');
-    
+    const targetId = pickupDetailsOrder.backendId || pickupDetailsOrder.id;
+
     try {
-      if (pickupDetailsOrder.backendId) {
+      const rawItemList = pickupDetailsOrder.items || pickupDetailsOrder.services || [];
+      const payloadItems = Object.entries(pickupItemQuantities)
+        .filter(([_, qty]) => Number(qty) > 0)
+        .map(([key, qty]) => {
+          const found = rawItemList.find((it: any, idx: number) => {
+            const k = it.id || it.serviceId || it.service_id || String(idx);
+            return k === key;
+          });
+          const realId = found ? (found.id || found.serviceId || found.service_id) : key;
+          return { item_id: realId, quantity: Number(qty) };
+        })
+        .filter(item => item.item_id && typeof item.item_id === 'string' && item.item_id.length > 5);
+
+      if (payloadItems.length > 0 && targetId) {
+        const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}/pickup-items`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            items: payloadItems,
+            staff_name: currentUser ? currentUser.name : (db.currentDeliveryBoy || 'Delivery Staff')
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ detail: res.statusText }));
+          console.warn("Item pickup endpoint warning:", errData.detail);
+        }
+      } else if (pickupDetailsOrder.backendId) {
         await apiVerifyOrderOtp(pickupDetailsOrder.backendId, 'pickup', 'BYPASS', token || undefined);
       }
       
@@ -471,12 +502,47 @@ export const DeliveryPortal: React.FC = () => {
 
       const updatedOrders = db.orders.map(o => {
         if (o.id === pickupDetailsOrder.id) {
+          const updatedItems = (o.items || o.services || []).map((it: any, idx: number) => {
+            const key = it.id || it.serviceId || it.service_id || String(idx);
+            const qtyEntered = pickupItemQuantities[key];
+            const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+            const currentPicked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+            if (qtyEntered !== undefined && Number(qtyEntered) > 0) {
+              const newPicked = currentPicked + Number(qtyEntered);
+              const newPending = Math.max(0, ord - newPicked);
+              const newDelPending = Math.max(0, newPicked - (it.deliveredQuantity || it.delivered_quantity || 0));
+              let s = it.itemStatus || it.item_status || 'CREATED';
+              if (newPicked >= ord) s = 'FULLY_PICKED_UP';
+              else if (newPicked > 0) s = 'PARTIALLY_PICKED_UP';
+
+              return {
+                ...it,
+                orderedQuantity: ord,
+                pickedUpQuantity: newPicked,
+                pickupPendingQuantity: newPending,
+                deliveredQuantity: it.deliveredQuantity || it.delivered_quantity || 0,
+                deliveryPendingQuantity: newDelPending,
+                itemStatus: s
+              };
+            }
+            return {
+              ...it,
+              orderedQuantity: ord,
+              pickedUpQuantity: currentPicked,
+              pickupPendingQuantity: it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - currentPicked),
+              deliveredQuantity: it.deliveredQuantity || it.delivered_quantity || 0,
+              deliveryPendingQuantity: it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, currentPicked - (it.deliveredQuantity || 0)),
+              itemStatus: it.itemStatus || it.item_status || 'CREATED'
+            };
+          });
+
           return {
             ...o,
             status: nextStatus,
             deliveryStatus: deliveryStatusText,
             weightItems: pickupWeightItems,
             pickupNotes: pickupNotes,
+            items: updatedItems,
             courier: currentUser ? currentUser.name : (o.pickupCourier || o.courier),
             pickupCourier: (o.pickupCourier && o.pickupCourier !== 'All Delivery Staff' && o.pickupCourier !== '-- Unassigned --') ? o.pickupCourier : (currentUser ? currentUser.name : o.pickupCourier),
             pickupAccepted: true,
@@ -503,7 +569,8 @@ export const DeliveryPortal: React.FC = () => {
       setPickupDetailsOrder(null);
       setPickupNotes('');
       setEnteredPickupOtp('');
-      alert('Pickup details saved and order status updated to "Received".');
+      setPickupItemQuantities({});
+      alert('Pickup details & received item quantities saved successfully!');
     } catch (err: any) {
       alert(`Pickup completion failed: ${err.message}`);
     }
@@ -619,7 +686,7 @@ export const DeliveryPortal: React.FC = () => {
   const assignedOrders = db.orders.filter(o => isMyPickupOrder(o) || isMyDeliveryOrder(o));
 
   const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
-  const deliveryReadyStatuses = ['ready', 'out for delivery'];
+  const deliveryReadyStatuses = ['ready', 'out for delivery', 'partially delivered'];
   
   const pendingPickupsCount = assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length;
   const pendingDeliveriesCount = assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).length;
@@ -1202,7 +1269,16 @@ export const DeliveryPortal: React.FC = () => {
                               <button onClick={() => updatePickupStatus(o, 'Accepted', 'Reached Customer')} style={{ width: '100%', padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>📍 Mark Reached Location</button>
                             )}
                             {o.deliveryStatus === 'Reached Customer' && (
-                              <button onClick={() => setPickupDetailsOrder(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🧺 Complete Pickup Details</button>
+                              <button onClick={() => {
+                                const initialQtyMap: Record<string, number> = {};
+                                (o.items || o.services || []).forEach((it: any, idx: number) => {
+                                  const key = it.id || it.serviceId || it.service_id || String(idx);
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  initialQtyMap[key] = ord;
+                                });
+                                setPickupItemQuantities(initialQtyMap);
+                                setPickupDetailsOrder(o);
+                              }} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🧺 Complete Pickup Details</button>
                             )}
                           </div>
                         </div>
@@ -1223,7 +1299,32 @@ export const DeliveryPortal: React.FC = () => {
                               <div>👤 <strong>Client Name:</strong> {o.customerName}</div>
                               <div>📞 <strong>Client Phone:</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
                               <div>📍 <strong>Address:</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Delivery Address'}</div>
-                              <div>🧺 <strong>Services:</strong> {o.services?.map(s => `${s.name} x${s.qty}`).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
+                              <div>🧺 <strong>Services & Delivery Quantities:</strong></div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '2px' }}>
+                                {(o.items || o.services || []).map((it: any, idx: number) => {
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                  
+                                  let givenForDel = 0;
+                                  if (it.dispatchedForDeliveryQuantity !== undefined && Number(it.dispatchedForDeliveryQuantity) > 0) {
+                                    givenForDel = Number(it.dispatchedForDeliveryQuantity);
+                                  } else if (it.dispatched_quantity !== undefined && Number(it.dispatched_quantity) > 0) {
+                                    givenForDel = Number(it.dispatched_quantity);
+                                  } else if (del > 0) {
+                                    givenForDel = del;
+                                  } else {
+                                    givenForDel = ord;
+                                  }
+
+                                  const remPending = Math.max(0, ord - givenForDel);
+
+                                  return (
+                                    <div key={idx} style={{ fontSize: '0.8rem', color: '#1e293b' }}>
+                                      • <strong>{it.serviceName || it.name}</strong>: Actual Order <strong>{ord} Pcs</strong> | Given for Delivery: <strong style={{ color: '#15803d' }}>{givenForDel} Pcs</strong> {remPending > 0 ? ` (Pending: ${remPending} Pcs)` : ''}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                               <div>📅 <strong>Delivery Time:</strong> {o.date} (3:00 PM - 6:00 PM)</div>
                               <div>💳 <strong>Method:</strong> {o.paymentMethod} ({o.paymentStatus || 'Unpaid'})</div>
                               <div>📝 <strong>Instructions:</strong> Deliver order directly to customer upon arrival.</div>
@@ -1556,10 +1657,36 @@ export const DeliveryPortal: React.FC = () => {
 
       {/* --- MODAL: PICKUP COMPLETION DETAILS --- */}
       {pickupDetailsOrder && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <h4 style={{ margin: '0 0 14px 0', color: '#1e3a8a' }}>🧺 Pickup Details Confirmation</h4>
-            <form onSubmit={submitPickupCompletion} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h4 style={{ margin: '0 0 4px 0', color: '#1e3a8a', fontSize: '1.1rem' }}>🧺 Confirm Received Pickup Quantities</h4>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '14px' }}>Order #{pickupDetailsOrder.id} • Customer: {pickupDetailsOrder.customerName}</div>
+            
+            <form onSubmit={submitPickupCompletion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '6px' }}>Received Services & Quantities:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(pickupDetailsOrder.items && pickupDetailsOrder.items.length > 0 ? pickupDetailsOrder.items : (pickupDetailsOrder.services || [])).map((it: any, idx: number) => {
+                    const itemKey = it.id || it.serviceId || it.service_id || String(idx);
+                    const sName = it.serviceName || it.name || `Service ${idx + 1}`;
+                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                    const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+
+                    return (
+                      <div key={idx} style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#0f172a' }}>{sName}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Total Order Quantity: <strong>{ord} Pcs</strong></span>
+                          <span style={{ fontSize: '0.78rem', color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #bbf7d0' }}>
+                            Received: {ord} Pcs
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Bags / Total Weight (Quantity)</label>
                 <input type="text" required value={pickupWeightItems} onChange={e => setPickupWeightItems(e.target.value)} placeholder="e.g. 1 Bag (Wash & Fold)" style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
@@ -1571,7 +1698,7 @@ export const DeliveryPortal: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
                 <button type="button" onClick={() => setPickupDetailsOrder(null)} style={{ padding: '6px 12px', border: '1.5px solid #cbd5e1', background: 'transparent', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Save Pickup</button>
+                <button type="submit" style={{ padding: '8px 18px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Save Pickup</button>
               </div>
             </form>
           </div>

@@ -119,6 +119,12 @@ export const AdminPortal: React.FC = () => {
   const [payLaterModalOrder, setPayLaterModalOrder] = useState<Order | null>(null);
   const [payLaterSelectedMethod, setPayLaterSelectedMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const [pickupModalOrder, setPickupModalOrder] = useState<Order | null>(null);
+  const [pickupInputs, setPickupInputs] = useState<{ [itemId: string]: number }>({});
+  const [pickupStaffName, setPickupStaffName] = useState<string>('');
+  const [deliveryModalOrder, setDeliveryModalOrder] = useState<Order | null>(null);
+  const [deliveryInputs, setDeliveryInputs] = useState<{ [itemId: string]: number }>({});
+  const [deliveryStaffName, setDeliveryStaffName] = useState<string>('');
   const [sellingPackageTo, setSellingPackageTo] = useState<Customer | null>(null);
   const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
@@ -472,15 +478,52 @@ export const AdminPortal: React.FC = () => {
 
           const totalQty = o.items ? o.items.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) : 0;
 
-          const mappedServices = o.items ? o.items.map((item: any) => {
+          let rawPickupHist: any[] = [];
+          if (o.pickup_history) {
+            try { rawPickupHist = typeof o.pickup_history === 'string' ? JSON.parse(o.pickup_history) : o.pickup_history; } catch { rawPickupHist = []; }
+          }
+          let rawDeliveryHist: any[] = [];
+          if (o.delivery_history) {
+            try { rawDeliveryHist = typeof o.delivery_history === 'string' ? JSON.parse(o.delivery_history) : o.delivery_history; } catch { rawDeliveryHist = []; }
+          }
+
+          const mappedItems = o.items ? o.items.map((item: any) => {
             const matchedService = allServices.find((s: any) => s.id === item.service_id);
+            const ordered = item.ordered_quantity ?? item.quantity ?? 1;
+            const picked = item.picked_up_quantity ?? 0;
+            const pickupPending = item.pickup_pending_quantity ?? Math.max(0, ordered - picked);
+            const delivered = item.delivered_quantity ?? 0;
+            const deliveryPending = item.delivery_pending_quantity ?? Math.max(0, picked - delivered);
+            let status = item.item_status || 'CREATED';
+            if (delivered >= ordered) status = 'FULLY_DELIVERED';
+            else if (delivered > 0) status = 'PARTIALLY_DELIVERED';
+            else if (picked >= ordered) status = 'FULLY_PICKED_UP';
+            else if (picked > 0) status = 'PARTIALLY_PICKED_UP';
+
             return {
+              id: item.id,
               serviceId: item.service_id,
-              name: matchedService ? matchedService.name : `Service (Qty: ${item.quantity})`,
+              serviceName: matchedService ? matchedService.name : `Service`,
+              name: matchedService ? matchedService.name : `Service`,
               qty: item.quantity,
-              price: parseFloat(item.price || '0')
+              price: parseFloat(item.price || '0'),
+              orderedQuantity: ordered,
+              pickedUpQuantity: picked,
+              pickupPendingQuantity: pickupPending,
+              deliveredQuantity: delivered,
+              deliveryPendingQuantity: deliveryPending,
+              dispatchedForDeliveryQuantity: (item.dispatched_for_delivery_quantity !== undefined && Number(item.dispatched_for_delivery_quantity) > 0) ? Number(item.dispatched_for_delivery_quantity) : (delivered > 0 ? delivered : ordered),
+              dispatched_quantity: (item.dispatched_for_delivery_quantity !== undefined && Number(item.dispatched_for_delivery_quantity) > 0) ? Number(item.dispatched_for_delivery_quantity) : (delivered > 0 ? delivered : ordered),
+              itemStatus: status
             };
           }) : [];
+
+          const mappedServices = mappedItems.map(mi => ({
+            serviceId: mi.serviceId,
+            name: mi.name,
+            qty: mi.qty,
+            price: mi.price
+          }));
 
           return {
             id: o.order_number || String(o.id).substring(0, 8),
@@ -500,6 +543,9 @@ export const AdminPortal: React.FC = () => {
             phone: customerPhone,
             address: o.pickup_address || customerAddress,
             services: mappedServices,
+            items: mappedItems,
+            pickupHistory: rawPickupHist,
+            deliveryHistory: rawDeliveryHist,
             totalAmount: parseFloat(o.total_amount || '0'),
             total: parseFloat(o.total_amount || '0'),
             frequency: o.is_express ? 'Express' : 'One-time / Daily',
@@ -507,14 +553,56 @@ export const AdminPortal: React.FC = () => {
           };
         });
 
-        // Merge locally-saved courier assignments so they aren't wiped on refresh.
+        // Merge locally-saved courier assignments and item statuses so they aren't wiped on refresh.
         const currentOrders: any[] = db.orders || [];
         const mergedOrders = mappedOrders.map((freshOrder: any) => {
           const existing = currentOrders.find((e: any) => e.id === freshOrder.id || e.backendId === freshOrder.backendId);
           if (existing) {
+            const rawItems = (existing.items && existing.items.some((i: any) => (i.pickedUpQuantity || 0) > 0 || (i.deliveredQuantity || 0) > 0 || (i.dispatchedForDeliveryQuantity || 0) > 0))
+              ? existing.items
+              : (freshOrder.items || existing.items || []);
+
+            const activeItems = rawItems.map((item: any) => {
+              const existItem = (existing.items || []).find((ei: any) => ei.id === item.id || ei.serviceId === item.serviceId || ei.name === item.name || ei.serviceName === item.serviceName);
+              const disp = (existItem?.dispatchedForDeliveryQuantity !== undefined && Number(existItem?.dispatchedForDeliveryQuantity) > 0)
+                ? Number(existItem.dispatchedForDeliveryQuantity)
+                : ((item.dispatchedForDeliveryQuantity !== undefined && Number(item.dispatchedForDeliveryQuantity) > 0) ? Number(item.dispatchedForDeliveryQuantity) : (item.orderedQuantity || item.qty || 1));
+
+              return {
+                ...item,
+                dispatchedForDeliveryQuantity: disp,
+                dispatched_quantity: disp
+              };
+            });
+
+            const activePickupHistory = (existing.pickupHistory && existing.pickupHistory.length > 0)
+              ? existing.pickupHistory
+              : (freshOrder.pickupHistory || []);
+
+            const activeDeliveryHistory = (existing.deliveryHistory && existing.deliveryHistory.length > 0)
+              ? existing.deliveryHistory
+              : (freshOrder.deliveryHistory || []);
+
+            let finalStatus = freshOrder.status || existing.status;
+            if (activeItems && activeItems.length > 0) {
+              const allPicked = activeItems.every((i: any) => (i.pickedUpQuantity || 0) >= (i.orderedQuantity || i.qty || 1));
+              const anyPicked = activeItems.some((i: any) => (i.pickedUpQuantity || 0) > 0);
+              const allDelivered = activeItems.every((i: any) => (i.deliveredQuantity || 0) >= (i.orderedQuantity || i.qty || 1));
+              const anyDelivered = activeItems.some((i: any) => (i.deliveredQuantity || 0) > 0);
+
+              if (allDelivered && activeItems.length > 0) finalStatus = 'Delivered';
+              else if (anyDelivered) finalStatus = 'Partially Delivered';
+              else if (allPicked) finalStatus = 'Fully Picked Up';
+              else if (anyPicked) finalStatus = 'Partially Picked Up';
+              else if (existing.status && existing.status !== 'Created') finalStatus = existing.status;
+            }
+
             return {
               ...freshOrder,
-              status: existing.status || freshOrder.status,
+              status: finalStatus,
+              items: activeItems,
+              pickupHistory: activePickupHistory,
+              deliveryHistory: activeDeliveryHistory,
               paymentStatus: existing.paymentStatus === 'Paid' ? 'Paid' : (freshOrder.paymentStatus || 'Unpaid'),
               assignedPickupCourier: existing.assignedPickupCourier || existing.pickupCourier || freshOrder.courier || null,
               pickupCourier: existing.pickupCourier || existing.assignedPickupCourier || freshOrder.courier || null,
@@ -2162,6 +2250,164 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
+  // Partial Pickup Handler
+  const handleConfirmPickup = async (orderId: string, backendId?: string) => {
+    const targetId = backendId || orderId;
+    const payloadItems = Object.entries(pickupInputs)
+      .filter(([_, qty]) => Number(qty) > 0)
+      .map(([itemId, qty]) => ({ item_id: itemId, quantity: Number(qty) }));
+
+    if (payloadItems.length === 0) {
+      alert("Please enter a pickup quantity greater than 0 for at least one item.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('ll_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}/pickup-items`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          items: payloadItems,
+          staff_name: pickupStaffName || 'Delivery Staff'
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errData.detail || 'Failed to confirm pickup');
+      }
+
+      alert("Pickup recorded successfully!");
+      setPickupModalOrder(null);
+      setPickupInputs({});
+      setPickupStaffName('');
+      fetchBackendData();
+    } catch (err: any) {
+      alert(err.message || "Failed to confirm pickup");
+    }
+  };
+
+  // Partial Delivery Handler
+  const handleConfirmDelivery = async (orderId: string, backendId?: string) => {
+    const targetId = backendId || orderId;
+    const rawItemList = deliveryModalOrder?.items || deliveryModalOrder?.services || [];
+    const itemMap = new Map<string, number>();
+
+    rawItemList.forEach((it: any, idx: number) => {
+      const realId = it.id || it.serviceId || it.service_id;
+      const possibleKeys = [realId, String(idx), it.name, it.serviceName].filter(Boolean);
+      let qtyEntered: number | undefined = undefined;
+      for (const k of possibleKeys) {
+        if (deliveryInputs[k] !== undefined) {
+          qtyEntered = Number(deliveryInputs[k]);
+          break;
+        }
+      }
+      if (qtyEntered !== undefined && qtyEntered > 0 && realId && String(realId).length > 5) {
+        itemMap.set(String(realId), qtyEntered);
+      }
+    });
+
+    const payloadItems = Array.from(itemMap.entries()).map(([item_id, quantity]) => ({
+      item_id,
+      quantity
+    }));
+
+    if (Object.keys(deliveryInputs).length === 0) {
+      alert("Please enter a delivery quantity greater than 0 for at least one item.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('ll_auth_token');
+      if (payloadItems.length > 0 && targetId) {
+        const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}/deliver-items`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            items: payloadItems,
+            staff_name: deliveryStaffName || 'Delivery Staff'
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ detail: res.statusText }));
+          console.warn("Deliver items endpoint warning:", errData.detail);
+        }
+      }
+
+      // Update local storage db.orders so delivery status and item quantities update immediately
+      const updatedOrders = db.orders.map(o => {
+        if (o.id === orderId || o.backendId === targetId) {
+          const updatedItems = (o.items || o.services || []).map((it: any, idx: number) => {
+            const possibleKeys = [it.id, it.serviceId, it.service_id, String(idx), it.name, it.serviceName].filter(Boolean);
+            let qtyEntered: number | undefined = undefined;
+            for (const k of possibleKeys) {
+              if (deliveryInputs[k] !== undefined) {
+                qtyEntered = Number(deliveryInputs[k]);
+                break;
+              }
+            }
+
+            const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+            const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
+              ? Number(it.pickedUpQuantity)
+              : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
+            const currentDelivered = it.deliveredQuantity || it.delivered_quantity || 0;
+
+            const validDispatchQty = qtyEntered !== undefined ? qtyEntered : 1;
+            const newDelivered = currentDelivered + validDispatchQty;
+            const newPending = Math.max(0, picked - newDelivered);
+            let s = it.itemStatus || it.item_status || 'CREATED';
+            if (newDelivered >= ord) s = 'FULLY_DELIVERED';
+            else if (newDelivered > 0) s = 'PARTIALLY_DELIVERED';
+
+            return {
+              ...it,
+              orderedQuantity: ord,
+              pickedUpQuantity: picked,
+              deliveredQuantity: newDelivered,
+              dispatchedForDeliveryQuantity: validDispatchQty,
+              dispatched_quantity: validDispatchQty,
+              deliveryPendingQuantity: newPending,
+              itemStatus: s
+            };
+          });
+
+          const allDelivered = updatedItems.every((i: any) => (i.deliveredQuantity || 0) >= (i.orderedQuantity || i.qty || 1));
+          const anyDelivered = updatedItems.some((i: any) => (i.deliveredQuantity || 0) > 0);
+          let newStatus = o.status;
+          if (allDelivered && updatedItems.length > 0) newStatus = 'Delivered';
+          else if (anyDelivered) newStatus = 'Partially Delivered';
+
+          return {
+            ...o,
+            status: newStatus,
+            deliveryStatus: allDelivered ? 'Delivered' : 'Out for Delivery',
+            items: updatedItems
+          };
+        }
+        return o;
+      });
+
+      saveDB({ orders: updatedOrders });
+      alert("Delivery recorded successfully!");
+      setDeliveryModalOrder(null);
+      setDeliveryInputs({});
+      setDeliveryStaffName('');
+      fetchBackendData();
+    } catch (err: any) {
+      alert(err.message || "Failed to confirm delivery");
+    }
+  };
+
   // Wallet & Loyalty adjustments
   const handleAdjustWalletSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3753,6 +3999,41 @@ export const AdminPortal: React.FC = () => {
                               <option key={s} value={s}>{s}</option>
                             ))}
                           </select>
+                          <button onClick={() => {
+                            const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
+                            setPickupModalOrder(fresh);
+                            const initialInputs: Record<string, number> = {};
+                            (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
+                              const key = it.id || it.serviceId || it.service_id || String(idx);
+                              const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                              const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                              const pending = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - picked);
+                              initialInputs[key] = pending;
+                            });
+                            setPickupInputs(initialInputs);
+                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📦 Pickup</button>
+
+                          <button onClick={() => {
+                            const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
+                            setDeliveryModalOrder(fresh);
+                            const initialInputs: Record<string, number> = {};
+                            (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
+                              const key = it.id || it.serviceId || it.service_id || String(idx);
+                              const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                              const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
+                                ? Number(it.pickedUpQuantity)
+                                : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
+                              const delivered = it.deliveredQuantity || it.delivered_quantity || 0;
+                              const remainingToDeliver = Math.max(0, picked - delivered);
+                              const delPending = remainingToDeliver > 0 ? remainingToDeliver : ord;
+
+                              initialInputs[key] = delPending;
+                              initialInputs[String(idx)] = delPending;
+                              if (it.id) initialInputs[it.id] = delPending;
+                              if (it.name) initialInputs[it.name] = delPending;
+                            });
+                            setDeliveryInputs(initialInputs);
+                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🚚 Deliver</button>
                           <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ View</button>
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
                           <button onClick={async () => {
@@ -5914,8 +6195,289 @@ export const AdminPortal: React.FC = () => {
                 })()}
               </div>
 
+              {/* ITEM-LEVEL PARTIAL PICKUP & DELIVERY PROGRESS TABLE */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '6px' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>📦 Item-Level Quantity & Status Breakdown</h4>
+                
+                {(() => {
+                  const itemsList = viewingOrder.items || [];
+                  if (itemsList.length === 0) {
+                    return <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No item details available.</div>;
+                  }
+
+                  let totalOrd = 0;
+                  let totalPick = 0;
+                  let totalPickPend = 0;
+                  let totalDel = 0;
+                  let totalDelPend = 0;
+
+                  itemsList.forEach(it => {
+                    const ord = it.orderedQuantity || it.quantity || 1;
+                    const pck = it.pickedUpQuantity || 0;
+                    const del = it.deliveredQuantity || 0;
+                    totalOrd += ord;
+                    totalPick += pck;
+                    totalPickPend += (it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck));
+                    totalDel += del;
+                    totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, pck - del));
+                  });
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                          <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                            <tr>
+                              <th style={{ padding: '8px' }}>Service</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Ordered</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Picked Up</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Pickup Pending</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Delivered</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Delivery Pending</th>
+                              <th style={{ padding: '8px', textAlign: 'center' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {itemsList.map((it, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '8px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                <td style={{ padding: '8px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
+                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.7rem',
+                                    background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
+                                    color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
+                                  }}>
+                                    {it.itemStatus || 'CREATED'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Summaries */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.8rem' }}>
+                        <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                          <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '4px' }}>📦 Pickup Summary:</strong>
+                          <div>Total Ordered: <strong>{totalOrd}</strong></div>
+                          <div>Total Picked Up: <strong style={{ color: '#2563eb' }}>{totalPick}</strong></div>
+                          <div>Pickup Pending: <strong style={{ color: totalPickPend > 0 ? '#d97706' : '#16a34a' }}>{totalPickPend}</strong></div>
+                          <div style={{ marginTop: '4px', fontWeight: 'bold', color: totalPickPend === 0 ? '#15803d' : totalPick > 0 ? '#b45309' : '#475569' }}>
+                            Status: {totalPickPend === 0 ? 'FULLY PICKED UP' : totalPick > 0 ? 'PARTIALLY PICKED UP' : 'CREATED'}
+                          </div>
+                        </div>
+
+                        <div style={{ background: '#f0fdf4', padding: '10px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                          <strong style={{ color: '#15803d', display: 'block', marginBottom: '4px' }}>🚚 Delivery Summary:</strong>
+                          <div>Total Picked Up: <strong>{totalPick}</strong></div>
+                          <div>Total Delivered: <strong style={{ color: '#16a34a' }}>{totalDel}</strong></div>
+                          <div>Delivery Pending: <strong style={{ color: totalDelPend > 0 ? '#dc2626' : '#16a34a' }}>{totalDelPend}</strong></div>
+                          <div style={{ marginTop: '4px', fontWeight: 'bold', color: totalDel === totalOrd && totalOrd > 0 ? '#15803d' : totalDel > 0 ? '#b45309' : '#475569' }}>
+                            Status: {totalDel === totalOrd && totalOrd > 0 ? 'FULLY DELIVERED' : totalDel > 0 ? 'PARTIALLY DELIVERED' : 'PENDING DELIVERY'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Transaction History Logs */}
+                      {((viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0) || (viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0)) && (
+                        <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#1e293b' }}>📜 Transaction History Logs</h4>
+                          
+                          {/* Pickup Logs */}
+                          {viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0 && (
+                            <div style={{ marginBottom: '10px' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#2563eb', marginBottom: '4px' }}>Pickup History:</div>
+                              {viewingOrder.pickupHistory.map((log: any, lIdx: number) => (
+                                <div key={lIdx} style={{ background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: 'bold', color: '#475569' }}>⏰ {log.timestamp} - Picked Up By: {log.staff_name || 'Delivery Staff'}</div>
+                                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                    {(log.items || []).map((it: any, iIdx: number) => (
+                                      <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Delivery Logs */}
+                          {viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '4px' }}>Delivery History:</div>
+                              {viewingOrder.deliveryHistory.map((log: any, lIdx: number) => (
+                                <div key={lIdx} style={{ background: '#f0fdf4', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #bbf7d0' }}>
+                                  <div style={{ fontWeight: 'bold', color: '#166534' }}>⏰ {log.timestamp} - Delivered By: {log.staff_name || 'Delivery Staff'}</div>
+                                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                    {(log.items || []).map((it: any, iIdx: number) => (
+                                      <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
                 <button onClick={() => setViewingOrder(null)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PICKUP DETAILS MODAL */}
+      {pickupModalOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e1b4b, #3730a3)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>📦 Pickup Details</h3>
+              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{pickupModalOrder.id} • Customer: {pickupModalOrder.customerName}</div>
+              <button onClick={() => setPickupModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div>👤 <strong>Customer Name:</strong> {pickupModalOrder.customerName}</div>
+                <div>📞 <strong>Phone Number:</strong> {pickupModalOrder.phone || 'N/A'}</div>
+                <div>📍 <strong>Address:</strong> {pickupModalOrder.address || 'Pickup at Branch'}</div>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#1e293b' }}>Order Items & Pickup Summary:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {(pickupModalOrder.items || pickupModalOrder.services || []).map((it: any, idx: number) => {
+                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                    const picked = it.pickedUpQuantity || it.picked_up_quantity || ord;
+
+                    return (
+                      <div key={idx} style={{ background: '#f0fdf4', padding: '12px 14px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.88rem', color: '#0f172a' }}>
+                            {it.serviceName || it.name || `Service ${idx + 1}`}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+                            Actual Order: <strong style={{ color: '#1e3a8a' }}>{ord} Pcs</strong>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold' }}>
+                            Picked Up: {picked} Pcs
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button onClick={() => setPickupModalOrder(null)} style={{ padding: '8px 24px', background: '#3730a3', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PARTIAL / FULL DELIVERY ACTION MODAL */}
+      {deliveryModalOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #14532d, #16a34a)', padding: '20px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>🚚 Item-Level Delivery Action</h3>
+              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{deliveryModalOrder.id} • Customer: {deliveryModalOrder.customerName}</div>
+              <button onClick={() => setDeliveryModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
+                <div><strong>Customer:</strong> {deliveryModalOrder.customerName}</div>
+                <div><strong>Phone:</strong> {deliveryModalOrder.phone || 'N/A'}</div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '4px' }}>Staff / Courier Name (Optional):</label>
+                <input
+                  type="text"
+                  placeholder="Enter staff name..."
+                  value={deliveryStaffName}
+                  onChange={e => setDeliveryStaffName(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '0.88rem', color: '#1e293b' }}>Enter Quantity Delivered per Service:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {(deliveryModalOrder.items || deliveryModalOrder.services || []).map((it: any, idx: number) => {
+                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                    const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
+                      ? Number(it.pickedUpQuantity)
+                      : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
+                    const delivered = it.deliveredQuantity || it.delivered_quantity || 0;
+                    const pending = it.deliveryPendingQuantity !== undefined ? Number(it.deliveryPendingQuantity) : Math.max(0, picked - delivered);
+                    const key = it.id || it.serviceId || it.service_id || String(idx);
+                    const currentVal = deliveryInputs[key] !== undefined ? deliveryInputs[key] : (deliveryInputs[String(idx)] !== undefined ? deliveryInputs[String(idx)] : (pending > 0 ? pending : ord));
+
+                    return (
+                      <div key={idx} style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#14532d', marginBottom: '4px' }}>
+                          {it.serviceName || it.name || `Service ${idx + 1}`}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: '#166534' }}>
+                          <div>Picked Up: <strong>{picked}</strong> | Delivered: <strong>{delivered}</strong> | Pending Delivery: <strong style={{ color: '#dc2626' }}>{pending}</strong></div>
+                        </div>
+
+                        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 'bold' }}>Deliver Qty Now:</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={ord}
+                            value={currentVal}
+                            onChange={e => {
+                              const val = Math.max(1, Math.min(ord, parseInt(e.target.value) || 1));
+                              setDeliveryInputs(prev => ({
+                                ...prev,
+                                [key]: val,
+                                [String(idx)]: val,
+                                ...(it.id ? { [it.id]: val } : {}),
+                                ...(it.name ? { [it.name]: val } : {})
+                              }));
+                            }}
+                            style={{ width: '80px', padding: '6px 10px', border: '1.5px solid #22c55e', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 'bold' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button onClick={() => setDeliveryModalOrder(null)} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+                <button
+                  onClick={() => handleConfirmDelivery(deliveryModalOrder.id, deliveryModalOrder.backendId)}
+                  style={{ padding: '8px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  CONFIRM DELIVERY
+                </button>
               </div>
             </div>
           </div>

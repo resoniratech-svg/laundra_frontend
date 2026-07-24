@@ -101,6 +101,29 @@ export interface Order {
   discount?: number;
   isDeleted?: boolean;
   backendId?: string;
+  pickupHistory?: any[];
+  deliveryHistory?: any[];
+  items?: {
+    id?: string;
+    service_id?: string;
+    serviceId?: string;
+    service_name?: string;
+    serviceName?: string;
+    quantity?: number;
+    price?: number;
+    ordered_quantity?: number;
+    orderedQuantity?: number;
+    picked_up_quantity?: number;
+    pickedUpQuantity?: number;
+    pickup_pending_quantity?: number;
+    pickupPendingQuantity?: number;
+    delivered_quantity?: number;
+    deliveredQuantity?: number;
+    delivery_pending_quantity?: number;
+    deliveryPendingQuantity?: number;
+    item_status?: string;
+    itemStatus?: string;
+  }[];
 }
 
 export interface Expense {
@@ -894,8 +917,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Listen for storage events to synchronize database across different tabs/portals
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith(`ll_${activeCompanyId}_`)) {
-        loadCompanyData(activeCompanyId);
+      if (e.key && (e.key.startsWith(`ll_`) || e.key === 'll_orders_latest_backup')) {
+        loadCompanyData(activeCompanyIdRef.current || activeCompanyId);
       }
       if (e.key === 'll_companies') {
         const saved = localStorage.getItem('ll_companies');
