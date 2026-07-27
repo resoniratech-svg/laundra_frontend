@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { useDatabase, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
+import { useDatabase, isPackageCustomerActive, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
 import { PortalLayout } from './components/PortalLayout';
 import { apiApproveDeliveryBoy, apiRejectDeliveryBoy } from './deliveryApi';
 import PrepaidPackagesManager from './PrepaidPackagesManager';
@@ -128,6 +128,247 @@ export const AdminPortal: React.FC = () => {
   const [sellingPackageTo, setSellingPackageTo] = useState<Customer | null>(null);
   const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
+
+  // Deduct usage state
+  const [deductCust, setDeductCust] = useState<Customer | null>(null);
+  const [deductWash, setDeductWash] = useState<number>(0);
+  const [deductIron, setDeductIron] = useState<number>(0);
+  const [deductDry, setDeductDry] = useState<number>(0);
+  const [deductAmount, setDeductAmount] = useState<number>(0);
+  const [deductSteam, setDeductSteam] = useState<number>(0);
+  const [deductRemarks, setDeductRemarks] = useState<string>('');
+  const [activeCustomerPkg, setActiveCustomerPkg] = useState<any>(null);
+  const [dynamicDeductions, setDynamicDeductions] = useState<Record<string, number>>({});
+
+  const resolvePackageServicesFromPkg = (pkg: any) => {
+    let wash = 0;
+    let iron = 0;
+    let dry = 0;
+    let steam = 0;
+
+    const items = pkg?.eligible_services || pkg?.items || pkg?.included_services || [];
+    if (Array.isArray(items) && items.length > 0) {
+      items.forEach((item: any) => {
+        const cat = (item.category || item.service || '').toLowerCase();
+        const qty = parseInt(item.quantity || item.qty || 1) || 1;
+        if (cat.includes('steam')) {
+          steam += qty;
+        } else if (cat.includes('wash') || cat.includes('fold')) {
+          wash += qty;
+        } else if (cat.includes('press') || cat.includes('iron')) {
+          iron += qty;
+        } else if (cat.includes('dry') || cat.includes('premium')) {
+          dry += qty;
+        } else {
+          wash += qty;
+        }
+      });
+    } else {
+      wash = pkg?.wash_count || pkg?.washes || 0;
+      iron = pkg?.iron_count || pkg?.press_count || 0;
+      dry = pkg?.dry_clean_count || pkg?.dry_clean || 0;
+      steam = pkg?.steam_count || pkg?.steam || 0;
+    }
+
+    return { wash, iron, dry, steam };
+  };
+
+  const getEffectiveCounts = (c: Customer) => {
+    if (activeCustomerPkg) {
+      return {
+        washLeft: activeCustomerPkg.wash_left ?? 0,
+        washTotal: activeCustomerPkg.wash_total ?? 0,
+        ironLeft: activeCustomerPkg.iron_left ?? 0,
+        ironTotal: activeCustomerPkg.iron_total ?? 0,
+        dryLeft: activeCustomerPkg.dry_left ?? 0,
+        dryTotal: activeCustomerPkg.dry_total ?? 0,
+        steamLeft: activeCustomerPkg.steam_left ?? 0,
+        steamTotal: activeCustomerPkg.steam_total ?? 0,
+        serviceItems: activeCustomerPkg.service_items || [],
+        packageName: activeCustomerPkg.package?.name || c.activePackageName || 'Prepaid Package',
+        expiryDate: activeCustomerPkg.expiry_date ? activeCustomerPkg.expiry_date.split('T')[0] : (c.packageExpiry || 'N/A'),
+        status: activeCustomerPkg.status || 'ACTIVE'
+      };
+    }
+
+    const pkgName = c.activePackageName;
+    const pkgId = c.activeCustomerPackageId;
+
+    const custPkgRec = (db.customerPackages || []).find((cp: any) => cp.customerId === c.id || cp.id === pkgId);
+
+    const pkg = backendPrepaidPackages?.find((p: any) =>
+      p.id === pkgId ||
+      p.id === custPkgRec?.packageId ||
+      p.name === pkgName ||
+      p.code === pkgName ||
+      (pkgName && p.name && p.name.toLowerCase() === pkgName.toLowerCase()) ||
+      (pkgName && p.code && p.code.toLowerCase() === pkgName.toLowerCase())
+    ) || (custPkgRec ? custPkgRec.package : null);
+
+    const defaults = resolvePackageServicesFromPkg(pkg);
+
+    const hasSpecificDefaults = defaults.wash > 0 || defaults.iron > 0 || defaults.dry > 0 || defaults.steam > 0;
+
+    const washTotal = (c as any).totalWashCount !== undefined && (c as any).totalWashCount !== null ? (c as any).totalWashCount : (hasSpecificDefaults ? defaults.wash : (c.remainingWashCount !== undefined ? c.remainingWashCount : 0));
+    const ironTotal = (c as any).totalIronCount !== undefined && (c as any).totalIronCount !== null ? (c as any).totalIronCount : (hasSpecificDefaults ? defaults.iron : (c.remainingIronCount !== undefined ? c.remainingIronCount : 0));
+    const dryTotal = (c as any).totalDryCleanCount !== undefined && (c as any).totalDryCleanCount !== null ? (c as any).totalDryCleanCount : (hasSpecificDefaults ? defaults.dry : (c.remainingDryCleanCount !== undefined ? c.remainingDryCleanCount : 0));
+    const steamTotal = (c as any).totalSteamCount !== undefined && (c as any).totalSteamCount !== null ? (c as any).totalSteamCount : (hasSpecificDefaults ? defaults.steam : ((c as any).remainingSteamCount !== undefined ? (c as any).remainingSteamCount : 0));
+
+    const washLeft = c.remainingWashCount !== undefined && c.remainingWashCount !== null ? c.remainingWashCount : washTotal;
+    const ironLeft = c.remainingIronCount !== undefined && c.remainingIronCount !== null ? c.remainingIronCount : ironTotal;
+    const dryLeft = c.remainingDryCleanCount !== undefined && c.remainingDryCleanCount !== null ? c.remainingDryCleanCount : dryTotal;
+    const steamLeft = (c as any).remainingSteamCount !== undefined && (c as any).remainingSteamCount !== null ? (c as any).remainingSteamCount : steamTotal;
+
+    return {
+      washLeft, washTotal,
+      ironLeft, ironTotal,
+      dryLeft, dryTotal,
+      steamLeft, steamTotal,
+      serviceItems: [],
+      packageName: pkg?.name || pkgName || custPkgRec?.packageName || 'Prepaid Package',
+      expiryDate: c.packageExpiry || 'N/A',
+      status: 'ACTIVE'
+    };
+  };
+
+  const handleOpenDeductModal = async (c: Customer) => {
+    setDeductCust(c);
+    setDeductWash(0);
+    setDeductIron(0);
+    setDeductDry(0);
+    setDeductSteam(0);
+    setDeductAmount(0);
+    setDeductRemarks('');
+    setActiveCustomerPkg(null);
+    setDynamicDeductions({});
+
+    try {
+      const tokenToUse = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const tenantIdToUse = localStorage.getItem('ll_tenant_id') || '';
+
+      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer/${c.id}/active`, {
+        headers: {
+          'Authorization': `Bearer ${tokenToUse}`,
+          'X-Tenant-ID': tenantIdToUse
+        }
+      });
+
+      if (res.ok) {
+        const cpData = await res.json();
+        setActiveCustomerPkg(cpData);
+        // Initialize dynamic deductions to 0 for each service
+        const initDed: Record<string, number> = {};
+        if (cpData.service_items && Array.isArray(cpData.service_items)) {
+          cpData.service_items.forEach((si: any) => {
+            initDed[si.service] = 0;
+          });
+        }
+        setDynamicDeductions(initDed);
+      }
+    } catch (err) {
+      console.warn('Could not fetch active customer package from backend:', err);
+    }
+  };
+
+  const handleConfirmDeductUsage = async () => {
+    if (!deductCust) return;
+
+    const svcItems = activeCustomerPkg?.service_items || [];
+    const hasDynamicItems = svcItems.length > 0;
+
+    // Validate dynamic deductions
+    if (hasDynamicItems) {
+      for (const si of svcItems) {
+        const dedQty = dynamicDeductions[si.service] || 0;
+        if (dedQty > si.left) {
+          alert(`Cannot deduct ${dedQty} ${si.service}. Only ${si.left} remaining.`);
+          return;
+        }
+      }
+    }
+
+    const currBal = activeCustomerPkg?.current_balance !== undefined ? activeCustomerPkg.current_balance : (deductCust.walletBalance ?? 0);
+    if (deductAmount > currBal) {
+      alert(`Cannot deduct QR ${deductAmount.toFixed(2)}. Wallet balance is QR ${currBal.toFixed(2)}.`);
+      return;
+    }
+
+    // Check at least one deduction
+    const totalServiceDeductions = hasDynamicItems
+      ? Object.values(dynamicDeductions).reduce((sum, v) => sum + (v || 0), 0)
+      : (deductWash + deductIron + deductDry + deductSteam);
+
+    if (totalServiceDeductions <= 0 && deductAmount <= 0) {
+      alert('Please enter at least one deduction quantity or wallet amount.');
+      return;
+    }
+
+    try {
+      const tokenToUse = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '';
+      const tenantIdToUse = localStorage.getItem('ll_tenant_id') || '';
+
+      // Build deductions array from dynamic service items
+      const deductionsArr = hasDynamicItems
+        ? Object.entries(dynamicDeductions)
+            .filter(([, qty]) => qty > 0)
+            .map(([service, quantity]) => ({ service, quantity }))
+        : [];
+
+      const res = await fetch(`${BASE_URL}/api/v1/prepaid-packages/deduct`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenToUse}`,
+          'X-Tenant-ID': tenantIdToUse,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customer_id: deductCust.id,
+          customer_package_id: activeCustomerPkg?.id,
+          deductions: deductionsArr,
+          wash_used: hasDynamicItems ? 0 : deductWash,
+          iron_used: hasDynamicItems ? 0 : deductIron,
+          dry_used: hasDynamicItems ? 0 : deductDry,
+          steam_used: hasDynamicItems ? 0 : deductSteam,
+          amount_used: deductAmount,
+          remarks: deductRemarks
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || data.message || 'Deduction failed');
+        return;
+      }
+
+      // Sync local DB state
+      const updatedCustomers = db.customers.map(c => c.id === deductCust.id ? {
+        ...c,
+        customerType: data.status === 'COMPLETED' ? c.customerType : 'Package' as const,
+        walletBalance: data.current_balance,
+        remainingWashCount: data.wash_left,
+        remainingIronCount: data.iron_left,
+        remainingDryCleanCount: data.dry_left,
+        remainingSteamCount: data.steam_left,
+        totalWashCount: data.wash_total,
+        totalIronCount: data.iron_total,
+        totalDryCleanCount: data.dry_total,
+        totalSteamCount: data.steam_total,
+        activePackageName: data.package?.name || deductCust.activePackageName
+      } as Customer : c);
+
+      saveDB({ customers: updatedCustomers });
+
+      if (typeof fetchBackendData === 'function') {
+        fetchBackendData();
+      }
+
+      alert(`Successfully deducted package usage for ${deductCust.name}! Apple Wallet pass updated.`);
+      setDeductCust(null);
+    } catch (err) {
+      console.error('Error executing package deduction:', err);
+      alert('Network error while executing package deduction.');
+    }
+  };
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
   const [packagePaymentMethod, setPackagePaymentMethod] = useState<'Cash' | 'Card'>('Cash');
   const [addingCustomerStep, setAddingCustomerStep] = useState<number>(0); // 0 = Idle, 1 = Inputs, 2 = OTP, 3 = Password setup
@@ -430,9 +671,35 @@ export const AdminPortal: React.FC = () => {
       });
       if (custRes.ok) {
         const cData = await custRes.json();
+
+        // Fetch all tenant customer packages to populate active/completed package status
+        let custPkgMap: Record<string, any> = {};
+        try {
+          const cpRes = await fetch(`${BASE_URL}/api/v1/prepaid-packages/customer-packages/all`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (cpRes.ok) {
+            const cpList = await cpRes.json();
+            if (Array.isArray(cpList)) {
+              cpList.forEach((cp: any) => {
+                const cid = cp.customer_id;
+                if (!custPkgMap[cid]) {
+                  custPkgMap[cid] = cp;
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fetch customer packages all:", e);
+        }
+
         // Map backend customers to the local Customer format
         const mapped = cData.map((c: any) => {
           const existingCust = db.customers.find(dc => dc.id === c.id);
+          const userCp = custPkgMap[c.id];
+          const pkgName = userCp?.package?.name || userCp?.name || existingCust?.activePackageName;
+          const statusStr = userCp?.status || (userCp ? 'ACTIVE' : (existingCust?.packageStatus || 'NONE'));
+
           return {
             id: c.id,
             name: c.name || '',
@@ -444,7 +711,11 @@ export const AdminPortal: React.FC = () => {
             creditBalance: 0,
             notes: existingCust?.notes || '',
             qrStatus: existingCust?.qrStatus || ('Active QR' as const),
-            walletHistory: existingCust?.walletHistory || []
+            walletHistory: existingCust?.walletHistory || [],
+            customerType: (userCp || existingCust?.customerType === 'Package') ? 'Package' : 'Regular',
+            activePackageName: pkgName,
+            packageStatus: statusStr,
+            hasPackage: Boolean(userCp || existingCust?.customerType === 'Package' || pkgName)
           };
         });
         allCustomers = mapped;
@@ -980,7 +1251,11 @@ export const AdminPortal: React.FC = () => {
         walletBalance: 0,
         loyaltyPoints: 0,
         creditBalance: 0,
-        notes: 'Admin manual registration active'
+        notes: 'Admin manual registration active',
+        customerType: 'Regular',
+        remainingWashCount: 0,
+        remainingIronCount: 0,
+        remainingDryCleanCount: 0
       };
 
       const newUser: User = {
@@ -1093,6 +1368,52 @@ export const AdminPortal: React.FC = () => {
           expiryDate: expiry,
           appleWalletUrl: appleWalletUrl,
           customerId: custId
+        });
+
+        const existingPassId = sellingPackageTo.appleWalletPassId || `AWP-${sellingPackageTo.id.substring(0, 8).toUpperCase()}`;
+        const expiryIso = data.expiry_date ? data.expiry_date.split('T')[0] : new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+
+        const resolvedServs = resolvePackageServicesFromPkg(pkg);
+
+        const updatedCustomers = db.customers.map(c => {
+          if (c.id === sellingPackageTo.id) {
+            return {
+              ...c,
+              customerType: 'Package' as const,
+              appleWalletPassId: existingPassId,
+              activePackageName: pkgName,
+              activeCustomerPackageId: data.id,
+              packageExpiry: expiryIso,
+              remainingWashCount: resolvedServs.wash,
+              remainingIronCount: resolvedServs.iron,
+              remainingDryCleanCount: resolvedServs.dry,
+              remainingSteamCount: resolvedServs.steam,
+              totalWashCount: resolvedServs.wash,
+              totalIronCount: resolvedServs.iron,
+              totalDryCleanCount: resolvedServs.dry,
+              totalSteamCount: resolvedServs.steam
+            } as Customer;
+          }
+          return c;
+        });
+
+        const newCustomerPackage: CustomerPackage = {
+          id: data.id || `CP-${Date.now()}`,
+          packageId: pkg.id,
+          customerId: sellingPackageTo.id,
+          packageName: pkgName,
+          packageValue: balance,
+          currentBalance: balance,
+          usedAmount: 0,
+          purchaseDate: new Date().toISOString().split('T')[0],
+          expiryDate: expiryIso,
+          status: 'Active',
+          qrToken: `QR-${sellingPackageTo.id.substring(0, 6)}-${data.id || Date.now()}`
+        };
+
+        saveDB({
+          customers: updatedCustomers,
+          customerPackages: [newCustomerPackage, ...(db.customerPackages || []).filter(cp => cp.customerId !== sellingPackageTo.id)]
         });
 
         setSellingPackageTo(null);
@@ -1940,6 +2261,40 @@ export const AdminPortal: React.FC = () => {
         time: new Date().toLocaleTimeString()
       };
       setDrawerTxs(prev => [tx, ...prev]);
+    }
+
+    if (posCustId && posCustId !== 'guest') {
+      const targetCust = db.customers.find(c => c.id === posCustId);
+      if (targetCust && targetCust.customerType === 'Package' && targetCust.activePackageName) {
+        let newWash = targetCust.remainingWashCount ?? 0;
+        let newIron = targetCust.remainingIronCount ?? 0;
+        let newDryClean = targetCust.remainingDryCleanCount ?? 0;
+
+        if (posPayMethod === 'Package' || posPrepaidPackageApplied) {
+          posCart.forEach(ci => {
+            const svcName = (ci.serviceTypeName || '').toLowerCase();
+            if (svcName.includes('wash')) newWash = Math.max(0, newWash - ci.qty);
+            else if (svcName.includes('iron') || svcName.includes('press')) newIron = Math.max(0, newIron - ci.qty);
+            else if (svcName.includes('dry')) newDryClean = Math.max(0, newDryClean - ci.qty);
+            else newWash = Math.max(0, newWash - ci.qty);
+          });
+        }
+
+        const totalRemaining = newWash + newIron + newDryClean;
+        const isExpired = targetCust.packageExpiry ? (new Date().toISOString().split('T')[0] > targetCust.packageExpiry) : false;
+
+        const isStillPackageActive = totalRemaining > 0 && !isExpired;
+        const nextCustomerType: 'Regular' | 'Package' = isStillPackageActive ? 'Package' : 'Regular';
+
+        updatedCustomers = db.customers.map(c => c.id === posCustId ? {
+          ...c,
+          customerType: nextCustomerType,
+          remainingWashCount: isStillPackageActive ? newWash : 0,
+          remainingIronCount: isStillPackageActive ? newIron : 0,
+          remainingDryCleanCount: isStillPackageActive ? newDryClean : 0,
+          activePackageName: isStillPackageActive ? c.activePackageName : undefined,
+        } : c);
+      }
     }
 
     saveDB({
@@ -3173,10 +3528,10 @@ export const AdminPortal: React.FC = () => {
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
                   <th style={{ padding: '12px' }}>Customer ID</th>
                   <th style={{ padding: '12px' }}>Customer Name</th>
+                  <th style={{ padding: '12px' }}>Customer Type</th>
                   <th style={{ padding: '12px' }}>Contact</th>
-                  <th style={{ padding: '12px' }}>QR Status</th>
+                  <th style={{ padding: '12px' }}>QR / Wallet Status</th>
                   <th style={{ padding: '12px' }}>Wallet Balance</th>
-                  <th style={{ padding: '12px' }}>Loyalty Points</th>
                   <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -3190,7 +3545,6 @@ export const AdminPortal: React.FC = () => {
                     const name = (c.name || '').toLowerCase();
                     const phone = (c.phone || '').toLowerCase();
                     
-                    // Allow matching digits directly even if formatted with + or spaces
                     const rawDigits = phone.replace(/[^0-9]/g, '');
                     const termDigits = term.replace(/[^0-9]/g, '');
                     
@@ -3199,32 +3553,68 @@ export const AdminPortal: React.FC = () => {
                            phone.startsWith(term) || 
                            (termDigits.length > 0 && rawDigits.startsWith(termDigits));
                   })
-                  .map(c => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px', fontWeight: '700', color: '#64748b' }}>{c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())}</td>
-                      <td style={{ padding: '12px', fontWeight: '700' }}>{c.name}</td>
-                      <td style={{ padding: '12px' }}>{c.email} • {c.phone}</td>
-                      <td style={{ padding: '12px' }}>
-                        {c.qrStatus === 'Active QR' && <span style={{ padding: '4px 8px', background: '#dcfce7', color: '#16a34a', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>🟢 Active QR</span>}
-                        {c.qrStatus === 'Shared via WhatsApp' && <span style={{ padding: '4px 8px', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>📤 Shared via WhatsApp</span>}
-                        {c.qrStatus === 'Regenerated' && <span style={{ padding: '4px 8px', background: '#fef3c7', color: '#d97706', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>🔄 Regenerated</span>}
-                        {c.qrStatus === 'Disabled' && <span style={{ padding: '4px 8px', background: '#fee2e2', color: '#dc2626', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>🚫 Disabled</span>}
-                        {(!c.qrStatus || c.qrStatus === 'Not Shared Yet') && <span style={{ padding: '4px 8px', background: '#f1f5f9', color: '#64748b', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>⏳ Not Shared Yet</span>}
-                      </td>
-                      <td style={{ padding: '12px', fontWeight: '700', color: '#16a34a' }}>QR {c.walletBalance.toFixed(2)}</td>
-                      <td style={{ padding: '12px', fontWeight: '700', color: '#6b21a8' }}>{c.loyaltyPoints} pts</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>🎁 Sell Package</button>
-                          <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
-                          <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
-                          <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📲 WA Pass</button>
-                          <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
-                          <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  .map(c => {
+                    const statusStr = (c as any).packageStatus || (c as any).package_status || (c.customerType === 'Package' ? 'ACTIVE' : 'NONE');
+                    const pkgName = c.activePackageName || (c as any).packageName;
+                    const hasPkg = Boolean(c.hasPackage || c.customerType === 'Package' || pkgName || statusStr !== 'NONE');
+                    const isCompleted = statusStr === 'COMPLETED';
+                    const isExpired = statusStr === 'EXPIRED';
+                    const isActivePkg = hasPkg && !isCompleted && !isExpired;
+
+                    return (
+                      <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '12px', fontWeight: '700', color: '#64748b' }}>{c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())}</td>
+                        <td style={{ padding: '12px', fontWeight: '700' }}>{c.name}</td>
+                        <td style={{ padding: '12px' }}>
+                          {isActivePkg ? (
+                            <span style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              🎁 Active Package ({pkgName || 'Active Package'})
+                            </span>
+                          ) : isCompleted ? (
+                            <span style={{ padding: '4px 10px', background: '#fef3c7', color: '#b45309', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              ⚠️ Package Completed ({pkgName || 'Package'})
+                            </span>
+                          ) : isExpired ? (
+                            <span style={{ padding: '4px 10px', background: '#fef2f2', color: '#b91c1c', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #fecaca', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              ⏰ Package Expired ({pkgName || 'Package'})
+                            </span>
+                          ) : (
+                            <span style={{ padding: '4px 10px', background: '#f1f5f9', color: '#475569', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              👤 Regular Customer
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>{c.email ? `${c.email} • ` : ''}{c.phone}</td>
+                        <td style={{ padding: '12px' }}>
+                          {hasPkg ? (
+                            <span style={{ padding: '4px 8px', background: isCompleted ? '#fef3c7' : '#dbeafe', color: isCompleted ? '#92400e' : '#1d4ed8', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>
+                              {isCompleted ? '⚪ Pass Completed' : '🍏 Apple Wallet & QR Active'}
+                            </span>
+                          ) : (
+                            <span style={{ padding: '4px 8px', background: '#f8fafc', color: '#94a3b8', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '600' }}>
+                              Pay Per Order
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', fontWeight: '700', color: '#16a34a' }}>QR {c.walletBalance.toFixed(2)}</td>
+                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>
+                              {(isCompleted || isExpired) ? '🔄 Renew Package' : (hasPkg ? '🎁 Add Package' : '🎁 Purchase Package')}
+                            </button>
+                            <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
+                            <button onClick={() => handleOpenDeductModal(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>➖ Deduct Usage</button>
+                            <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
+                            {hasPkg && (
+                              <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1.5px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }}>📲 WA Pass</button>
+                            )}
+                            <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
+                            <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -6485,79 +6875,113 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* VIEW CUSTOMER PROFILE DETAILS */}
-      {viewingCustomer && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            
-            {/* Header Section */}
-            <div style={{ background: 'linear-gradient(135deg, #0284c7, #2563eb)', padding: '32px 24px 24px', color: 'white', position: 'relative', textAlign: 'center' }}>
-              <button onClick={() => setViewingCustomer(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'rgba(255,255,255,0.8)', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', transition: 'color 0.2s' }}>✕</button>
+      {viewingCustomer && (() => {
+        const isPkgCust = isPackageCustomerActive(viewingCustomer);
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
               
-              <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'white', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', fontWeight: '800', margin: '0 auto 16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-                {viewingCustomer.name.charAt(0).toUpperCase()}
-              </div>
-              <h3 style={{ margin: '0 0 4px', fontSize: '1.4rem', fontWeight: '800' }}>{viewingCustomer.name}</h3>
-              <div style={{ fontSize: '0.9rem', color: '#e0f2fe' }}>{viewingCustomer.email}</div>
-            </div>
-
-            {/* Content Section */}
-            <div style={{ padding: '24px', background: '#f8fafc' }}>
-              
-              {/* Financial Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Wallet Balance</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#16a34a' }}>QR {viewingCustomer.walletBalance.toFixed(2)}</div>
+              {/* Header Section */}
+              <div style={{ background: isPkgCust ? 'linear-gradient(135deg, #15803d, #047857)' : 'linear-gradient(135deg, #0284c7, #2563eb)', padding: '32px 24px 24px', color: 'white', position: 'relative', textAlign: 'center' }}>
+                <button onClick={() => setViewingCustomer(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'rgba(255,255,255,0.8)', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', transition: 'color 0.2s' }}>✕</button>
+                
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'white', color: isPkgCust ? '#15803d' : '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', fontWeight: '800', margin: '0 auto 12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                  {viewingCustomer.name.charAt(0).toUpperCase()}
                 </div>
-                <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Loyalty Points</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#f59e0b' }}>⭐ {viewingCustomer.loyaltyPoints}</div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.4rem', fontWeight: '800' }}>{viewingCustomer.name}</h3>
+                <div style={{ fontSize: '0.9rem', color: '#e0f2fe', marginBottom: '8px' }}>{viewingCustomer.email || viewingCustomer.phone}</div>
+                <div style={{ display: 'inline-block', background: 'rgba(255,255,255,0.25)', padding: '4px 14px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '800', backdropFilter: 'blur(4px)' }}>
+                  {isPkgCust ? `🎁 Package Customer (${viewingCustomer.activePackageName || 'Active Package'})` : '👤 Regular Customer'}
                 </div>
               </div>
 
-              {/* Details List */}
-              <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>📱</span>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Phone Number</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: '500', color: '#1e293b' }}>{viewingCustomer.phone}</div>
+              {/* Content Section */}
+              <div style={{ padding: '24px', background: '#f8fafc' }}>
+                
+                {/* Financial Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                  <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Wallet Balance</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#16a34a' }}>QR {viewingCustomer.walletBalance.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Loyalty Points</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#f59e0b' }}>⭐ {viewingCustomer.loyaltyPoints}</div>
                   </div>
                 </div>
-                <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>📍</span>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Address</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: '500', color: '#1e293b' }}>{viewingCustomer.address}</div>
-                  </div>
-                </div>
-                <div style={{ padding: '16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: '1.2rem', color: '#94a3b8', marginTop: '2px' }}>📝</span>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Notes</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '500', color: '#475569', lineHeight: '1.4' }}>{viewingCustomer.notes || 'No specific notes for this customer.'}</div>
-                  </div>
-                </div>
-              </div>
 
-              {/* Action */}
-              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button 
-                  onClick={() => { setSellingPackageTo(viewingCustomer); setViewingCustomer(null); }}
-                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontWeight: '800', fontSize: '1rem', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                >
-                  💳 Sell Prepaid Package
-                </button>
-                <button onClick={() => setViewingCustomer(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                  Close Profile
-                </button>
+                {/* Package Specific Card (ONLY shown if active Package Customer) */}
+                {isPkgCust && (
+                  <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#166534', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>🎁 Active Package Services</span>
+                      <span style={{ fontSize: '0.75rem', color: '#15803d' }}>Expires: {viewingCustomer.packageExpiry || '30 Days'}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', textAlign: 'center' }}>
+                      <div style={{ background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>WASH</div>
+                        <div style={{ fontSize: '1rem', fontWeight: '800', color: '#0284c7' }}>{viewingCustomer.remainingWashCount ?? 10}</div>
+                      </div>
+                      <div style={{ background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>IRON</div>
+                        <div style={{ fontSize: '1rem', fontWeight: '800', color: '#d97706' }}>{viewingCustomer.remainingIronCount ?? 10}</div>
+                      </div>
+                      <div style={{ background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>DRY CLEAN</div>
+                        <div style={{ fontSize: '1rem', fontWeight: '800', color: '#7c3aed' }}>{viewingCustomer.remainingDryCleanCount ?? 5}</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '6px 10px', borderRadius: '6px' }}>
+                      <span>🍏 Apple Wallet Pass:</span>
+                      <span style={{ fontWeight: '700', fontFamily: 'monospace' }}>{viewingCustomer.appleWalletPassId || `AWP-${viewingCustomer.id.substring(0, 8).toUpperCase()}`}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Details List */}
+                <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>📱</span>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Phone Number</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: '500', color: '#1e293b' }}>{viewingCustomer.phone}</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>📍</span>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Address</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: '500', color: '#1e293b' }}>{viewingCustomer.address || 'Standard Address'}</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: '16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '1.2rem', color: '#94a3b8', marginTop: '2px' }}>📝</span>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>Notes</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '500', color: '#475569', lineHeight: '1.4' }}>{viewingCustomer.notes || 'No specific notes for this customer.'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action */}
+                <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button 
+                    onClick={() => { setSellingPackageTo(viewingCustomer); setViewingCustomer(null); }}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontWeight: '800', fontSize: '1rem', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    {isPkgCust ? '🔄 Renew Prepaid Package' : '🎁 Purchase Prepaid Package'}
+                  </button>
+                  <button onClick={() => setViewingCustomer(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                    Close Profile
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SELL PREPAID PACKAGE MODAL */}
       {sellingPackageTo && (
@@ -6754,6 +7178,206 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
+      {/* ➖ DEDUCT USAGE MODAL */}
+      {deductCust && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', maxWidth: '520px', width: '100%', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #ea580c, #c2410c)', padding: '20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>➖ Deduct Package Usage</h3>
+                <p style={{ margin: '4px 0 0 0', opacity: 0.9, fontSize: '0.85rem' }}>Customer: {deductCust.name}</p>
+              </div>
+              <button onClick={() => setDeductCust(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Package Summary Header */}
+              {(() => {
+                const counts = getEffectiveCounts(deductCust);
+                const svcItems = (counts as any).serviceItems || activeCustomerPkg?.service_items || [];
+                const totalLeftAll = svcItems.reduce((acc: number, item: any) => acc + (item.left || 0), 0);
+                const isPkgCompleted = deductCust.packageStatus === 'COMPLETED' || (svcItems.length > 0 && totalLeftAll <= 0);
+
+                return (
+                  <div style={{ background: isPkgCompleted ? '#fef3c7' : '#fff7ed', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${isPkgCompleted ? '#fde68a' : '#ffedd5'}`, fontSize: '0.88rem' }}>
+                    <div style={{ fontWeight: '800', color: isPkgCompleted ? '#b45309' : '#c2410c', marginBottom: '4px', fontSize: '0.95rem' }}>
+                      {isPkgCompleted ? '⚠️ Package Completed (0 items left)' : `🎁 ${deductCust.activePackageName || 'Active Prepaid Package'}`}
+                    </div>
+                    <div style={{ color: '#475569', fontSize: '0.8rem' }}>Wallet Balance: <strong>QR {(deductCust.walletBalance || 0).toFixed(2)}</strong></div>
+                    {isPkgCompleted && (
+                      <div style={{ marginTop: '10px', padding: '10px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef08a', color: '#92400e', fontWeight: '700', fontSize: '0.82rem' }}>
+                        🎉 All items in this package have been used up. Please click <strong>"Renew Package"</strong> to purchase a new package for this customer.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Deduct Wallet Amount */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>
+                  Deduct Wallet Amount (QR)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={deductAmount || ''}
+                  onChange={(e) => setDeductAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="0.00"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              {/* Service Count Deductions — Dynamic from service_items */}
+              {(() => {
+                const counts = getEffectiveCounts(deductCust);
+                const svcItems = (counts as any).serviceItems || activeCustomerPkg?.service_items || [];
+                const hasDynamic = svcItems.length > 0;
+
+                if (hasDynamic) {
+                  return (
+                    <>
+                      {svcItems.map((si: any, idx: number) => (
+                        si.total > 0 && (
+                          <div key={si.service ? `${si.service}-${idx}` : `svc-${idx}`} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                                {si.service} Remaining: <strong>{si.left} Pcs</strong>
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={si.left}
+                                value={dynamicDeductions[si.service] || ''}
+                                onChange={(e) => setDynamicDeductions(prev => ({ ...prev, [si.service]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                                placeholder={`${si.service} Qty to Deduct`}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      ))}
+                    </>
+                  );
+                }
+
+                // Legacy fallback for packages without service_items
+                return (
+                  <>
+                    {counts.washTotal > 0 && (
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                            Wash Remaining: <strong>{counts.washLeft} Pcs</strong>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={counts.washLeft}
+                            value={deductWash || ''}
+                            onChange={(e) => setDeductWash(Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="Wash Qty to Deduct"
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {counts.ironTotal > 0 && (
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                            Iron / Pressing Remaining: <strong>{counts.ironLeft} Pcs</strong>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={counts.ironLeft}
+                            value={deductIron || ''}
+                            onChange={(e) => setDeductIron(Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="Iron Qty to Deduct"
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {counts.dryTotal > 0 && (
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                            Dry Clean Remaining: <strong>{counts.dryLeft} Pcs</strong>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={counts.dryLeft}
+                            value={deductDry || ''}
+                            onChange={(e) => setDeductDry(Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="Dry Clean Qty to Deduct"
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {counts.steamTotal > 0 && (
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                            Steam Press Remaining: <strong>{counts.steamLeft} Pcs</strong>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={counts.steamLeft}
+                            value={deductSteam || ''}
+                            onChange={(e) => setDeductSteam(Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="Steam Qty to Deduct"
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* Remarks */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>
+                  Remarks / Staff Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={deductRemarks}
+                  onChange={(e) => setDeductRemarks(e.target.value)}
+                  placeholder="e.g. Manual counter pickup adjustment"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              {/* Save & Cancel Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                <button
+                  onClick={() => setDeductCust(null)}
+                  style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDeductUsage}
+                  style={{ flex: 2, padding: '12px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}
+                >
+                  Save & Update Apple Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
 
       {/* WALLET ADJUSTMENT MODAL */}
@@ -6919,8 +7543,9 @@ export const AdminPortal: React.FC = () => {
               {/* WhatsApp Quick Message Box */}
               {(() => {
                 let fullAppleWalletUrl = walletPassPreview.appleWalletUrl || '';
+                const publicBackendUrl = (BASE_URL && !BASE_URL.includes('localhost')) ? BASE_URL : 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
                 if (fullAppleWalletUrl && fullAppleWalletUrl.startsWith('/')) {
-                  fullAppleWalletUrl = `${BASE_URL}${fullAppleWalletUrl}`;
+                  fullAppleWalletUrl = `${publicBackendUrl}${fullAppleWalletUrl}`;
                 }
 
                 const qrEncodedData = fullAppleWalletUrl || `${window.location.origin}/customer?login=${walletPassPreview.customerId}`;

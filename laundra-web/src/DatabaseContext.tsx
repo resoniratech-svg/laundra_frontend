@@ -51,12 +51,31 @@ export interface Customer {
   loyaltyPoints: number;
   creditBalance: number;
   notes: string;
+  customerType?: 'Regular' | 'Package';
+  appleWalletPassId?: string;
+  remainingWashCount?: number;
+  remainingIronCount?: number;
+  remainingDryCleanCount?: number;
+  packageExpiry?: string;
+  activePackageName?: string;
+  activeCustomerPackageId?: string;
   subRemaining?: number;
   subDuration?: string;
   password?: string;
   qrStatus?: 'Active QR' | 'Regenerated' | 'Disabled' | 'Shared via WhatsApp' | 'Not Shared Yet';
   walletHistory?: { date: string; amount: number; type: 'add' | 'use'; note?: string }[];
 }
+
+export const isPackageCustomerActive = (cust: Partial<Customer> | null | undefined): boolean => {
+  if (!cust) return false;
+  if (cust.customerType !== 'Package') return false;
+  if (!cust.activePackageName) return false;
+  
+  const today = new Date().toISOString().split('T')[0];
+  if (cust.packageExpiry && cust.packageExpiry < today) return false;
+
+  return true;
+};
 
 export interface Order {
   id: string;
