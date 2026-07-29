@@ -3524,7 +3524,7 @@ export const AdminPortal: React.FC = () => {
             <button onClick={handleStartAddCustomer} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Customer</button>
           </div>
 
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto', overflowY: 'auto', maxHeight: showCustomerModal ? '65vh' : 'none' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
@@ -4195,7 +4195,7 @@ export const AdminPortal: React.FC = () => {
             )}
           </div>
 
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto', overflowY: 'auto', maxHeight: showOrderModal ? '65vh' : 'none' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
