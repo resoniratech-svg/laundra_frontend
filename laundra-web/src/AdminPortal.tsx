@@ -1383,6 +1383,8 @@ export const AdminPortal: React.FC = () => {
               appleWalletPassId: existingPassId,
               activePackageName: pkgName,
               activeCustomerPackageId: data.id,
+              packageStatus: 'ACTIVE',
+              packageStatusDate: new Date().toISOString(),
               packageExpiry: expiryIso,
               remainingWashCount: resolvedServs.wash,
               remainingIronCount: resolvedServs.iron,
