@@ -5078,36 +5078,7 @@ export const AdminPortal: React.FC = () => {
               )}
 
 
-              {posCustomerPackages.length > 0 && (
-                <div style={{ marginTop: '12px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '8px', color: '#475569' }}>Customer's Active Packages:</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <select 
-                      onChange={e => {
-                        const token = e.target.value;
-                        if (token) {
-                          setPosPrepaidQRToken(token);
-                          setPosPrepaidPackageApplied(null);
-                          setPosDiscount(0);
-                          handleApplyPrepaidQR(token);
-                        }
-                      }}
-                      style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
-                    >
-                      <option value="">-- Choose a package --</option>
-                      {posCustomerPackages.map(cp => (
-                        <option key={cp.id} value={cp.secure_token}>{cp.package?.name} ({cp.total_quantity - cp.used_quantity} items left)</option>
-                      ))}
-                    </select>
-                    <button 
-                      onClick={handleApplyPrepaidQR} 
-                      style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {/* Cart Summary & Total Breakdown */}
               <div style={{ marginTop: '14px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -5183,12 +5154,11 @@ export const AdminPortal: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet', 'Package'].includes(posPayMethod) ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet'].includes(posPayMethod) ? '1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                   <option value="Cash">Cash payment</option>
                   <option value="Card">Card payment</option>
                   <option value="Wallet">Wallet payment</option>
-                  <option value="Package">Prepaid Package</option>
                   <option value="Pay Later">Pay Later</option>
                 </select>
                 
