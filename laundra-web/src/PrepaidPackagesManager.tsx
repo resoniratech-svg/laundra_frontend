@@ -5,7 +5,7 @@ import { getApiBaseUrl } from './config';
 const BASE_URL = getApiBaseUrl();
 
 export default function PrepaidPackagesManager({ token, db, services }: { token: string, db: any, services: any[] }) {
-  const { t } = useLanguage();
+  const { t, tName } = useLanguage();
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -187,57 +187,57 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
           onClick={() => setShowForm(!showForm)}
           style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
         >
-          {showForm ? 'Cancel' : `+ ${t('Create New Package')}`}
+          {showForm ? t('Cancel') : `+ ${t('Create New Package')}`}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleCreate} style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', marginBottom: '24px' }}>
-          <h3>Create Package</h3>
+          <h3>{editingId ? t('Edit Package') : t('Create Package')}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Package Name</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Package Name')}</label>
               <input required value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Package Code</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Package Code')}</label>
               <input required value={code} onChange={e => setCode(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Description</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Description')}</label>
               <input value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Original Price (QR)</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Original Price (QR)')}</label>
               <input required type="number" step="0.01" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Offer Price (QR)</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Offer Price (QR)')}</label>
               <input required type="number" step="0.01" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Total Quantity (Items)</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Total Quantity (Items)')}</label>
               <input required type="number" value={totalQuantity} onChange={e => setTotalQuantity(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Validity (Days)</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Validity (Days)')}</label>
               <input required type="number" value={validityDays} onChange={e => setValidityDays(e.target.value)} placeholder="e.g. 30" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Status</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>{t('Status')}</label>
               <select 
                 value={isActive ? "true" : "false"} 
                 onChange={e => setIsActive(e.target.value === "true")}
                 style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
               >
-                <option value="true">ACTIVE</option>
-                <option value="false">INACTIVE</option>
+                <option value="true">{t('ACTIVE')}</option>
+                <option value="false">{t('INACTIVE')}</option>
               </select>
             </div>
           </div>
           
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '12px' }}>Eligible Services</label>
+            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '12px' }}>{t('Eligible Services')}</label>
             
             {/* Category Tabs */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0', overflowX: 'auto' }}>
@@ -266,7 +266,7 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {cat === 'Pressing' ? '♨️' : cat === 'Wash & Press' ? '🌊' : cat === 'Dry Cleaning' ? '🧥' : cat === 'Premium Services' ? '👑' : '🏷️'} {cat}
+                      {cat === 'Pressing' ? '♨️' : cat === 'Wash & Press' ? '🌊' : cat === 'Dry Cleaning' ? '🧥' : cat === 'Premium Services' ? '👑' : '🏷️'} {t(cat)}
                     </button>
                   );
                 });
@@ -300,7 +300,7 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
                     <div style={{ fontSize: '2rem', marginBottom: '8px' }}>
                       {s.name.includes('Shirt') ? '👔' : s.name.includes('Dress') || s.name.includes('Gown') ? '👗' : s.name.includes('Suit') ? '🧥' : s.name.includes('BedSheet') || s.name.includes('Linen') || s.name.includes('Blanket') ? '🛏️' : '👕'}
                     </div>
-                    <div style={{ fontWeight: '700', color: isSelected ? '#1e40af' : '#334155', fontSize: '0.85rem', lineHeight: '1.2' }}>{s.name}</div>
+                    <div style={{ fontWeight: '700', color: isSelected ? '#1e40af' : '#334155', fontSize: '0.85rem', lineHeight: '1.2' }}>{tName(s.name)}</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>QR {s.price || '0.00'}</div>
                     
                     {isSelected && (
@@ -325,13 +325,13 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
             
             {services?.filter((s: any) => s.category === activeCategory).length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '0.9rem' }}>
-                No services found in {activeCategory} category.
+                {t('No services found in category')}
               </div>
             )}
           </div>
 
           <button type="submit" style={{ padding: '10px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-            Save Package
+            {t('Save Package')}
           </button>
         </form>
       )}
@@ -359,7 +359,7 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
                     onClick={() => toggleView(p.id)}
                     style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4f46e5', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
-                    {viewingId === p.id ? 'Hide' : t('View')}
+                    {viewingId === p.id ? t('Hide') : t('View')}
                   </button>
                   <button 
                     onClick={() => handleEdit(p)}
@@ -382,24 +382,24 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
               <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Package Details</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('Package Details')}</div>
                     <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '1.1rem' }}>{p.name} <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 'normal' }}>({p.code})</span></div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Overall Offer Price</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('Overall Offer Price')}</div>
                     <div style={{ fontWeight: '900', color: '#059669', fontSize: '1.2rem' }}>QR {p.offer_price}</div>
                   </div>
                 </div>
 
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#334155' }}>Included Services:</h4>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#334155' }}>{t('Included Services:')}</h4>
                 <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                     <thead style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
                       <tr>
-                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600' }}>Service</th>
-                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600' }}>Category</th>
-                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600', textAlign: 'center' }}>Quantity</th>
-                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600', textAlign: 'right' }}>Amount</th>
+                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600' }}>{t('Service')}</th>
+                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600' }}>{t('Category')}</th>
+                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600', textAlign: 'center' }}>{t('Quantity')}</th>
+                        <th style={{ padding: '10px 16px', color: '#475569', fontWeight: '600', textAlign: 'right' }}>{t('Amount')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -412,10 +412,10 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
 
                         return (
                           <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '10px 16px', fontWeight: '600', color: '#1e293b' }}>{foundService.name}</td>
+                            <td style={{ padding: '10px 16px', fontWeight: '600', color: '#1e293b' }}>{tName(foundService.name)}</td>
                             <td style={{ padding: '10px 16px', color: '#64748b' }}>
                               {foundService.category ? (
-                                <span style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>{foundService.category}</span>
+                                <span style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>{t(foundService.category)}</span>
                               ) : '-'}
                             </td>
                             <td style={{ padding: '10px 16px', color: '#4f46e5', fontWeight: 'bold', textAlign: 'center' }}>
@@ -439,7 +439,7 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
         ))}
         {packages.length === 0 && !showForm && (
           <div style={{ textAlign: 'center', padding: '40px', background: '#f8fafc', borderRadius: '12px', color: '#64748b' }}>
-            No prepaid packages defined yet.
+            {t('No prepaid packages defined yet.')}
           </div>
         )}
       </div>

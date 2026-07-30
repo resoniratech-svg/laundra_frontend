@@ -3411,25 +3411,25 @@ export const AdminPortal: React.FC = () => {
           {/* Business Summary Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>Today's Revenue</div>
+              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>{t("TODAY'S REVENUE")}</div>
               <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0369a1', marginTop: '4px' }}>QR {todayRevenue.toFixed(2)}</div>
             </div>
 
             <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase' }}>Total Customers</div>
+              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase' }}>{t("TOTAL CUSTOMERS")}</div>
               <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#16a34a', marginTop: '4px' }}>{totalCustomers} / {limits.maxCustomers}</div>
             </div>
           </div>
 
           {/* Quick Actions Panel */}
           <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>⚡ Quick Actions</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>⚡ {t('Quick Actions')}</h4>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button onClick={handleStartAddCustomer} style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Create Customer</button>
-              <button onClick={() => setActiveModule('pos')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Create Manual Order</button>
+              <button onClick={handleStartAddCustomer} style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>{t('Create Customer')}</button>
+              <button onClick={() => setActiveModule('pos')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>{t('Create Manual Order')}</button>
               {db.activeRole !== 'Cashier' && (
                 <>
-                  <button onClick={() => setActiveModule('reports')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>View Reports</button>
+                  <button onClick={() => setActiveModule('reports')} style={{ padding: '8px 16px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>{t('View Reports')}</button>
                 </>
               )}
             </div>
@@ -3481,7 +3481,7 @@ export const AdminPortal: React.FC = () => {
             return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
-                  <h4 style={{ margin: '0 0 12px 0' }}>📜 Recent Operations Log</h4>
+                  <h4 style={{ margin: '0 0 12px 0' }}>📜 {t('Recent Operations Log')}</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
                     {filteredActivities.slice(0, 5).map(act => (
                       <div key={act.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.82rem' }}>
@@ -3494,7 +3494,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
-                  <h4 style={{ margin: '0 0 12px 0' }}>🔔 Recent Notifications</h4>
+                  <h4 style={{ margin: '0 0 12px 0' }}>🔔 {t('Recent Notifications')}</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {filteredNotifications.slice(0, 4).map(n => (
                       <div key={n.id} style={{ padding: '8px', background: '#f0fdf4', borderRadius: '6px', fontSize: '0.82rem' }}>
@@ -3527,7 +3527,7 @@ export const AdminPortal: React.FC = () => {
 
             {showCustomerModal && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '12px', marginBottom: '8px' }}>
-                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Customer Management</h2>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>{t('Customer Management')}</h2>
                 <button onClick={() => setShowCustomerModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>✖</button>
               </div>
             )}
@@ -3537,23 +3537,23 @@ export const AdminPortal: React.FC = () => {
               type="text" 
               value={custSearch} 
               onChange={e => setCustSearch(e.target.value)} 
-              placeholder="🔍 Search name, customer id, or phone number..." 
+              placeholder={t('Search name, customer ID, or phone number...')} 
               style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px' }} 
             />
-            <button onClick={handleStartAddCustomer} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Customer</button>
+            <button onClick={handleStartAddCustomer} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('Create Customer')}</button>
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto', overflowY: 'auto', maxHeight: showCustomerModal ? '65vh' : 'none' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                  <th style={{ padding: '12px' }}>Customer ID</th>
-                  <th style={{ padding: '12px' }}>Customer Name</th>
-                  <th style={{ padding: '12px' }}>Customer Type</th>
-                  <th style={{ padding: '12px' }}>Contact</th>
-                  <th style={{ padding: '12px' }}>QR / Wallet Status</th>
-                  <th style={{ padding: '12px' }}>Wallet Balance</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ padding: '12px' }}>{t('th.customerId')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.customerName')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.customerType')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.contact')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.qrStatus')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.walletBalance')}</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('th.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3589,19 +3589,19 @@ export const AdminPortal: React.FC = () => {
                         <td style={{ padding: '12px' }}>
                           {isActivePkg ? (
                             <span style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              🎁 Active Package ({pkgName || 'Active Package'})
+                              🎁 {t('Active Package')} ({tName(pkgName) || t('Active Package')})
                             </span>
                           ) : isCompleted ? (
                             <span style={{ padding: '4px 10px', background: '#fef3c7', color: '#b45309', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              ⚠️ Package Completed ({pkgName || 'Package'})
+                              ⚠️ Package Completed ({tName(pkgName) || 'Package'})
                             </span>
                           ) : isExpired ? (
                             <span style={{ padding: '4px 10px', background: '#fef2f2', color: '#b91c1c', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #fecaca', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              ⏰ Package Expired ({pkgName || 'Package'})
+                              ⏰ Package Expired ({tName(pkgName) || 'Package'})
                             </span>
                           ) : (
                             <span style={{ padding: '4px 10px', background: '#f1f5f9', color: '#475569', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              👤 Regular Customer
+                              👤 {t('Regular Customer')}
                             </span>
                           )}
                         </td>
@@ -3609,11 +3609,11 @@ export const AdminPortal: React.FC = () => {
                         <td style={{ padding: '12px' }}>
                           {hasPkg ? (
                             <span style={{ padding: '4px 8px', background: isCompleted ? '#fef3c7' : '#dbeafe', color: isCompleted ? '#92400e' : '#1d4ed8', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>
-                              {isCompleted ? '⚪ Pass Completed' : '🍏 Apple Wallet & QR Active'}
+                              {isCompleted ? '⚪ Pass Completed' : `🍏 ${t('Apple Wallet & QR Active')}`}
                             </span>
                           ) : (
                             <span style={{ padding: '4px 8px', background: '#f8fafc', color: '#94a3b8', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '600' }}>
-                              Pay Per Order
+                              {t('Pay Per Order')}
                             </span>
                           )}
                         </td>
@@ -3621,17 +3621,17 @@ export const AdminPortal: React.FC = () => {
                         <td style={{ padding: '12px', textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', gap: '6px' }}>
                             <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>
-                              {(isCompleted || isExpired) ? '🔄 Renew Package' : (hasPkg ? '🎁 Add Package' : '🎁 Purchase Package')}
+                              {(isCompleted || isExpired) ? '🔄 Renew Package' : (hasPkg ? `🎁 ${t('Add Package')}` : `🎁 ${t('Purchase Package')}`)}
                             </button>
-                            <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Wallet</button>
-                            <button onClick={() => handleOpenDeductModal(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>➖ Deduct Usage</button>
-                            <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Loyalty</button>
+                            <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 {t('Wallet')}</button>
+                            <button onClick={() => handleOpenDeductModal(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>➖ {t('Deduct Usage')}</button>
+                            <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ {t('Loyalty')}</button>
                             {hasPkg && (
-                              <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1.5px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }}>📲 WA Pass</button>
+                              <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1.5px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }}>📲 {t('WA Pass')}</button>
                             )}
-                            <button onClick={() => handleShareCustomerPortalLink(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', border: '1.5px solid #7dd3fc', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} title="Share Customer Portal link via WhatsApp">🔗 Share Link</button>
-                            <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
-                            <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
+                            <button onClick={() => handleShareCustomerPortalLink(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', border: '1.5px solid #7dd3fc', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} title="Share Customer Portal link via WhatsApp">🔗 {t('Share Link')}</button>
+                            <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ {t('action.view')}</button>
+                            <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ {t('action.delete')}</button>
                           </div>
                         </td>
                       </tr>
@@ -3648,18 +3648,18 @@ export const AdminPortal: React.FC = () => {
       {activeModule === 'cashiers' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => handleStartAddStaff('cashier')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Cashier</button>
+            <button onClick={() => handleStartAddStaff('cashier')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('Create Cashier')}</button>
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                  <th style={{ padding: '12px' }}>Name</th>
-                  <th style={{ padding: '12px' }}>Email</th>
-                  <th style={{ padding: '12px' }}>Phone</th>
-                  <th style={{ padding: '12px' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ padding: '12px' }}>{t('Name')}</th>
+                  <th style={{ padding: '12px' }}>{t('Email')}</th>
+                  <th style={{ padding: '12px' }}>{t('Phone')}</th>
+                  <th style={{ padding: '12px' }}>{t('Status')}</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3670,14 +3670,14 @@ export const AdminPortal: React.FC = () => {
                     <td style={{ padding: '12px' }}>{u.phone || 'N/A'}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
-                        {u.status || 'Active'}
+                        {t(u.status || 'Active')}
                       </span>
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Toggle Suspend</button>
-                        <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Reset Pass</button>
-                        <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Toggle Suspend')}</button>
+                        <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Reset Pass')}</button>
+                        <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('action.delete')}</button>
                       </div>
                     </td>
                   </tr>
@@ -3695,17 +3695,17 @@ export const AdminPortal: React.FC = () => {
           {/* Active staff list */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h4 style={{ margin: 0 }}>🚚 Active Delivery Agents</h4>
-              <button onClick={() => handleStartAddStaff('delivery')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Add Delivery Staff</button>
+              <h4 style={{ margin: 0 }}>🚚 {t('Active Delivery Agents')}</h4>
+              <button onClick={() => handleStartAddStaff('delivery')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('Add Delivery Staff')}</button>
             </div>
             
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                  <th style={{ padding: '12px' }}>Name</th>
-                  <th style={{ padding: '12px' }}>Email</th>
-                  <th style={{ padding: '12px' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ padding: '12px' }}>{t('Name')}</th>
+                  <th style={{ padding: '12px' }}>{t('Email')}</th>
+                  <th style={{ padding: '12px' }}>{t('Status')}</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3715,14 +3715,14 @@ export const AdminPortal: React.FC = () => {
                     <td style={{ padding: '12px' }}>{u.email}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
-                        {u.status || 'Active'}
+                        {t(u.status || 'Active')}
                       </span>
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Toggle Suspend</button>
-                        <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Reset Pass</button>
-                        <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Toggle Suspend')}</button>
+                        <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Reset Pass')}</button>
+                        <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('action.delete')}</button>
                       </div>
                     </td>
                   </tr>
@@ -3819,7 +3819,7 @@ export const AdminPortal: React.FC = () => {
               <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    📋 Leave Requests
+                    📋 {t('Leave Requests')}
                     {pendingCount > 0 && (
                       <span style={{ background: '#f59e0b', color: 'white', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: '800' }}>
                         {pendingCount}
@@ -3829,14 +3829,14 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {activeLeaveRequests.length === 0 ? (
-                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No active leave requests.</div>
+                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>{t('No active leave requests.')}</div>
                   ) : (
                     activeLeaveRequests.map(lr => {
                       const stUpper = String(lr.status).toUpperCase();
                       return (
                         <div key={lr.id} style={{ padding: '14px', background: stUpper === 'PENDING' ? '#fffbeb' : stUpper === 'APPROVED' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${stUpper === 'PENDING' ? '#fef3c7' : stUpper === 'APPROVED' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                           <div>
-                            <strong>{lr.delivery_boy_name}</strong> {lr.delivery_boy_email && <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.delivery_boy_email})</span>}
+                            <strong>{tName(lr.delivery_boy_name)}</strong> {lr.delivery_boy_email && <span style={{ color: '#64748b', fontSize: '0.78rem' }}>({lr.delivery_boy_email})</span>}
                             <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>📅 {lr.start_date} → {lr.end_date}</div>
                             <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Reason: {lr.reason}</div>
                           </div>
@@ -3848,7 +3848,7 @@ export const AdminPortal: React.FC = () => {
                               </>
                             ) : (
                               <span style={{ fontSize: '0.8rem', fontWeight: '800', color: stUpper === 'APPROVED' ? '#15803d' : '#b91c1c' }}>
-                                {stUpper}
+                                {t(stUpper)}
                               </span>
                             )}
                           </div>
@@ -3868,16 +3868,16 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>💰 Delivery Staff Commission Payments</h4>
+              <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>💰 {t('Delivery Staff Commission Payments')}</h4>
             </div>
             
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
-                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Delivery Staff Name</th>
-                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Completed Tasks (Unpaid)</th>
-                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Total Unpaid Commission (QR)</th>
-                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Action</th>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{t('Delivery Staff Name')}</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>{t('Completed Tasks (Unpaid)')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>{t('Total Unpaid Commission (QR)')}</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>{t('Action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3901,32 +3901,32 @@ export const AdminPortal: React.FC = () => {
                     <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{tName(u.name)}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <div style={{ fontWeight: 'bold' }}>{totalUnpaidTasksCount} tasks</div>
+                        <div style={{ fontWeight: 'bold' }}>{totalUnpaidTasksCount} {t('tasks')}</div>
                         {totalUnpaidTasksCount > 0 && (
                           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {unpaidPickupTasks.map(t => {
-                              const d = new Date(t.date);
-                              const dateStr = isNaN(d.getTime()) ? (t.date ? String(t.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                            {unpaidPickupTasks.map(tkt => {
+                              const d = new Date(tkt.date);
+                              const dateStr = isNaN(d.getTime()) ? (tkt.date ? String(tkt.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
-                                <div key={`pickup-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
+                                <div key={`pickup-${tkt.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                                    <span style={{ fontWeight: '700', color: '#b45309' }}>#{t.id} - Pickup</span>
-                                    <span style={{ fontSize: '0.7rem' }}>{tName(t.customerName)}</span>
+                                    <span style={{ fontWeight: '700', color: '#b45309' }}>#{tkt.id} - {t('Pickup')}</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{tName(tkt.customerName)}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission ?? 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(tkt.pickupCommission ?? 0).toFixed(2)}</span>
                                 </div>
                               );
                             })}
-                            {unpaidDeliveryTasks.map(t => {
-                              const d = new Date(t.date);
-                              const dateStr = isNaN(d.getTime()) ? (t.date ? String(t.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                            {unpaidDeliveryTasks.map(tkt => {
+                              const d = new Date(tkt.date);
+                              const dateStr = isNaN(d.getTime()) ? (tkt.date ? String(tkt.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
-                                <div key={`delivery-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                                <div key={`delivery-${tkt.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                                    <span style={{ fontWeight: '700', color: '#1e40af' }}>#{t.id} - Delivery</span>
-                                    <span style={{ fontSize: '0.7rem' }}>{tName(t.customerName)}</span>
+                                    <span style={{ fontWeight: '700', color: '#1e40af' }}>#{tkt.id} - {t('Deliver')}</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{tName(tkt.customerName)}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission ?? 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(tkt.deliveryCommission ?? 0).toFixed(2)}</span>
                                 </div>
                               );
                             })}
@@ -3983,7 +3983,7 @@ export const AdminPortal: React.FC = () => {
                             cursor: unpaidAmount > 0 ? 'pointer' : 'not-allowed'
                           }}
                         >
-                          Mark as Paid
+                          {t('Mark as Paid')}
                         </button>
                         <button 
                           onClick={() => setHistoryModalStaff(u)}
@@ -3997,7 +3997,7 @@ export const AdminPortal: React.FC = () => {
                             cursor: 'pointer'
                           }}
                         >
-                          History
+                          {t('History')}
                         </button>
                       </td>
                     </tr>
@@ -4136,7 +4136,7 @@ export const AdminPortal: React.FC = () => {
                   .map((service, index) => (
                     <tr key={service.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', color: '#64748b', fontWeight: '700' }}>{index + 1}</td>
-                      <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{t(service.name)}</td>
+                      <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{tName(service.name)}</td>
                       <td style={{ padding: '12px', color: '#475569' }}>{t(service.category)}</td>
                       <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: '700' }}>{service.price}</td>
                       <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb', fontWeight: '700' }}>{service.express_price || '-'}</td>
@@ -4747,7 +4747,7 @@ export const AdminPortal: React.FC = () => {
                       }}
                     >
                       <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{t(itemName)}</div>
+                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{tName(itemName)}</div>
                       
                       <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
                         {hasNormal ? (
@@ -4967,7 +4967,7 @@ export const AdminPortal: React.FC = () => {
                               setPosCustPhone(c.phone || '');
                               setPosCustEmail(c.email || '');
                               setPosCustAddress(c.address || '');
-                              setPosCustomerSearch(`${c.name} (${c.phone || 'No Phone'})`);
+                              setPosCustomerSearch(`${tName(c.name)} (${c.phone || 'No Phone'})`);
                               setShowCustDropdown(false);
                             }}
                             style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#334155', background: posCustId === c.id ? '#eff6ff' : 'transparent' }}
@@ -4986,7 +4986,7 @@ export const AdminPortal: React.FC = () => {
                         return nameMatch || phoneMatch || codeMatch || fallbackMatch;
                       }).length === 0 && (
                         <div style={{ padding: '12px', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
-                          No customers found
+                          {t('No customers found')}
                         </div>
                       )}
                     </div>
@@ -5421,17 +5421,17 @@ export const AdminPortal: React.FC = () => {
       {/* 💳 WALLET & LOYALTY TAB */}
       {activeModule === 'wallet-loyalty' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-          <h3>💳 Wallet & Loyalty Points ledger</h3>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>Click the action buttons below to adjust the wallet or loyalty balances for any customer.</p>
+          <h3>💳 {t('Wallet & Loyalty Points ledger')}</h3>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>{t('Click the action buttons below to adjust the wallet or loyalty balances for any customer.')}</p>
           
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                <th style={{ padding: '10px' }}>Customer</th>
-                <th style={{ padding: '10px' }}>Phone</th>
-                <th style={{ padding: '10px' }}>Current Wallet</th>
-                <th style={{ padding: '10px' }}>Current Loyalty points</th>
-                <th style={{ padding: '10px' }}>Actions</th>
+                <th style={{ padding: '10px' }}>{t('Customer')}</th>
+                <th style={{ padding: '10px' }}>{t('Phone')}</th>
+                <th style={{ padding: '10px' }}>{t('Current Wallet')}</th>
+                <th style={{ padding: '10px' }}>{t('Current Loyalty points')}</th>
+                <th style={{ padding: '10px' }}>{t('Actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -5440,11 +5440,11 @@ export const AdminPortal: React.FC = () => {
                   <td style={{ padding: '10px', fontWeight: '700' }}>{tName(c.name)}</td>
                   <td style={{ padding: '10px', color: '#64748b' }}>{c.phone || 'N/A'}</td>
                   <td style={{ padding: '10px', color: '#16a34a', fontWeight: '700' }}>QR {c.walletBalance.toFixed(2)}</td>
-                  <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
+                  <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} {t('pts')}</td>
                   <td style={{ padding: '10px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Add to Wallet</button>
-                      <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Add Loyalty</button>
+                      <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 {t('Add to Wallet')}</button>
+                      <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ {t('Add Loyalty')}</button>
                     </div>
                   </td>
                 </tr>
@@ -5587,15 +5587,15 @@ export const AdminPortal: React.FC = () => {
       {/* 📢 SYSTEM ANNOUNCEMENTS TAB */}
       {activeModule === 'announcements' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-          <h3 style={{ margin: '0 0 16px 0' }}>📢 System Announcements</h3>
+          <h3 style={{ margin: '0 0 16px 0' }}>📢 {t('System Announcements')}</h3>
           <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '24px' }}>
-            Important platform updates, maintenance schedules, and feature releases from the Super Admin.
+            {t('Important platform updates, maintenance schedules, and feature releases from the Super Admin.')}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {systemAnnouncements.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                No active system announcements at this time.
+                {t('No active system announcements at this time.')}
               </div>
             ) : (
               systemAnnouncements.map(ann => (
@@ -5621,11 +5621,11 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>⭐ Customer Feedback Reviews</h4>
+            <h4 style={{ margin: '0 0 16px 0' }}>⭐ {t('Customer Feedback Reviews')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {reviews.map(rev => (
                 <div key={rev.id} style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #cbd5e1', position: 'relative' }}>
-                  <div style={{ fontWeight: '700' }}>{rev.customer_name || 'Unknown Customer'}</div>
+                  <div style={{ fontWeight: '700' }}>{tName(rev.customer_name) || 'Unknown Customer'}</div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', gap: '12px', marginTop: '4px' }}>
                     <span>📧 {rev.customer_email || 'N/A'}</span>
                     <span>📞 {rev.customer_phone || 'N/A'}</span>
@@ -5636,12 +5636,12 @@ export const AdminPortal: React.FC = () => {
                   
                   {rev.reply && (
                     <div style={{ marginTop: '10px', padding: '10px', background: '#eff6ff', borderRadius: '6px', borderLeft: '3px solid #2563eb', fontSize: '0.82rem' }}>
-                      <strong>Your Reply:</strong> {rev.reply}
+                      <strong>{t('Your Reply:')}</strong> {rev.reply}
                     </div>
                   )}
 
                   {!rev.reply && (
-                    <button onClick={() => { setActiveReviewId(rev.id); setReplyText(''); }} style={{ marginTop: '10px', padding: '4px 8px', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reply</button>
+                    <button onClick={() => { setActiveReviewId(rev.id); setReplyText(''); }} style={{ marginTop: '10px', padding: '4px 8px', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{t('Reply')}</button>
                   )}
                 </div>
               ))}
@@ -5650,10 +5650,10 @@ export const AdminPortal: React.FC = () => {
 
           {activeReviewId && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-              <h4>Reply to Review</h4>
+              <h4>{t('Reply to Review')}</h4>
               <form onSubmit={handleReplyReview} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <input type="text" required value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Type reply comment..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                <button type="submit" style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Post Reply</button>
+                <input type="text" required value={replyText} onChange={e => setReplyText(e.target.value)} placeholder={t('Type reply comment...')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <button type="submit" style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Post Reply')}</button>
               </form>
             </div>
           )}
@@ -5699,35 +5699,35 @@ export const AdminPortal: React.FC = () => {
           
           {/* Create support ticket */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>🎫 Create Help & Support Ticket</h4>
+            <h4 style={{ margin: '0 0 16px 0' }}>🎫 {t('Create Help & Support Ticket')}</h4>
             <form onSubmit={handleCreateSupportTicket} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Subject Topic</label>
-                <input type="text" required value={tktSubject} onChange={e => setTktSubject(e.target.value)} placeholder="e.g. API Access configuration error" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Subject Topic')}</label>
+                <input type="text" required value={tktSubject} onChange={e => setTktSubject(e.target.value)} placeholder={t('e.g. API Access configuration error')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Detailed query message</label>
-                <textarea required value={tktMessage} onChange={e => setTktMessage(e.target.value)} rows={4} placeholder="Type query message for platform administrators..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Detailed query message')}</label>
+                <textarea required value={tktMessage} onChange={e => setTktMessage(e.target.value)} rows={4} placeholder={t('Type query message for platform administrators...')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Submit Support Ticket</button>
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>{t('Submit Support Ticket')}</button>
             </form>
           </div>
 
           {/* Ticket history */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>Ticket history</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>{t('Ticket history')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '350px', overflowY: 'auto' }}>
-              {platformTickets.map(t => (
-                <div key={t.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}>
+              {platformTickets.map(tkt => (
+                <div key={tkt.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <strong>{t.subject}</strong>
-                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: t.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: t.status === 'OPEN' ? '#b45309' : '#15803d' }}>{t.status}</span>
+                    <strong>{tkt.subject}</strong>
+                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: tkt.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: tkt.status === 'OPEN' ? '#b45309' : '#15803d' }}>{t(tkt.status === 'OPEN' ? 'PENDING' : tkt.status)}</span>
                   </div>
-                  <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{t.description}</p>
+                  <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{tkt.description}</p>
                   
-                  {t.internal_notes && (
+                  {tkt.internal_notes && (
                     <div style={{ marginTop: '8px', padding: '8px', background: '#eff6ff', borderRadius: '4px', fontSize: '0.8rem' }}>
-                      <strong>Admin Reply:</strong> {t.internal_notes}
+                      <strong>{t('Your Reply:')}</strong> {tkt.internal_notes}
                     </div>
                   )}
                 </div>
@@ -5844,8 +5844,8 @@ export const AdminPortal: React.FC = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 28px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Customer</h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', opacity: 0.85 }}>Fill in the details below to register a new customer</p>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>{t('Create Customer')}</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', opacity: 0.85 }}>{t('Fill in the details below to register a new customer')}</p>
               <button onClick={() => setAddingCustomerStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
@@ -5853,18 +5853,18 @@ export const AdminPortal: React.FC = () => {
 
               {/* Customer ID - full width */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>Customer ID (Auto Generated)</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>{t('Customer ID (Auto Generated)')}</label>
                 <input type="text" readOnly disabled value={custCode} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', cursor: 'not-allowed', color: '#64748b', fontWeight: '700', fontSize: '0.95rem', boxSizing: 'border-box' }} />
               </div>
 
               {/* Row 1: Full Name + Phone */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Full Name *')}</label>
                   <input type="text" required maxLength={20} value={custName} onChange={e => setCustName(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Phone *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Phone *')}</label>
                   <input type="text" required maxLength={15} value={custPhone} onChange={e => setCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -5872,15 +5872,15 @@ export const AdminPortal: React.FC = () => {
               {/* Row 2: Email + Gender */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>Email Address <span style={{ fontWeight: '400' }}>(Optional)</span></label>
-                  <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder="Can be left blank" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>{t('Email Address (Optional)')}</label>
+                  <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder={t('Can be left blank')} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Gender <span style={{ fontWeight: '400', color: '#64748b' }}>(Optional)</span></label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Gender (Optional)')}</label>
                   <select value={custGender} onChange={e => setCustGender(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white' }}>
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
+                    <option value="">{t('Select Gender')}</option>
+                    <option value="Male">{t('Male')}</option>
+                    <option value="Female">{t('Female')}</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
@@ -5888,12 +5888,12 @@ export const AdminPortal: React.FC = () => {
 
               {/* Row 3: Address - full width */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Address</label>
-                <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Street, Area, City" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Address')}</label>
+                <input type="text" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder={t('Street, Area, City')} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
               </div>
 
               <button type="submit" style={{ padding: '13px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px' }}>
-                Create Customer
+                {t('Create Customer')}
               </button>
             </form>
           </div>
@@ -5908,9 +5908,9 @@ export const AdminPortal: React.FC = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 28px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Cashier</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>{t('Create Cashier')}</h3>
               <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', opacity: 0.85 }}>
-                {addingCashierStep === 1 && 'Step 1 of 3 — Enter cashier details'}
+                {addingCashierStep === 1 && t('Step 1 of 3 — Enter cashier details')}
                 {addingCashierStep === 2 && 'Step 2 of 3 — Verify email with OTP'}
                 {addingCashierStep === 3 && 'Step 3 of 3 — Set account password'}
               </p>
@@ -5928,20 +5928,20 @@ export const AdminPortal: React.FC = () => {
                 {/* Row 1: Full Name + Phone */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Full Name *')}</label>
                     <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Phone</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Phone')}</label>
                     <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                   </div>
                 </div>
                 {/* Email - full width */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Email Address *</label>
-                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="An OTP will be sent to this email" style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Email Address *')}</label>
+                  <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder={t('An OTP will be sent to this email')} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
-                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px', width: '100%' }}>Next: Send OTP →</button>
+                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px', width: '100%' }}>{t('Next: Send OTP →')}</button>
               </form>
             )}
 
@@ -5980,7 +5980,7 @@ export const AdminPortal: React.FC = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>Create Delivery Staff (Step {addingDeliveryStep}/3)</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>{t('Create Delivery Staff (Step 1/3)')}</h3>
               <button onClick={() => setAddingDeliveryStep(0)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
@@ -5990,11 +5990,11 @@ export const AdminPortal: React.FC = () => {
                 {/* Row 1: Full Name + Email */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Full Name *')}</label>
                     <input type="text" required maxLength={20} value={staffName} onChange={e => setStaffName(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Email Address *</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Email Address *')}</label>
                     <input type="email" required value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                 </div>
@@ -6002,20 +6002,20 @@ export const AdminPortal: React.FC = () => {
                 {/* Row 2: Phone + Vehicle Type + Vehicle Number */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Phone</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Phone')}</label>
                     <input type="text" maxLength={15} value={staffPhone} onChange={e => setStaffPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Vehicle Type</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Vehicle Type')}</label>
                     <select value={staffVehicleType} onChange={e => setStaffVehicleType(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }}>
-                      <option value="Bike">Bike</option>
+                      <option value="Bike">{t('Bike')}</option>
                       <option value="Scooter">Scooter</option>
-                      <option value="Car">Car</option>
-                      <option value="Van">Van</option>
+                      <option value="Car">{t('Car')}</option>
+                      <option value="Van">{t('Van')}</option>
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Vehicle Number</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Vehicle Number')}</label>
                     <input type="text" value={staffVehicleNumber} onChange={e => setStaffVehicleNumber(e.target.value)} placeholder="KA-01-AB-1234" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                 </div>
@@ -6023,18 +6023,18 @@ export const AdminPortal: React.FC = () => {
                 {/* Row 3: License Number + Vehicle RC */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>License Number</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('License Number')}</label>
                     <input type="text" value={staffLicenseNumber} onChange={e => setStaffLicenseNumber(e.target.value)} placeholder="DL-0420110012345" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Vehicle RC</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Vehicle RC')}</label>
                     <input type="text" value={staffVehicleRc} onChange={e => setStaffVehicleRc(e.target.value)} placeholder="KA01AB1234RC" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                   </div>
                 </div>
 
                 {/* Row 4: Address (full width) */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Address</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Address')}</label>
                   <input type="text" value={staffAddress} onChange={e => setStaffAddress(e.target.value)} placeholder="456 Delivery Lane" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.9rem' }} />
                 </div>
 
@@ -6165,8 +6165,8 @@ export const AdminPortal: React.FC = () => {
                   const sFinalPrice = s.express ? sPrice * 1.5 : sPrice;
                   return (
                     <div key={idx} style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
-                      <div style={{ flex: 2, fontWeight: '700' }}>{s.name}</div>
-                      <div style={{ flex: 2 }}>{s.express ? 'Express' : 'Normal'}</div>
+                      <div style={{ flex: 2, fontWeight: '700' }}>{tName(s.name)}</div>
+                      <div style={{ flex: 2 }}>{s.express ? t('Express') : t('Normal')}</div>
                       <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{sQty}</div>
                       <div style={{ flex: 1, textAlign: 'right' }}>{sFinalPrice.toFixed(2)}</div>
                       <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{(sFinalPrice * sQty).toFixed(2)}</div>
@@ -7793,41 +7793,41 @@ export const AdminPortal: React.FC = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
             <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>{editingService ? 'Edit Catalog Service' : 'Add Catalog Service'}</h3>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>{editingService ? t('Edit Catalog Service') : t('Add Catalog Service')}</h3>
               <button onClick={() => { setAddingService(false); setEditingService(null); }} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveService} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Service Name</label>
-                <input type="text" required value={sName} onChange={e => setSName(e.target.value)} placeholder="e.g. Wash & Fold Premium" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Service Name')}</label>
+                <input type="text" required value={sName} onChange={e => setSName(e.target.value)} placeholder={t('e.g. Wash & Fold Premium')} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Category</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Category')}</label>
                   <select value={sCategory} onChange={e => setSCategory(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }}>
-                    <option value="Wash & Fold">Wash & Fold</option>
-                    <option value="Dry Cleaning">Dry Cleaning</option>
-                    <option value="Premium Services">Premium Services</option>
-                    <option value="Steam Press">Steam Press</option>
-                    <option value="Express Services">Express Services</option>
-                    <option value="Hotel Laundry">Hotel Laundry</option>
-                    <option value="Commercial Laundry">Commercial Laundry</option>
+                    <option value="Wash & Fold">{t('Wash & Fold')}</option>
+                    <option value="Dry Cleaning">{t('Dry Cleaning')}</option>
+                    <option value="Premium Services">{t('Premium Services')}</option>
+                    <option value="Steam Press">{t('Steam Press')}</option>
+                    <option value="Express Services">{t('Express Services')}</option>
+                    <option value="Hotel Laundry">{t('Hotel Laundry')}</option>
+                    <option value="Commercial Laundry">{t('Commercial Laundry')}</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Price (QR)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Price (QR)')}</label>
                   <input type="number" step="0.01" required value={sPrice} onChange={e => setSPrice(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Express (+%)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Express (+%)')}</label>
                   <input type="number" required value={sExpressSurcharge} onChange={e => setSExpressSurcharge(e.target.value)} placeholder="50" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px' }} />
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => { setAddingService(false); setEditingService(null); }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Save Catalog</button>
+                <button type="button" onClick={() => { setAddingService(false); setEditingService(null); }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: 'transparent', cursor: 'pointer' }}>{t('Cancel')}</button>
+                <button type="submit" style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}>{t('Save Catalog')}</button>
               </div>
             </form>
           </div>
