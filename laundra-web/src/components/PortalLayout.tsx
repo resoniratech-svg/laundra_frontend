@@ -164,14 +164,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       {/* Top Workspace Header */}
       <div className="workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1e3a8a', fontWeight: '800' }}>Operational Desk</h2>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1e3a8a', fontWeight: '800' }}>{t('nav.operationalDesk')}</h2>
           
           {activeModule === 'pos' && (
             <button 
               onClick={() => onModuleChange('dashboard')} 
               style={{ height: '36px', padding: '0 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', boxShadow: '0 2px 4px rgba(59,130,246,0.2)', transition: 'background 0.15s' }}
             >
-              ⬅️ Back to Menu
+              ⬅️ {t('nav.backToMenu')}
             </button>
           )}
           
@@ -225,12 +225,12 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
             {showNotifications && (
               <div className="notification-dropdown active" style={{ top: '42px', right: 0, position: 'absolute', background: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', width: '320px', zIndex: 1000, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
                 <div className="dropdown-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700' }}>Notifications</h3>
-                  <button onClick={clearNotifications} className="text-btn" style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '600' }}>Clear All</button>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700' }}>{t('nav.notifications')}</h3>
+                  <button onClick={clearNotifications} className="text-btn" style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '600' }}>{t('nav.clearAll')}</button>
                 </div>
                 <div className="dropdown-list" style={{ maxHeight: '240px', overflowY: 'auto', padding: '8px 0' }}>
                   {db.notifications.length === 0 ? (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>No new notifications</div>
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>{t('nav.noNotifications')}</div>
                   ) : (
                     db.notifications.map(n => (
                       <div key={n.id} style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', background: n.unread ? '#f0f7ff' : 'transparent' }}>
@@ -254,11 +254,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
         </div>
 
         <div className="cta-row" style={{ margin: 0, display: 'flex', gap: '8px' }}>
-          <button onClick={() => navigate('/customer')} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>Customer Hub</button>
+          <button onClick={() => navigate('/customer')} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>{t('nav.customerHub')}</button>
           {activeComp?.features?.deliveryModule !== false && (
-            <button onClick={() => { saveDB({ activeRole: 'Delivery Staff' }); onModuleChange('orders'); }} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>Delivery Hub</button>
+            <button onClick={() => { saveDB({ activeRole: 'Delivery Staff' }); onModuleChange('orders'); }} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>{t('nav.deliveryHub')}</button>
           )}
-          <button onClick={() => navigate('/')} className="primary-btn" style={{ fontWeight: '700' }}>Home</button>
+          <button onClick={() => navigate('/')} className="primary-btn" style={{ fontWeight: '700' }}>{t('nav.home')}</button>
         </div>
       </div>
 
@@ -271,7 +271,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
               {companyName || activeComp?.name || 'Company Name'}
             </span>
             <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {brandName}
+              {role === 'Admin' ? t('nav.managerDesk') : role === 'Delivery Staff' ? t('nav.deliveryHub') : `${role} Desk`}
             </span>
           </div>
 
@@ -362,7 +362,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
               className="secondary-btn" 
               style={{ width: '100%', justifyContent: 'center', borderColor: '#ef4444', color: '#ef4444', height: '40px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', cursor: 'pointer', borderRadius: '8px' }}
             >
-              🚪 Sign Out
+              🚪 {t('nav.signOut')}
             </button>
           </div>
         </aside>
@@ -384,14 +384,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                   </button>
                 )}
-                {currentTitle}
+                {t(currentTitle)}
               </h2>
               {['pos', 'orders', 'customers'].includes(activeModule) && isFullScreen && (
                 <button 
                   onClick={() => setIsFullScreen(false)} 
                   style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                 >
-                  ⬅️ Show Sidebar Menu
+                  ⬅️ {t('toggle.showSidebar')}
                 </button>
               )}
               {['pos', 'orders', 'customers'].includes(activeModule) && !isFullScreen && (
@@ -399,14 +399,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                   onClick={() => setIsFullScreen(true)} 
                   style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                 >
-                  🖥️ Full Screen Mode
+                  🖥️ {t('toggle.fullScreen')}
                 </button>
               )}
               {/* Target for AdminPortal to inject POS tabs */}
               <div id="pos-header-portal-target" style={{ display: 'flex', alignItems: 'center', marginLeft: '12px' }}></div>
             </div>
             <div className="breadcrumb" style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
-              Operational Desk / {currentTitle}
+              {t('nav.operationalDesk')} / {t(currentTitle)}
             </div>
           </div>
           {children}

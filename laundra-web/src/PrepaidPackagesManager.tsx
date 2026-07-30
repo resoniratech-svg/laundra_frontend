@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-
+import { useLanguage } from './LanguageContext';
 import { getApiBaseUrl } from './config';
 
 const BASE_URL = getApiBaseUrl();
 
 export default function PrepaidPackagesManager({ token, db, services }: { token: string, db: any, services: any[] }) {
+  const { t } = useLanguage();
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -181,12 +182,12 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
   return (
     <div style={{ padding: '20px', width: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Prepaid Subscription Packages</h2>
+        <h2>{t('Prepaid Subscription Packages')}</h2>
         <button 
           onClick={() => setShowForm(!showForm)}
           style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
         >
-          {showForm ? 'Cancel' : '+ Create New Package'}
+          {showForm ? 'Cancel' : `+ ${t('Create New Package')}`}
         </button>
       </div>
 
@@ -345,32 +346,32 @@ export default function PrepaidPackagesManager({ token, db, services }: { token:
                 </h3>
                 <p style={{ margin: '0 0 8px 0', color: '#64748b', fontSize: '0.9rem' }}>{p.description}</p>
                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.85rem', color: '#334155' }}>
-                  <span>📦 {p.total_quantity} Items</span>
-                  <span>⏱ {p.validity_days} Days</span>
+                  <span>📦 {p.total_quantity} {t('Items')}</span>
+                  <span>⏱ {p.validity_days} {t('Days')}</span>
                   <span>🏷 <strike style={{ color: '#94a3b8' }}>QR {p.original_price}</strike> <strong style={{ color: '#059669' }}>QR {p.offer_price}</strong></span>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>Eligible Services</div>
-                <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '12px' }}>{p.eligible_services.length} Selected</div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>{t('Eligible Services')}</div>
+                <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '12px' }}>{p.eligible_services.length} {t('Selected')}</div>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                   <button 
                     onClick={() => toggleView(p.id)}
                     style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4f46e5', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
-                    {viewingId === p.id ? 'Hide' : 'View'}
+                    {viewingId === p.id ? 'Hide' : t('View')}
                   </button>
                   <button 
                     onClick={() => handleEdit(p)}
                     style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
-                    Edit
+                    {t('Edit')}
                   </button>
                   <button 
                     onClick={() => handleDelete(p.id)}
                     style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
-                    Delete
+                    {t('Delete')}
                   </button>
                 </div>
               </div>

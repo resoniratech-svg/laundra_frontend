@@ -4099,7 +4099,7 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0 }}>📋 Active Service Catalog</h4>
+              <h4 style={{ margin: 0 }}>📋 {t('Active Service Catalog')}</h4>
               <button 
                 onClick={() => {
                   setAddingService(true);
@@ -4111,19 +4111,19 @@ export const AdminPortal: React.FC = () => {
                 }}
                 style={{ padding: '6px 14px', fontSize: '0.8rem', fontWeight: '700', borderRadius: '8px', border: 'none', background: '#0284c7', color: 'white', cursor: 'pointer' }}
               >
-                ➕ Add Service Item
+                ➕ {t('Add Service Item')}
               </button>
             </div>
             
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
-                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700', width: '80px' }}>Sl No</th>
-                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Item Name</th>
-                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Category</th>
-                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Normal Price (QR)</th>
-                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Express Price (QR)</th>
-                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700', width: '150px' }}>Actions</th>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700', width: '80px' }}>{t('Sl No')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{t('Item Name')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{t('Category')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>{t('Normal Price (QR)')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>{t('Express Price (QR)')}</th>
+                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700', width: '150px' }}>{t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -4136,8 +4136,8 @@ export const AdminPortal: React.FC = () => {
                   .map((service, index) => (
                     <tr key={service.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', color: '#64748b', fontWeight: '700' }}>{index + 1}</td>
-                      <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{service.name}</td>
-                      <td style={{ padding: '12px', color: '#475569' }}>{service.category}</td>
+                      <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600' }}>{t(service.name)}</td>
+                      <td style={{ padding: '12px', color: '#475569' }}>{t(service.category)}</td>
                       <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: '700' }}>{service.price}</td>
                       <td style={{ padding: '12px', textAlign: 'right', color: '#2563eb', fontWeight: '700' }}>{service.express_price || '-'}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -4151,11 +4151,11 @@ export const AdminPortal: React.FC = () => {
                               setSExpressSurcharge(service.express_price ? service.express_price.toString() : '');
                             }}
                             style={{ padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}
-                          >✏️ Edit</button>
+                          >✏️ {t('Edit')}</button>
                           <button 
                             onClick={() => handleDeleteService(service.id)}
                             style={{ padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
-                          >🗑️ Delete</button>
+                          >🗑️ {t('Delete')}</button>
                         </div>
                       </td>
                     </tr>
@@ -4193,7 +4193,7 @@ export const AdminPortal: React.FC = () => {
                 type="text" 
                 value={orderSearch} 
                 onChange={e => setOrderSearch(e.target.value)} 
-                placeholder="🔍 Search Order ID, Customer, or Number..." 
+                placeholder={t('Search Order ID, Customer, or Number...')} 
                 style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px' }} 
               />
               <select 
@@ -4201,17 +4201,17 @@ export const AdminPortal: React.FC = () => {
                 onChange={e => setOrderFilter(e.target.value)} 
                 style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
               >
-                <option value="All">All statuses</option>
-                <option value="Created">Created</option>
-                <option value="Accepted">Accepted</option>
-                <option value="Received">Received</option>
-                <option value="Ready">Ready</option>
-                <option value="Out For Delivery">Out For Delivery</option>
-                <option value="Delivered">Delivered</option>
+                <option value="All">{t('All statuses')}</option>
+                <option value="Created">{t('Created')}</option>
+                <option value="Accepted">{t('Accepted')}</option>
+                <option value="Received">{t('Received')}</option>
+                <option value="Ready">{t('Ready')}</option>
+                <option value="Out For Delivery">{t('Out For Delivery')}</option>
+                <option value="Delivered">{t('Delivered')}</option>
               </select>
             </div>
             {(db.activeRole === 'Admin' || db.activeRole === 'Cashier') && (
-              <button onClick={() => setActiveModule('pos')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ Create Manual Order</button>
+              <button onClick={() => setActiveModule('pos')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('action.createManualOrder')}</button>
             )}
           </div>
 
@@ -4219,16 +4219,16 @@ export const AdminPortal: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                  <th style={{ padding: '12px' }}>Order ID</th>
-                  <th style={{ padding: '12px' }}>Customer</th>
-                  <th style={{ padding: '12px' }}>Customer Number</th>
-                  <th style={{ padding: '12px' }}>Order Date</th>
-                  <th style={{ padding: '12px' }}>Delivery Date</th>
-                  <th style={{ padding: '12px' }}>Total Amount</th>
-                  <th style={{ padding: '12px' }}>status</th>
-                  <th style={{ padding: '12px' }}>Payment Status</th>
-                  {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>Assigned Courier</th>}
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Modify Status</th>
+                  <th style={{ padding: '12px' }}>{t('th.orderId')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.customer')}</th>
+                  <th style={{ padding: '12px' }}>{t('Customer Number')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.orderDate')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.deliveryDate')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.totalAmount')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.status')}</th>
+                  <th style={{ padding: '12px' }}>{t('th.paymentStatus')}</th>
+                  {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>{t('th.courier')}</th>}
+                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('th.modifyStatus')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -4264,14 +4264,14 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
-                      <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || 'Not Delivered'}</td>
+                      <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || t('Not Delivered')}</td>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#1e3a8a' }}>QR {o.totalAmount.toFixed(2)}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{
                           padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
                           background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Created' ? '#eff6ff' : '#fef3c7',
                           color: o.status === 'Delivered' ? '#15803d' : o.status === 'Created' ? '#2563eb' : '#b45309'
-                        }}>{o.status}</span>
+                        }}>{t(o.status)}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
                         <span 
@@ -4287,13 +4287,13 @@ export const AdminPortal: React.FC = () => {
                           color: o.paymentStatus === 'Paid' ? '#15803d' : '#b91c1c',
                           cursor: o.paymentStatus === 'Paid' ? 'default' : 'pointer',
                           display: 'inline-block'
-                        }}>{o.paymentStatus || 'Unpaid'}</span>
+                        }}>{t(o.paymentStatus || 'Unpaid')}</span>
                       </td>
                       {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>📦 Pickup:</span>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>📦 {t('Pickup')}:</span>
                               <select
                                 value={o.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? o.courier : '') || ''}
                                 onChange={e => handleAssignPickupCourier(o.id, e.target.value)}
@@ -4308,9 +4308,9 @@ export const AdminPortal: React.FC = () => {
                                   width: '120px' 
                                 }}
                               >
-                                <option value="">-- Unassigned --</option>
-                                <option value="Store">Store</option>
-                                <option value="All Delivery Staff">All Delivery Staff</option>
+                                <option value="">{t('-- Unassigned --')}</option>
+                                <option value="Store">{t('Store')}</option>
+                                <option value="All Delivery Staff">{t('All Delivery Staff')}</option>
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
@@ -4321,7 +4321,7 @@ export const AdminPortal: React.FC = () => {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>🚚 Delivery:</span>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#64748b' }}>🚚 {t('Deliver')}:</span>
                               <select
                                 value={o.deliveryCourier || ((o.status || '').toLowerCase() === 'delivered' ? o.courier : '') || ''}
                                 onChange={e => handleAssignDeliveryCourier(o.id, e.target.value)}
@@ -4336,9 +4336,9 @@ export const AdminPortal: React.FC = () => {
                                   width: '120px' 
                                 }}
                               >
-                                <option value="">-- Unassigned --</option>
-                                <option value="Store">Store</option>
-                                <option value="All Delivery Staff">All Delivery Staff</option>
+                                <option value="">{t('-- Unassigned --')}</option>
+                                <option value="Store">{t('Store')}</option>
+                                <option value="All Delivery Staff">{t('All Delivery Staff')}</option>
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
@@ -4408,7 +4408,7 @@ export const AdminPortal: React.FC = () => {
                             style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
                           >
                             {['Created', 'Accepted', 'Received', 'Ready', 'Out For Delivery', 'Delivered'].map(s => (
-                              <option key={s} value={s}>{s}</option>
+                              <option key={s} value={s}>{t(s)}</option>
                             ))}
                           </select>
                           <button onClick={() => {
@@ -4423,7 +4423,7 @@ export const AdminPortal: React.FC = () => {
                               initialInputs[key] = pending;
                             });
                             setPickupInputs(initialInputs);
-                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📦 Pickup</button>
+                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📦 {t('Pickup')}</button>
 
                           <button onClick={() => {
                             const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
@@ -4445,9 +4445,9 @@ export const AdminPortal: React.FC = () => {
                               if (it.name) initialInputs[it.name] = delPending;
                             });
                             setDeliveryInputs(initialInputs);
-                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🚚 Deliver</button>
-                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ View</button>
-                          <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 Invoice</button>
+                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🚚 {t('Deliver')}</button>
+                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
+                          <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
                               try {
@@ -4652,7 +4652,7 @@ export const AdminPortal: React.FC = () => {
             {document.getElementById('pos-header-portal-target') && createPortal(
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <h4 style={{ margin: '0 12px 0 0', borderLeft: '2px solid #cbd5e1', paddingLeft: '16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
-                  <span>🧺</span> Service Catalog
+                  <span>🧺</span> {t('Service Catalog')}
                 </h4>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
                   {(() => {
@@ -4661,13 +4661,13 @@ export const AdminPortal: React.FC = () => {
                     const allCategories = Array.from(new Set([...defaultCats, ...customCats]));
 
                     const getCatLabel = (cat: string) => {
-                      if (cat === 'All') return '🧺 All';
-                      if (cat === 'Pressing') return '💨 Pressing';
-                      if (cat === 'Wash & Press') return '🧺 Wash & Clean';
-                      if (cat === 'Dry Cleaning') return '✨ Dry Cleaning';
-                      if (cat === 'Premium Services') return '👑 Premium Services';
-                      if (cat === 'Wash & Fold') return '👕 Wash & Fold';
-                      return `🏷️ ${cat}`;
+                      if (cat === 'All') return `🧺 ${t('All')}`;
+                      if (cat === 'Pressing') return `💨 ${t('Pressing')}`;
+                      if (cat === 'Wash & Press') return `🧺 ${t('Wash & Clean')}`;
+                      if (cat === 'Dry Cleaning') return `✨ ${t('Dry Cleaning')}`;
+                      if (cat === 'Premium Services') return `👑 ${t('Premium Services')}`;
+                      if (cat === 'Wash & Fold') return `👕 ${t('Wash & Fold')}`;
+                      return `🏷️ ${t(cat)}`;
                     };
 
                     return allCategories.map(cat => {
@@ -4709,7 +4709,7 @@ export const AdminPortal: React.FC = () => {
                 type="text" 
                 value={posSearch} 
                 onChange={e => setPosSearch(e.target.value)} 
-                placeholder="🔍 Search item (e.g. Shirt)..." 
+                placeholder={t('Search item (e.g. Shirt)...')} 
                 style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
               />
             </div>
@@ -4747,7 +4747,7 @@ export const AdminPortal: React.FC = () => {
                       }}
                     >
                       <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{itemName}</div>
+                      <div style={{ fontWeight: '800', fontSize: '0.75rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>{t(itemName)}</div>
                       
                       <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
                         {hasNormal ? (
@@ -4784,7 +4784,7 @@ export const AdminPortal: React.FC = () => {
                               cursor: 'pointer'
                             }}
                           >
-                            Normal<br/>QR {parseFloat(service.price).toFixed(1)}
+                            {t('Normal')}<br/>QR {parseFloat(service.price).toFixed(1)}
                           </button>
                         ) : (
                           <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
@@ -4824,7 +4824,7 @@ export const AdminPortal: React.FC = () => {
                               cursor: 'pointer'
                             }}
                           >
-                            Express<br/>QR {parseFloat(service.express_price).toFixed(1)}
+                            {t('Express')}<br/>QR {parseFloat(service.express_price).toFixed(1)}
                           </button>
                         ) : (
                           <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
@@ -4836,27 +4836,27 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px', paddingTop: '20px', paddingBottom: '8px', borderTop: '1px solid #e2e8f0', justifyContent: 'center' }}>
-              <button type="button" onClick={() => setShowCustomerModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>👥 Customer Management</button>
-              <button type="button" onClick={() => setShowOrderModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📦 Order Management</button>
-              <button type="button" onClick={() => setShowReportModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📊 Business Reports</button>
+              <button type="button" onClick={() => setShowCustomerModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>👥 {t('Customer Management')}</button>
+              <button type="button" onClick={() => setShowOrderModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📦 {t('Order Management')}</button>
+              <button type="button" onClick={() => setShowReportModal(true)} style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background 0.2s' }}>📊 {t('Business Reports')}</button>
             </div>
           </div>
 
           {/* POS Cart details & client info */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>🛒 Checkout Cart Details</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>🛒 {t('Checkout Cart Details')}</h4>
             
             {/* Cart listing */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', maxHeight: '200px', overflowY: 'auto' }}>
               {posCart.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>Cart is empty</div>
+                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>{t('Cart is empty')}</div>
               ) : (
                 posCart.map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px' }}>
                     <div>
-                      <strong style={{ fontSize: '0.85rem' }}>{item.itemName}</strong>
+                      <strong style={{ fontSize: '0.85rem' }}>{t(item.itemName)}</strong>
                       <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                        {item.serviceTypeName} ({item.variantName})
+                        {t(item.serviceTypeName)} ({t(item.variantName)})
                         <br/>
                         Qty: {item.qty} — <strong>QR {(item.price * item.qty).toFixed(2)}</strong>
                       </div>
@@ -4871,7 +4871,7 @@ export const AdminPortal: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', position: 'relative' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700' }}>Select Customer</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700' }}>{t('Select Customer')}</label>
                   <button 
                     type="button" 
                     onClick={() => {
@@ -4887,7 +4887,7 @@ export const AdminPortal: React.FC = () => {
                     }}
                     style={{ fontSize: '0.75rem', fontWeight: '700', color: '#2563eb', background: '#eff6ff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
                   >
-                    + New Customer
+                    {t('+ New Customer')}
                   </button>
                 </div>
                 
@@ -4895,7 +4895,7 @@ export const AdminPortal: React.FC = () => {
                 <div ref={custDropdownRef} style={{ display: 'flex', gap: '6px', position: 'relative' }}>
                   <input 
                     type="text" 
-                    placeholder="🔍 Search name, ID or phone number..." 
+                    placeholder={t('🔍 Search name, ID or phone number...')} 
                     value={posCustomerSearch}
                     autoComplete="off"
                     autoCorrect="off"
@@ -4944,7 +4944,7 @@ export const AdminPortal: React.FC = () => {
                         }}
                         style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#1e293b', fontWeight: '700', background: posCustId === '' ? '#f0f9ff' : 'transparent' }}
                       >
-                        — Guest Checkout —
+                        {t('— Guest Checkout —')}
                       </div>
 
                       {/* Filtered list */}
@@ -4999,19 +4999,19 @@ export const AdminPortal: React.FC = () => {
                 showGuestFields && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Customer Name</label>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Customer Name')}</label>
                     <input type="text" maxLength={20} value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Phone Number</label>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Phone Number')}</label>
                     <input type="text" value={posCustPhone} maxLength={15} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Email Address</label>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Email Address')}</label>
                     <input type="email" value={posCustEmail} onChange={e => setPosCustEmail(e.target.value)} placeholder="Enter guest email..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Guest Physical Address</label>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Physical Address')}</label>
                     <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Enter guest address..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                   </div>
                   </div>
@@ -5020,16 +5020,16 @@ export const AdminPortal: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Name (Read-only)</label>
-                      <input type="text" value={posCustName} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Name (Read-only)')}</label>
+                      <input type="text" value={tName(posCustName)} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Email (Read-only)</label>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Email (Read-only)')}</label>
                       <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Wallet Balance</label>
+                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Wallet Balance')}</label>
                         {db.customers.find(c => c.id === posCustId) && (
                           <button 
                             type="button" 
@@ -5037,7 +5037,7 @@ export const AdminPortal: React.FC = () => {
                             style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
                             title="Add Wallet Balance"
                           >
-                            ➕ Add
+                            {t('➕ Add')}
                           </button>
                         )}
                       </div>
@@ -5045,7 +5045,7 @@ export const AdminPortal: React.FC = () => {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>Loyalty Points</label>
+                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Loyalty Points')}</label>
                         {db.customers.find(c => c.id === posCustId) && (
                           <button 
                             type="button" 
@@ -5053,7 +5053,7 @@ export const AdminPortal: React.FC = () => {
                             style={{ background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
                             title="Add Loyalty Points"
                           >
-                            ➕ Add
+                            {t('➕ Add')}
                           </button>
                         )}
                       </div>
@@ -5062,13 +5062,13 @@ export const AdminPortal: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>Update Phone Number</label>
-                      <input type="text" maxLength={15} value={posCustPhone} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Update phone..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Phone Number')}</label>
+                      <input type="text" maxLength={15} value={posCustPhone} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder={t('Update phone...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
                     </div>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>Update Address</label>
-                    <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Update address..." style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Address')}</label>
+                    <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder={t('Update address...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
                   </div>
                 </div>
               )}
@@ -5079,7 +5079,7 @@ export const AdminPortal: React.FC = () => {
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <input 
                   type="text" 
-                  placeholder="Enter Coupon Code" 
+                  placeholder={t('Enter Coupon Code')} 
                   value={posCouponCode} 
                   onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
                   style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
@@ -5088,7 +5088,7 @@ export const AdminPortal: React.FC = () => {
                   onClick={handleApplyCoupon} 
                   style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
                 >
-                  Apply
+                  {t('Apply')}
                 </button>
               </div>
               {posCouponApplied && (
@@ -5105,7 +5105,7 @@ export const AdminPortal: React.FC = () => {
                 
                 {/* Subtotal */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Cart Subtotal:</span>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Cart Subtotal:')}</span>
                   <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
                     QR {posCart.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}
                   </span>
@@ -5130,7 +5130,7 @@ export const AdminPortal: React.FC = () => {
 
                 {/* Manual Discount field */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Manual Discount (QR):</span>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Manual Discount (QR):')}</span>
                   <input 
                     type="number" 
                     step="0.01" 
@@ -5146,7 +5146,7 @@ export const AdminPortal: React.FC = () => {
 
                 {/* Final POS Total Amount */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>POS Total Amount:</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>{t('POS Total Amount:')}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#2563eb' }}>QR</span>
                     <input 
@@ -5164,7 +5164,7 @@ export const AdminPortal: React.FC = () => {
 
               {posPayMethod === 'Wallet' && posCustId && (
                 <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '6px', color: '#334155', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                  <span style={{ fontWeight: '600' }}>Available Wallet Balance:</span>
+                  <span style={{ fontWeight: '600' }}>{t('Available Wallet Balance:')}</span>
                   <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0ea5e9' }}>QR {db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}</span>
                 </div>
               )}
@@ -5176,10 +5176,10 @@ export const AdminPortal: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet'].includes(posPayMethod) ? '1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
                 <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="Cash">Cash payment</option>
-                  <option value="Card">Card payment</option>
-                  <option value="Wallet">Wallet payment</option>
-                  <option value="Pay Later">Pay Later</option>
+                  <option value="Cash">{t('Cash payment')}</option>
+                  <option value="Card">{t('Card payment')}</option>
+                  <option value="Wallet">{t('Wallet payment')}</option>
+                  <option value="Pay Later">{t('Pay Later')}</option>
                 </select>
                 
                 {['Card', 'Wallet'].includes(posPayMethod) && (
@@ -5318,7 +5318,7 @@ export const AdminPortal: React.FC = () => {
                     opacity: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 0.6 : 1
                   }}
                 >
-                  Checkout
+                  {t('Checkout')}
                 </button>
               </div>
                 </>
@@ -5345,7 +5345,7 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
           
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>🎁 Active Promos & Discount Codes</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>🎁 {t('Active Promos & Discount Codes')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {db.promos.map(p => (
                 <div key={p.code} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -5354,7 +5354,7 @@ export const AdminPortal: React.FC = () => {
                       <strong style={{ fontSize: '1.05rem', color: '#1e293b' }}>{p.name || 'Unnamed Offer'}</strong>
                       <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{p.code}</span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>Value: {p.value}{p.type === 'Percentage' ? '%' : ' QR'} Off • Uses: {p.uses} times</div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>{t('Value:')} {p.value}{p.type === 'Percentage' ? '%' : ' QR'} {t('Off')} • {t('Uses:')} {p.uses} {t('times')}</div>
                     {p.description && <div style={{ fontSize: '0.75rem', color: '#0ea5e9', marginTop: '2px', fontWeight: '500' }}>🗓️ {p.description}</div>}
                     {(p as any).required_services && (p as any).required_services.length > 0 && (
                       <div style={{ marginTop: '6px', padding: '6px', background: '#e2e8f0', borderRadius: '4px', fontSize: '0.75rem' }}>
@@ -5374,31 +5374,31 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>➕ Create Discount Coupon</h4>
+            <h4 style={{ margin: '0 0 16px 0' }}>➕ {t('Create Discount Coupon')}</h4>
 
             <form onSubmit={handleSaveCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Name</label>
-                <input type="text" required value={cpName} onChange={e => setCpName(e.target.value)} placeholder="e.g. Summer Special" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Offer Name')}</label>
+                <input type="text" required value={cpName} onChange={e => setCpName(e.target.value)} placeholder={t('e.g. Summer Special')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Offer Code (Generates Code)</label>
-                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="e.g. SUMMERSPECIAL" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Offer Code (Generates Code)')}</label>
+                <input type="text" required value={cpCode} onChange={e => setCpCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder={t('e.g. SUMMERSPECIAL')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div style={{ marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Discount Value (Amount in QR)</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Discount Value (Amount in QR)')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: '700', color: '#64748b', fontSize: '1.2rem' }}>QR</span>
-                  <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} placeholder="e.g. 15" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <input type="number" required value={cpValue} onChange={e => setCpValue(e.target.value)} placeholder={t('e.g. 15')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Start Date</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Start Date')}</label>
                   <input type="date" required value={cpStartDate} onChange={e => setCpStartDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>End Date</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('End Date')}</label>
                   <input type="date" required value={cpEndDate} onChange={e => setCpEndDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
@@ -5411,7 +5411,7 @@ export const AdminPortal: React.FC = () => {
                   </span>
                 </div>
               )}
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Save Package Coupon</button>
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>{t('Save Package Coupon')}</button>
             </form>
           </div>
 
@@ -5443,7 +5443,6 @@ export const AdminPortal: React.FC = () => {
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
                   <td style={{ padding: '10px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setViewingWalletHistoryCust(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
                       <button onClick={() => { setWalletCust(c); setWalletDir('in'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 Add to Wallet</button>
                       <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ Add Loyalty</button>
                     </div>
@@ -5460,7 +5459,7 @@ export const AdminPortal: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
           
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>💸 Expenses Log</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>💸 {t('Expenses Log')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {backendExpenses.map((ex, i) => (
                 <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -5477,7 +5476,7 @@ export const AdminPortal: React.FC = () => {
                       setExpSource(ex.source || '');
                       setExpAmount(ex.amount?.toString() || '');
                       setExpDate(ex.date || '');
-                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold' }}>Edit</button>
+                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold' }}>{t('Edit')}</button>
                     <button onClick={async () => {
                       if (confirm('Are you sure you want to delete this expense?')) {
                         try {
@@ -5493,7 +5492,7 @@ export const AdminPortal: React.FC = () => {
                           console.error('Error deleting expense:', err);
                         }
                       }
-                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>Delete</button>
+                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>{t('Delete')}</button>
                   </div>
                 </div>
               ))}
@@ -5501,25 +5500,25 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>{editingExpense ? '✏️ Edit Expense' : '➕ Add Expense'}</h4>
+            <h4 style={{ margin: '0 0 12px 0' }}>{editingExpense ? `✏️ ${t('Edit')}` : `➕ ${t('Add Expense')}`}</h4>
             <form onSubmit={handleSaveExpense} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Date</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Date')}</label>
                   <input type="date" required value={expDate} onChange={e => setExpDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Category</label>
-                  <input type="text" required value={expCategory} onChange={e => setExpCategory(e.target.value)} placeholder="Enter category" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Category')}</label>
+                  <input type="text" required value={expCategory} onChange={e => setExpCategory(e.target.value)} placeholder={t('Enter category')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Description</label>
-                <input type="text" required value={expDesc} onChange={e => setExpDesc(e.target.value)} placeholder="e.g. Packaging boxes purchase" style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Description')}</label>
+                <input type="text" required value={expDesc} onChange={e => setExpDesc(e.target.value)} placeholder={t('e.g. Packaging boxes purchase')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Source</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Source')}</label>
                   <select required value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
                     <option value="" disabled>Select</option>
                     <option value="Cash">Cash</option>
@@ -5528,11 +5527,11 @@ export const AdminPortal: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>Amount (QR)</label>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Amount (QR)')}</label>
                   <input type="number" required value={expAmount} onChange={e => setExpAmount(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>Save Expense</button>
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>{t('Save Expense')}</button>
             </form>
           </div>
 
@@ -5556,26 +5555,26 @@ export const AdminPortal: React.FC = () => {
 
             {showReportModal && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '12px', marginBottom: '8px' }}>
-                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Business Reports</h2>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>{t('Business Reports Engine')}</h2>
                 <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>✖</button>
               </div>
             )}
           
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>📈 Sales & Performance Reports Console</h4>
+            <h4 style={{ margin: '0 0 16px 0' }}>📈 {t('Sales & Performance Reports Console')}</h4>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem' }}>
               <div style={{ padding: '14px', background: '#eff6ff', borderRadius: '8px' }}>
-                <strong>Today's Sales Count:</strong> {db.orders.length} bookings
+                <strong>{t("Today's Sales Count:")}</strong> {db.orders.length} {t('bookings')}
               </div>
               <div style={{ padding: '14px', background: '#ecfdf5', borderRadius: '8px' }}>
-                <strong>Monthly Sales Value:</strong> QR {todayRevenue.toFixed(2)}
+                <strong>{t('Monthly Sales Value:')}</strong> QR {todayRevenue.toFixed(2)}
               </div>
               <div style={{ padding: '14px', background: '#fffbeb', borderRadius: '8px' }}>
-                <strong>Total Catalog Items:</strong> {db.services.length} services
+                <strong>{t('Total Catalog Items:')}</strong> {db.services.length} {t('services')}
               </div>
               <div style={{ padding: '14px', background: '#fdf2f8', borderRadius: '8px' }}>
-                <strong>Total Company Registered Customers:</strong> {totalCustomers}
+                <strong>{t('Total Company Registered Customers:')}</strong> {totalCustomers}
               </div>
             </div>
           </div>
@@ -5667,14 +5666,14 @@ export const AdminPortal: React.FC = () => {
       {/* 📜 AUDIT ACTIVITY LOGS TAB */}
       {activeModule === 'audit-logs' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-          <h3>📜 Company Audit logs</h3>
+          <h3>📜 {t('Company Audit logs')}</h3>
           
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '16px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                <th style={{ padding: '10px' }}>Time</th>
-                <th style={{ padding: '10px' }}>Type</th>
-                <th style={{ padding: '10px' }}>Activity Event</th>
+                <th style={{ padding: '10px' }}>{t('Time')}</th>
+                <th style={{ padding: '10px' }}>{t('Type')}</th>
+                <th style={{ padding: '10px' }}>{t('Activity Event')}</th>
               </tr>
             </thead>
             <tbody>
@@ -5742,38 +5741,38 @@ export const AdminPortal: React.FC = () => {
       {/* 🎧 CUSTOMER SUPPORT TAB */}
       {activeModule === 'customer-support' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-          <h4 style={{ margin: '0 0 16px 0' }}>🎧 Customer/Delivery Support Desk</h4>
+          <h4 style={{ margin: '0 0 16px 0' }}>🎧 {t('Customer/Delivery Support Desk')}</h4>
           {adminCustomerTickets.length === 0 ? (
             <div style={{ color: '#64748b', fontSize: '0.9rem' }}>No customer tickets found.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {adminCustomerTickets.map(t => (
-                <div key={t.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: t.status === 'OPEN' ? '#fdf8f6' : '#f8fafc' }}>
+              {adminCustomerTickets.map(tkt => (
+                <div key={tkt.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: tkt.status === 'OPEN' ? '#fdf8f6' : '#f8fafc' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <h5 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e293b' }}>{t.subject}</h5>
+                      <h5 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e293b' }}>{tkt.subject}</h5>
                       <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '8px' }}>
-                        From: <strong>{t.sender_name}</strong> ({t.sender_email}) - <span style={{color: '#2563eb', fontWeight: 'bold'}}>[{t.sender_type}]</span> on {new Date(t.created_at).toLocaleDateString()}
+                        {t('From:')} <strong>{tName(tkt.sender_name)}</strong> ({tkt.sender_email}) - <span style={{color: '#2563eb', fontWeight: 'bold'}}>[{tkt.sender_type}]</span> on {new Date(tkt.created_at).toLocaleDateString()}
                         <button
-                          onClick={() => setViewingSenderDetails(t)}
+                          onClick={() => setViewingSenderDetails(tkt)}
                           style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', padding: 0, marginLeft: '8px' }}
                         >
-                          View Details
+                          {t('View Details')}
                         </button>
                       </div>
                     </div>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', background: t.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: t.status === 'OPEN' ? '#b45309' : '#15803d', fontWeight: 'bold' }}>
-                      {t.status}
+                    <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', background: tkt.status === 'OPEN' ? '#fffbeb' : '#dcfce7', color: tkt.status === 'OPEN' ? '#b45309' : '#15803d', fontWeight: 'bold' }}>
+                      {t(tkt.status === 'OPEN' ? 'PENDING' : tkt.status)}
                     </span>
                   </div>
                   <p style={{ margin: '8px 0 16px 0', color: '#334155', fontSize: '0.9rem', background: 'white', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    {t.description}
+                    {tkt.description}
                   </p>
 
-                  {t.admin_response ? (
+                  {tkt.admin_response ? (
                     <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '6px', fontSize: '0.85rem' }}>
-                      <strong style={{ color: '#1d4ed8' }}>Your Reply:</strong>
-                      <p style={{ margin: '4px 0 0 0', color: '#1e3a8a' }}>{t.admin_response}</p>
+                      <strong style={{ color: '#1d4ed8' }}>{t('Your Reply:')}</strong>
+                      <p style={{ margin: '4px 0 0 0', color: '#1e3a8a' }}>{tkt.admin_response}</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
