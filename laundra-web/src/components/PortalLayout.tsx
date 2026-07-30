@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase } from '../DatabaseContext';
+import { useLanguage } from '../LanguageContext';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { getApiBaseUrl } from '../config';
 
 interface PortalLayoutProps {
@@ -12,12 +14,13 @@ interface PortalLayoutProps {
 export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModule, onModuleChange }) => {
   const navigate = useNavigate();
   const { db, saveDB } = useDatabase();
+  const { t } = useLanguage();
   const [showNotifications, setShowNotifications] = useState(false);
   const [companyName, setCompanyName] = useState<string>('');
-  const [isFullScreen, setIsFullScreen] = useState(activeModule === 'pos');
+  const [isFullScreen, setIsFullScreen] = useState(['pos', 'orders', 'customers'].includes(activeModule));
 
   React.useEffect(() => {
-    setIsFullScreen(activeModule === 'pos');
+    setIsFullScreen(['pos', 'orders', 'customers'].includes(activeModule));
   }, [activeModule]);
 
   React.useEffect(() => {
@@ -134,25 +137,25 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
 
   // Sidebar tabs list matching exactly the required workflow
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-    { id: 'pos', label: 'POS / New Order', icon: '🛒' },
-    { id: 'orders', label: 'Order Management', icon: '📦' },
-    { id: 'order-history', label: 'Order History', icon: '📜' },
-    { id: 'customers', label: 'Customer Management', icon: '👥' },
-    { id: 'cashiers', label: 'Cashier Management', icon: '🧑‍💼' },
-    { id: 'delivery-staff', label: 'Delivery Staff', icon: '🚚' },
-    { id: 'delivery-payment', label: 'Delivery Payments', icon: '💰' },
-    { id: 'services', label: 'Service Management', icon: '🏷️' },
-    { id: 'coupons', label: 'Coupons Manager', icon: '🎁' },
-    { id: 'prepaid-packages', label: 'Packages Manager', icon: '📦' },
-    { id: 'wallet-loyalty', label: 'Wallet & Loyalty', icon: '💳' },
-    { id: 'expenses', label: 'Expenses Book', icon: '💸' },
-    { id: 'reports', label: 'Business Reports', icon: '📊' },
-    { id: 'announcements', label: 'Announcements', icon: '📢' },
-    { id: 'reviews', label: 'Customer Reviews', icon: '⭐' },
-    { id: 'customer-support', label: 'Customer/Delivery Support', icon: '🎧' },
-    { id: 'audit-logs', label: 'Audit Activity Logs', icon: '📜' },
-    { id: 'support', label: 'Help & Support', icon: '🎫' }
+    { id: 'dashboard', label: t('menu.dashboard', 'Dashboard'), icon: '🏠' },
+    { id: 'pos', label: t('menu.pos', 'POS / New Order'), icon: '🛒' },
+    { id: 'orders', label: t('menu.orders', 'Order Management'), icon: '📦' },
+    { id: 'order-history', label: t('menu.orderHistory', 'Order History'), icon: '📜' },
+    { id: 'customers', label: t('menu.customers', 'Customer Management'), icon: '👥' },
+    { id: 'cashiers', label: t('menu.cashiers', 'Cashier Management'), icon: '🧑‍💼' },
+    { id: 'delivery-staff', label: t('menu.deliveryStaff', 'Delivery Staff'), icon: '🚚' },
+    { id: 'delivery-payment', label: t('menu.deliveryPayments', 'Delivery Payments'), icon: '💰' },
+    { id: 'services', label: t('menu.services', 'Service Management'), icon: '🏷️' },
+    { id: 'coupons', label: t('menu.coupons', 'Coupons Manager'), icon: '🎁' },
+    { id: 'prepaid-packages', label: t('menu.packages', 'Packages Manager'), icon: '📦' },
+    { id: 'wallet-loyalty', label: t('menu.walletLoyalty', 'Wallet & Loyalty'), icon: '💳' },
+    { id: 'expenses', label: t('menu.expenses', 'Expenses Book'), icon: '💸' },
+    { id: 'reports', label: t('menu.reports', 'Business Reports'), icon: '📊' },
+    { id: 'announcements', label: t('menu.announcements', 'Announcements'), icon: '📢' },
+    { id: 'reviews', label: t('menu.reviews', 'Customer Reviews'), icon: '⭐' },
+    { id: 'customer-support', label: t('menu.customerSupport', 'Customer/Delivery Support'), icon: '🎧' },
+    { id: 'audit-logs', label: t('menu.auditLogs', 'Audit Activity Logs'), icon: '📜' },
+    { id: 'support', label: t('menu.support', 'Help & Support'), icon: '🎫' }
   ];
 
   return (
@@ -240,6 +243,9 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
               </div>
             )}
           </div>
+
+          {/* Language Switcher */}
+          <LanguageSwitcher />
 
           {/* Theme Toggle */}
           <button onClick={toggleTheme} className="icon-btn" title="Toggle Theme" style={{ background: '#f1f5f9', border: '1px solid var(--border-color)' }}>
@@ -380,7 +386,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                 )}
                 {currentTitle}
               </h2>
-              {activeModule === 'pos' && isFullScreen && (
+              {['pos', 'orders', 'customers'].includes(activeModule) && isFullScreen && (
                 <button 
                   onClick={() => setIsFullScreen(false)} 
                   style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
@@ -388,12 +394,12 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
                   ⬅️ Show Sidebar Menu
                 </button>
               )}
-              {activeModule === 'pos' && !isFullScreen && (
+              {['pos', 'orders', 'customers'].includes(activeModule) && !isFullScreen && (
                 <button 
                   onClick={() => setIsFullScreen(true)} 
                   style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                 >
-                  🖥️ Full Screen POS
+                  🖥️ Full Screen Mode
                 </button>
               )}
               {/* Target for AdminPortal to inject POS tabs */}

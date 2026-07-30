@@ -50,9 +50,11 @@ const getEmojiForService = (name: string) => {
 };
 
 import { getApiBaseUrl } from './config';
+import { useLanguage } from './LanguageContext';
 
 export const AdminPortal: React.FC = () => {
   const { db, saveDB, token } = useDatabase();
+  const { t, tName } = useLanguage();
   const navigate = useNavigate();
   const BASE_URL = getApiBaseUrl();
 
@@ -3106,6 +3108,23 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
+  const handleShareCustomerPortalLink = (c: Customer) => {
+    const rawPhone = (c.phone || '').trim();
+    if (!rawPhone) {
+      alert(`No phone number available for customer "${c.name}".`);
+      return;
+    }
+    
+    // Use the exact phone number entered by the user without adding any extra digits/prefixes
+    const formattedPhone = rawPhone.replace(/[^0-9+]/g, '');
+
+    const portalUrl = `${window.location.origin}/customer?login=${encodeURIComponent(c.id)}`;
+    const message = `Hi ${c.name} 👋!\n\nHere is your direct access link to your Laundry Customer Portal:\n🔗 ${portalUrl}\n\nYou can view your active bookings, wallet balance, laundry rates, and order history anytime!`;
+
+    const waUrl = `https://api.whatsapp.com/send?phone=${encodeURIComponent(formattedPhone)}&text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+  };
+
   const handleDisableQR = (cust: Customer) => {
     const updated = db.customers.map(c => c.id === cust.id ? { ...c, qrDisabled: true, qrStatus: 'Disabled' as const } : c);
     saveDB({ customers: updated });
@@ -3566,7 +3585,7 @@ export const AdminPortal: React.FC = () => {
                     return (
                       <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                         <td style={{ padding: '12px', fontWeight: '700', color: '#64748b' }}>{c.referral_code || ('CUST-' + String(c.id).substring(0, 5).toUpperCase())}</td>
-                        <td style={{ padding: '12px', fontWeight: '700' }}>{c.name}</td>
+                        <td style={{ padding: '12px', fontWeight: '700' }}>{tName(c.name)}</td>
                         <td style={{ padding: '12px' }}>
                           {isActivePkg ? (
                             <span style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -3610,6 +3629,7 @@ export const AdminPortal: React.FC = () => {
                             {hasPkg && (
                               <button onClick={() => handleSendCustomerWhatsAppPass(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#16a34a', border: '1.5px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }}>📲 WA Pass</button>
                             )}
+                            <button onClick={() => handleShareCustomerPortalLink(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', border: '1.5px solid #7dd3fc', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} title="Share Customer Portal link via WhatsApp">🔗 Share Link</button>
                             <button onClick={() => setViewingCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>👁️ View</button>
                             <button onClick={() => handleDeleteCustomer(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🗑️ Delete</button>
                           </div>
@@ -3645,7 +3665,7 @@ export const AdminPortal: React.FC = () => {
               <tbody>
                 {db.users.filter(u => u.role === 'cashier').map(u => (
                   <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px', fontWeight: '700' }}>{u.name}</td>
+                    <td style={{ padding: '12px', fontWeight: '700' }}>{tName(u.name)}</td>
                     <td style={{ padding: '12px' }}>{u.email}</td>
                     <td style={{ padding: '12px' }}>{u.phone || 'N/A'}</td>
                     <td style={{ padding: '12px' }}>
@@ -3691,7 +3711,7 @@ export const AdminPortal: React.FC = () => {
               <tbody>
                 {db.users.filter(u => u.role === 'delivery').map(u => (
                   <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px', fontWeight: '700' }}>{u.name}</td>
+                    <td style={{ padding: '12px', fontWeight: '700' }}>{tName(u.name)}</td>
                     <td style={{ padding: '12px' }}>{u.email}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
@@ -3879,7 +3899,7 @@ export const AdminPortal: React.FC = () => {
                   
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{u.name}</td>
+                      <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{tName(u.name)}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ fontWeight: 'bold' }}>{totalUnpaidTasksCount} tasks</div>
                         {totalUnpaidTasksCount > 0 && (
@@ -3891,7 +3911,7 @@ export const AdminPortal: React.FC = () => {
                                 <div key={`pickup-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
                                     <span style={{ fontWeight: '700', color: '#b45309' }}>#{t.id} - Pickup</span>
-                                    <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{tName(t.customerName)}</span>
                                   </div>
                                   <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(t.pickupCommission ?? 0).toFixed(2)}</span>
                                 </div>
@@ -3904,7 +3924,7 @@ export const AdminPortal: React.FC = () => {
                                 <div key={`delivery-${t.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
                                     <span style={{ fontWeight: '700', color: '#1e40af' }}>#{t.id} - Delivery</span>
-                                    <span style={{ fontSize: '0.7rem' }}>{t.customerName}</span>
+                                    <span style={{ fontSize: '0.7rem' }}>{tName(t.customerName)}</span>
                                   </div>
                                   <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(t.deliveryCommission ?? 0).toFixed(2)}</span>
                                 </div>
@@ -4045,7 +4065,7 @@ export const AdminPortal: React.FC = () => {
                               <td style={{ padding: '12px', fontWeight: '600' }}>{dateStr}</td>
                               <td style={{ padding: '12px' }}>
                                 <div style={{ fontWeight: '700', color: '#1e3a8a' }}>#{t.id.split('-')[0]}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{t.customerName}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{tName(t.customerName)}</div>
                               </td>
                               <td style={{ padding: '12px', fontWeight: '700', color: t.type === 'Pickup' ? '#d97706' : '#2563eb' }}>{t.type}</td>
                               <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: t.paid ? '#16a34a' : '#d97706' }}>{t.amount.toFixed(2)}</td>
@@ -4241,7 +4261,7 @@ export const AdminPortal: React.FC = () => {
                   .map(o => (
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
-                      <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
+                      <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
                       <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || 'Not Delivered'}</td>
@@ -4292,10 +4312,10 @@ export const AdminPortal: React.FC = () => {
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                  <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
                                 {o.pickupCourier && !db.users.some(u => u.name === o.pickupCourier) && (
-                                  <option value={o.pickupCourier}>{o.pickupCourier}</option>
+                                  <option value={o.pickupCourier}>{tName(o.pickupCourier)}</option>
                                 )}
                               </select>
                             </div>
@@ -4320,10 +4340,10 @@ export const AdminPortal: React.FC = () => {
                                 <option value="Store">Store</option>
                                 <option value="All Delivery Staff">All Delivery Staff</option>
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                  <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
                                 {o.deliveryCourier && !db.users.some(u => u.name === o.deliveryCourier) && (
-                                  <option value={o.deliveryCourier}>{o.deliveryCourier}</option>
+                                  <option value={o.deliveryCourier}>{tName(o.deliveryCourier)}</option>
                                 )}
                               </select>
                             </div>
@@ -4581,7 +4601,7 @@ export const AdminPortal: React.FC = () => {
                   .map(o => (
                     <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px', fontWeight: 'bold', color: '#1e293b' }}>#{o.id}</td>
-                      <td style={{ padding: '12px', fontWeight: '600' }}>{o.customerName}</td>
+                      <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px' }}>{o.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date ? new Date(o.date).toLocaleDateString() : 'N/A'}</td>
                       <td style={{ padding: '12px', color: o.deliveryDate ? '#16a34a' : '#64748b', fontWeight: '600' }}>
@@ -4952,7 +4972,7 @@ export const AdminPortal: React.FC = () => {
                             }}
                             style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '0.85rem', color: '#334155', background: posCustId === c.id ? '#eff6ff' : 'transparent' }}
                           >
-                            <div style={{ fontWeight: '700' }}>{c.name}</div>
+                            <div style={{ fontWeight: '700' }}>{tName(c.name)}</div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b' }}>📞 {c.phone || 'N/A'} {c.email ? `| ✉️ ${c.email}` : ''}</div>
                           </div>
                         ))}
@@ -5417,7 +5437,7 @@ export const AdminPortal: React.FC = () => {
             <tbody>
               {db.customers.map(c => (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '10px', fontWeight: '700' }}>{c.name}</td>
+                  <td style={{ padding: '10px', fontWeight: '700' }}>{tName(c.name)}</td>
                   <td style={{ padding: '10px', color: '#64748b' }}>{c.phone || 'N/A'}</td>
                   <td style={{ padding: '10px', color: '#16a34a', fontWeight: '700' }}>QR {c.walletBalance.toFixed(2)}</td>
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} pts</td>
@@ -6105,7 +6125,7 @@ export const AdminPortal: React.FC = () => {
                   <div style={{ fontWeight: '700' }}>Customer Name</div>
                   <div style={{ fontSize: '0.7rem' }}>اسم العميل</div>
                 </div>
-                <div style={{ flex: 1, fontWeight: '700' }}>: {viewingInvoice.customerName}</div>
+                <div style={{ flex: 1, fontWeight: '700' }}>: {tName(viewingInvoice.customerName)}</div>
               </div>
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '130px' }}>
@@ -6395,171 +6415,224 @@ export const AdminPortal: React.FC = () => {
 
       {/* VIEW ORDER TIMELINE MODAL */}
       {viewingOrder && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Order status details timeline</h3>
-              <button onClick={() => setViewingOrder(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '92%', maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '16px 24px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', shrink: 0 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>Order Details & Timeline</h3>
+                <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{viewingOrder.id} • Customer: {tName(viewingOrder.customerName)}</div>
+              </div>
+              <button onClick={() => setViewingOrder(null)} style={{ color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem', fontWeight: 'bold' }}>✕</button>
             </div>
 
-            <div style={{ padding: '24px', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div><strong>Order ID:</strong> #{viewingOrder.id}</div>
-              <div><strong>Customer Name:</strong> {viewingOrder.customerName}</div>
-              <div><strong>Placing Date:</strong> {viewingOrder.date}</div>
-              <div><strong>payment status:</strong> {viewingOrder.paymentStatus}</div>
-              <div><strong>laundry timeline status:</strong> {viewingOrder.status}</div>
-              {viewingOrder.pickupNotes && (
-                <div style={{ color: '#b45309', background: '#fef3c7', padding: '6px 10px', borderRadius: '6px', fontWeight: '600' }}>
-                  <strong>⚠️ Pickup Inspection Notes:</strong> {viewingOrder.pickupNotes}
-                </div>
-              )}
-
-              {(() => {
-                const customerObj = db.customers.find(c => c.id === viewingOrder.customerId || c.name === viewingOrder.customerName);
-                if (!customerObj) return null;
-                return (
-                  <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#1e293b', fontWeight: '700' }}>
-                      <span>📱 QR Customer Portal Active</span>
+            {/* Scrollable Body */}
+            <div style={{ padding: '24px', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
+              
+              {/* TOP ROW: 2-Column Grid (Order Summary vs QR Portal Status) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                
+                {/* Left: Basic Order Details */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>📋 Order Summary</div>
+                  <div><strong>Order ID:</strong> #{viewingOrder.id}</div>
+                  <div><strong>Customer Name:</strong> {tName(viewingOrder.customerName)}</div>
+                  <div><strong>Placing Date:</strong> {viewingOrder.date}</div>
+                  <div><strong>Payment Status:</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: viewingOrder.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7', color: viewingOrder.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>{viewingOrder.paymentStatus}</span></div>
+                  <div><strong>Timeline Status:</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>{viewingOrder.status}</span></div>
+                  {viewingOrder.pickupNotes && (
+                    <div style={{ color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: '6px', fontWeight: '600', marginTop: '4px', fontSize: '0.8rem' }}>
+                      ⚠️ <strong>Pickup Notes:</strong> {viewingOrder.pickupNotes}
                     </div>
-                    <div style={{ color: '#64748b' }}>Customer manages orders, invoices, and payments via their unique QR link in browser.</div>
-                    <button
-                      onClick={() => {
-                        alert(`Portal Link sent to customer "${customerObj.name}" via SMS/WhatsApp: ${window.location.origin}/customer?login=${customerObj.id}`);
-                      }}
-                      style={{ alignSelf: 'flex-start', padding: '4px 8px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
-                    >
-                      📲 Resend Portal Link
-                    </button>
+                  )}
+                </div>
+
+                {/* Right: QR Portal Status */}
+                <div>
+                  {(() => {
+                    const customerObj = db.customers.find(c => c.id === viewingOrder.customerId || c.name === viewingOrder.customerName);
+                    if (!customerObj) return null;
+                    return (
+                      <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '800', fontSize: '0.9rem' }}>
+                            <span>📱 QR Customer Portal Active</span>
+                          </div>
+                          <div style={{ color: '#15803d', fontSize: '0.8rem' }}>Customer manages orders, invoices, and payments via their unique QR link in browser.</div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const portalUrl = `${window.location.origin}/customer?login=${encodeURIComponent(customerObj.id)}`;
+                            const message = `Hi ${customerObj.name} 👋!\n\nHere is your direct access link to your Laundry Customer Portal:\n🔗 ${portalUrl}\n\nYou can view your active bookings, wallet balance, laundry rates, and order history anytime!`;
+                            const cleanPhone = (customerObj.phone || '').replace(/[^0-9+]/g, '');
+                            const waUrl = cleanPhone 
+                              ? `https://api.whatsapp.com/send?phone=${encodeURIComponent(cleanPhone)}&text=${encodeURIComponent(message)}`
+                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                            window.open(waUrl, '_blank');
+                          }}
+                          style={{ padding: '8px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start' }}
+                        >
+                          💬 Resend Portal Link via WhatsApp
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+              </div>
+
+              {/* MIDDLE ROW: 2-Column Grid (Timeline Progress vs Courier Assignment) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                
+                {/* Timeline Progress */}
+                <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontWeight: '800', marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>⏱️ Timeline Progress</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { label: 'Order Created', ok: true },
+                      { label: 'Accepted', ok: ['Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                      { label: 'Washing & Processing', ok: ['Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                      { label: 'Ready for Collection', ok: ['Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                      { label: 'Delivered', ok: viewingOrder.status === 'Delivered' }
+                    ].map((step, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem' }}>
+                        <span style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: step.ok ? '#22c55e' : '#cbd5e1',
+                          color: 'white',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          fontWeight: 'bold'
+                        }}>
+                          {step.ok ? '✓' : '•'}
+                        </span>
+                        <span style={{ fontWeight: step.ok ? '700' : '500', color: step.ok ? '#0f172a' : '#94a3b8' }}>
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                );
-              })()}
-
-              {/* Status Timeline visual */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '6px' }}>
-                <h4 style={{ margin: '0 0 10px 0' }}>Timeline History Progress</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
-                  {[
-                    { label: 'Order Created', ok: true },
-                    { label: 'Accepted', ok: ['Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                    { label: 'Washing & Processing', ok: ['Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                    { label: 'Ready for Collection', ok: ['Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                    { label: 'Delivered', ok: viewingOrder.status === 'Delivered' }
-                  ].map((step, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ color: step.ok ? '#16a34a' : '#94a3b8' }}>{step.ok ? '🟢' : '⚪'}</span>
-                      <span style={{ fontWeight: step.ok ? '700' : '400', color: step.ok ? '#0f172a' : '#64748b' }}>{step.label}</span>
-                    </div>
-                  ))}
                 </div>
+
+                {/* Courier Assignment & Commissions */}
+                <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.9rem' }}>🚚 Assign Couriers</div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Pickup Courier</label>
+                      <select 
+                        value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
+                        onChange={e => {
+                          handleAssignPickupCourier(viewingOrder.id, e.target.value);
+                          const updated = db.orders.find(o => o.id === viewingOrder.id);
+                          if (updated) setViewingOrder(updated);
+                        }}
+                        disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
+                      >
+                        <option value="">Unassigned</option>
+                        <option value="Store">Store</option>
+                        <option value="All Delivery Staff">All Delivery Staff</option>
+                        {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                          <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                        ))}
+                        {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
+                          <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Delivery Courier</label>
+                      <select 
+                        value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
+                        onChange={e => {
+                          handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
+                          const updated = db.orders.find(o => o.id === viewingOrder.id);
+                          if (updated) setViewingOrder(updated);
+                        }}
+                        disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
+                      >
+                        <option value="">Unassigned</option>
+                        <option value="Store">Store</option>
+                        <option value="All Delivery Staff">All Delivery Staff</option>
+                        {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                          <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                        ))}
+                        {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
+                          <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Commissions */}
+                  {(() => {
+                    const hasPickupCourier = !!viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && viewingOrder.pickupCourier !== '-- Unassigned --';
+                    const hasDeliveryCourier = !!viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && viewingOrder.deliveryCourier !== '-- Unassigned --';
+
+                    if (!hasPickupCourier && !hasDeliveryCourier) return null;
+
+                    const isPickupCompleted = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) || !!viewingOrder.pickupCommissionPaid;
+                    const isDeliveryCompleted = (viewingOrder.status || '').toLowerCase() === 'delivered' || !!viewingOrder.deliveryCommissionPaid;
+
+                    return (
+                      <div style={{ display: 'flex', gap: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        {hasPickupCourier && (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#b45309' }}>📦 Pickup Comm (QR):</label>
+                            <input 
+                              type="number" 
+                              placeholder="0.00"
+                              disabled={isPickupCompleted}
+                              value={viewingOrder.pickupCommission ? viewingOrder.pickupCommission : ''}
+                              onChange={e => {
+                                const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
+                                setViewingOrder({...viewingOrder, pickupCommission: val});
+                                const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
+                                saveDB({ orders: updatedOrders });
+                              }}
+                              style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
+                            />
+                          </div>
+                        )}
+                        
+                        {hasDeliveryCourier && (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Comm (QR):</label>
+                            <input 
+                              type="number" 
+                              placeholder="0.00"
+                              disabled={isDeliveryCompleted}
+                              value={viewingOrder.deliveryCommission ? viewingOrder.deliveryCommission : ''}
+                              onChange={e => {
+                                const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
+                                setViewingOrder({...viewingOrder, deliveryCommission: val});
+                                const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
+                                saveDB({ orders: updatedOrders });
+                              }}
+                              style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
               </div>
 
-              {/* Assign Pickup / Delivery agent */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Pickup Courier</label>
-                  <select 
-                    value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
-                    onChange={e => {
-                      handleAssignPickupCourier(viewingOrder.id, e.target.value);
-                      const updated = db.orders.find(o => o.id === viewingOrder.id);
-                      if (updated) setViewingOrder(updated);
-                    }}
-                    disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
-                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
-                  >
-                    <option value="">Unassigned</option>
-                    <option value="Store">Store</option>
-                    <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                    {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
-                      <option value={viewingOrder.pickupCourier}>{viewingOrder.pickupCourier}</option>
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>Assign Delivery Courier</label>
-                  <select 
-                    value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
-                    onChange={e => {
-                      handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
-                      const updated = db.orders.find(o => o.id === viewingOrder.id);
-                      if (updated) setViewingOrder(updated);
-                    }}
-                    disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
-                    style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
-                  >
-                    <option value="">Unassigned</option>
-                    <option value="Store">Store</option>
-                    <option value="All Delivery Staff">All Delivery Staff</option>
-                    {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                    {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
-                      <option value={viewingOrder.deliveryCourier}>{viewingOrder.deliveryCourier}</option>
-                    )}
-                  </select>
-                </div>
-
-                {(() => {
-                  const hasPickupCourier = !!viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && viewingOrder.pickupCourier !== '-- Unassigned --';
-                  const hasDeliveryCourier = !!viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && viewingOrder.deliveryCourier !== '-- Unassigned --';
-
-                  if (!hasPickupCourier && !hasDeliveryCourier) return null;
-
-                  const isPickupCompleted = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) || !!viewingOrder.pickupCommissionPaid;
-                  const isDeliveryCompleted = (viewingOrder.status || '').toLowerCase() === 'delivered' || !!viewingOrder.deliveryCommissionPaid;
-
-                  return (
-                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                      {hasPickupCourier && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#b45309' }}>📦 Pickup Commission (QR):</label>
-                          <input 
-                            type="number" 
-                            placeholder="0.00"
-                            disabled={isPickupCompleted}
-                            value={viewingOrder.pickupCommission ? viewingOrder.pickupCommission : ''}
-                            onChange={e => {
-                              const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
-                              setViewingOrder({...viewingOrder, pickupCommission: val});
-                              const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
-                              saveDB({ orders: updatedOrders });
-                            }}
-                            style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
-                          />
-                        </div>
-                      )}
-                      
-                      {hasDeliveryCourier && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: hasPickupCourier ? '1px solid #e2e8f0' : 'none', paddingTop: hasPickupCourier ? '8px' : '0' }}>
-                          <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Commission (QR):</label>
-                          <input 
-                            type="number" 
-                            placeholder="0.00"
-                            disabled={isDeliveryCompleted}
-                            value={viewingOrder.deliveryCommission ? viewingOrder.deliveryCommission : ''}
-                            onChange={e => {
-                              const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
-                              setViewingOrder({...viewingOrder, deliveryCommission: val});
-                              const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
-                              saveDB({ orders: updatedOrders });
-                            }}
-                            style={{ width: '100px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* ITEM-LEVEL PARTIAL PICKUP & DELIVERY PROGRESS TABLE */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '6px' }}>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>📦 Item-Level Quantity & Status Breakdown</h4>
+              {/* BOTTOM SECTION: Item-Level Quantity & Status Breakdown Table */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>📦 Item-Level Quantity & Status Breakdown</h4>
                 
                 {(() => {
                   const itemsList = viewingOrder.items || [];
@@ -6585,35 +6658,35 @@ export const AdminPortal: React.FC = () => {
                   });
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                           <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                             <tr>
-                              <th style={{ padding: '8px' }}>Service</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Ordered</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Picked Up</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Pickup Pending</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Delivered</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Delivery Pending</th>
-                              <th style={{ padding: '8px', textAlign: 'center' }}>Status</th>
+                              <th style={{ padding: '10px' }}>Service</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Ordered</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Picked Up</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Pickup Pending</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Delivered</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Delivery Pending</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>Status</th>
                             </tr>
                           </thead>
                           <tbody>
                             {itemsList.map((it, idx) => (
                               <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                <td style={{ padding: '8px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
-                                <td style={{ padding: '8px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
-                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
+                                <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
+                                <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
+                                <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
+                                <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>
                                   <span style={{
-                                    padding: '2px 6px',
+                                    padding: '3px 8px',
                                     borderRadius: '4px',
                                     fontWeight: 'bold',
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.72rem',
                                     background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
                                     color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
                                   }}>
@@ -6627,23 +6700,23 @@ export const AdminPortal: React.FC = () => {
                       </div>
 
                       {/* Summaries */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.8rem' }}>
-                        <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                          <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '4px' }}>📦 Pickup Summary:</strong>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.82rem' }}>
+                        <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                          <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '6px' }}>📦 Pickup Summary:</strong>
                           <div>Total Ordered: <strong>{totalOrd}</strong></div>
                           <div>Total Picked Up: <strong style={{ color: '#2563eb' }}>{totalPick}</strong></div>
                           <div>Pickup Pending: <strong style={{ color: totalPickPend > 0 ? '#d97706' : '#16a34a' }}>{totalPickPend}</strong></div>
-                          <div style={{ marginTop: '4px', fontWeight: 'bold', color: totalPickPend === 0 ? '#15803d' : totalPick > 0 ? '#b45309' : '#475569' }}>
+                          <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalPickPend === 0 ? '#15803d' : totalPick > 0 ? '#b45309' : '#475569' }}>
                             Status: {totalPickPend === 0 ? 'FULLY PICKED UP' : totalPick > 0 ? 'PARTIALLY PICKED UP' : 'CREATED'}
                           </div>
                         </div>
 
-                        <div style={{ background: '#f0fdf4', padding: '10px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                          <strong style={{ color: '#15803d', display: 'block', marginBottom: '4px' }}>🚚 Delivery Summary:</strong>
+                        <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                          <strong style={{ color: '#15803d', display: 'block', marginBottom: '6px' }}>🚚 Delivery Summary:</strong>
                           <div>Total Picked Up: <strong>{totalPick}</strong></div>
                           <div>Total Delivered: <strong style={{ color: '#16a34a' }}>{totalDel}</strong></div>
                           <div>Delivery Pending: <strong style={{ color: totalDelPend > 0 ? '#dc2626' : '#16a34a' }}>{totalDelPend}</strong></div>
-                          <div style={{ marginTop: '4px', fontWeight: 'bold', color: totalDel === totalOrd && totalOrd > 0 ? '#15803d' : totalDel > 0 ? '#b45309' : '#475569' }}>
+                          <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalDel === totalOrd && totalOrd > 0 ? '#15803d' : totalDel > 0 ? '#b45309' : '#475569' }}>
                             Status: {totalDel === totalOrd && totalOrd > 0 ? 'FULLY DELIVERED' : totalDel > 0 ? 'PARTIALLY DELIVERED' : 'PENDING DELIVERY'}
                           </div>
                         </div>
@@ -6651,42 +6724,44 @@ export const AdminPortal: React.FC = () => {
 
                       {/* Transaction History Logs */}
                       {((viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0) || (viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0)) && (
-                        <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#1e293b' }}>📜 Transaction History Logs</h4>
+                        <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#1e293b' }}>📜 Transaction History Logs</h4>
                           
-                          {/* Pickup Logs */}
-                          {viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0 && (
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#2563eb', marginBottom: '4px' }}>Pickup History:</div>
-                              {viewingOrder.pickupHistory.map((log: any, lIdx: number) => (
-                                <div key={lIdx} style={{ background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
-                                  <div style={{ fontWeight: 'bold', color: '#475569' }}>⏰ {log.timestamp} - Picked Up By: {log.staff_name || 'Delivery Staff'}</div>
-                                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                                    {(log.items || []).map((it: any, iIdx: number) => (
-                                      <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                            {/* Pickup Logs */}
+                            {viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#2563eb', marginBottom: '4px' }}>Pickup History:</div>
+                                {viewingOrder.pickupHistory.map((log: any, lIdx: number) => (
+                                  <div key={lIdx} style={{ background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontWeight: 'bold', color: '#475569' }}>⏰ {log.timestamp} - Picked Up By: {log.staff_name || 'Delivery Staff'}</div>
+                                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                      {(log.items || []).map((it: any, iIdx: number) => (
+                                        <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
 
-                          {/* Delivery Logs */}
-                          {viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0 && (
-                            <div>
-                              <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '4px' }}>Delivery History:</div>
-                              {viewingOrder.deliveryHistory.map((log: any, lIdx: number) => (
-                                <div key={lIdx} style={{ background: '#f0fdf4', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #bbf7d0' }}>
-                                  <div style={{ fontWeight: 'bold', color: '#166534' }}>⏰ {log.timestamp} - Delivered By: {log.staff_name || 'Delivery Staff'}</div>
-                                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                                    {(log.items || []).map((it: any, iIdx: number) => (
-                                      <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                            {/* Delivery Logs */}
+                            {viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '4px' }}>Delivery History:</div>
+                                {viewingOrder.deliveryHistory.map((log: any, lIdx: number) => (
+                                  <div key={lIdx} style={{ background: '#f0fdf4', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #bbf7d0' }}>
+                                    <div style={{ fontWeight: 'bold', color: '#166534' }}>⏰ {log.timestamp} - Delivered By: {log.staff_name || 'Delivery Staff'}</div>
+                                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                      {(log.items || []).map((it: any, iIdx: number) => (
+                                        <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -6708,13 +6783,13 @@ export const AdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #1e1b4b, #3730a3)', padding: '20px 24px', color: 'white', position: 'relative' }}>
               <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>📦 Pickup Details</h3>
-              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{pickupModalOrder.id} • Customer: {pickupModalOrder.customerName}</div>
+              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{pickupModalOrder.id} • Customer: {tName(pickupModalOrder.customerName)}</div>
               <button onClick={() => setPickupModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div>👤 <strong>Customer Name:</strong> {pickupModalOrder.customerName}</div>
+                <div>👤 <strong>Customer Name:</strong> {tName(pickupModalOrder.customerName)}</div>
                 <div>📞 <strong>Phone Number:</strong> {pickupModalOrder.phone || 'N/A'}</div>
                 <div>📍 <strong>Address:</strong> {pickupModalOrder.address || 'Pickup at Branch'}</div>
               </div>
@@ -6763,13 +6838,13 @@ export const AdminPortal: React.FC = () => {
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #14532d, #16a34a)', padding: '20px 24px', color: 'white', position: 'relative' }}>
               <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>🚚 Item-Level Delivery Action</h3>
-              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{deliveryModalOrder.id} • Customer: {deliveryModalOrder.customerName}</div>
+              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{deliveryModalOrder.id} • Customer: {tName(deliveryModalOrder.customerName)}</div>
               <button onClick={() => setDeliveryModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-                <div><strong>Customer:</strong> {deliveryModalOrder.customerName}</div>
+                <div><strong>Customer:</strong> {tName(deliveryModalOrder.customerName)}</div>
                 <div><strong>Phone:</strong> {deliveryModalOrder.phone || 'N/A'}</div>
               </div>
 
@@ -7524,14 +7599,8 @@ export const AdminPortal: React.FC = () => {
                 const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrEncodedData)}`;
 
                 let previewMsg = `Hi ${walletPassPreview.customerName} 👋!\nYour prepaid package (${walletPassPreview.packageName}) is active.\n\nCurrent Balance: QR ${walletPassPreview.balance}\nValid Until: ${walletPassPreview.expiryDate}\n\n[📷 QR Image Attached]\n`;
-                if (fullAppleWalletUrl) {
-                  previewMsg += `\n🍎 Add to Apple Wallet: ${fullAppleWalletUrl}`;
-                }
 
                 let sendMsg = `Hi ${walletPassPreview.customerName} 👋!\nYour prepaid package (${walletPassPreview.packageName}) is active.\n\nCurrent Balance: QR ${walletPassPreview.balance}\nValid Until: ${walletPassPreview.expiryDate}\n`;
-                if (fullAppleWalletUrl) {
-                  sendMsg += `\n🍎 Add to Apple Wallet: ${fullAppleWalletUrl}`;
-                }
 
                 const handleSendWhatsAppWithQRImage = async () => {
                   const cleanPhone = (walletPassPreview.phone || '').replace(/[^0-9]/g, '');
@@ -7641,14 +7710,7 @@ export const AdminPortal: React.FC = () => {
                       </div>
                     </div>
 
-                    {fullAppleWalletUrl && (
-                      <button 
-                        onClick={() => window.open(fullAppleWalletUrl, '_blank')}
-                        style={{ width: '100%', padding: '10px', background: '#000000', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                      >
-                        <span>🍎 Add to Apple Wallet</span>
-                      </button>
-                    )}
+
                   </div>
                 );
               })()}
@@ -7682,7 +7744,6 @@ export const AdminPortal: React.FC = () => {
               <div><strong>Expiry Date:</strong> {packageWalletDetails.expiry_date || packageWalletDetails.expiryDate || 'N/A'}</div>
               
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button onClick={() => { if(packageWalletDetails.apple_wallet_url || packageWalletDetails.appleWalletUrl) window.open(packageWalletDetails.apple_wallet_url || packageWalletDetails.appleWalletUrl, '_blank'); else alert('Apple Wallet pass link not generated yet.'); }} style={{ padding: '10px', background: '#000', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}>🍎 Add to Apple Wallet</button>
                 <button onClick={() => { setPackageQRPreview(packageWalletDetails); setPackageWalletDetails(null); }} style={{ padding: '10px', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}>📱 View QR Code</button>
               </div>
             </div>
@@ -7789,7 +7850,7 @@ export const AdminPortal: React.FC = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ color: '#64748b' }}>Customer:</span>
-                <span style={{ fontWeight: '700', color: '#0f172a' }}>{payLaterModalOrder.customerName}</span>
+                <span style={{ fontWeight: '700', color: '#0f172a' }}>{tName(payLaterModalOrder.customerName)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
                 <span style={{ color: '#0f172a', fontWeight: '800' }}>Due Amount:</span>

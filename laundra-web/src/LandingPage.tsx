@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDatabase } from './DatabaseContext';
+import { useLanguage } from './LanguageContext';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { apiSendDeliveryOtp, apiRegisterDeliveryBoy } from './deliveryApi';
 
 import { getApiBaseUrl } from './config';
@@ -8,6 +10,7 @@ import { getApiBaseUrl } from './config';
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { db, saveDB, changeActiveCompany, setToken } = useDatabase();
+  const { t } = useLanguage();
   const BASE_URL = getApiBaseUrl();
 
   // Carousel State
@@ -524,11 +527,11 @@ export const LandingPage: React.FC = () => {
         {/* Center links for quick navigation */}
         <div className="nav-links" style={{ display: 'flex', gap: '28px' }}>
           {[
-            { label: 'Home', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
-            { label: 'Features', target: 'modules' },
-            { label: 'Services', target: 'services-list' },
-            { label: 'Live Tracking', target: 'tracking' },
-            { label: 'Contact', action: () => document.querySelector('footer')?.scrollIntoView({ behavior: 'smooth' }) }
+            { label: t('nav.home', 'Home'), action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
+            { label: t('nav.features', 'Features'), target: 'modules' },
+            { label: t('nav.services', 'Services'), target: 'services-list' },
+            { label: t('nav.liveTracking', 'Live Tracking'), target: 'tracking' },
+            { label: t('nav.contact', 'Contact'), action: () => document.querySelector('footer')?.scrollIntoView({ behavior: 'smooth' }) }
           ].map(lnk => (
             <a 
               key={lnk.label}
@@ -551,6 +554,7 @@ export const LandingPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <LanguageSwitcher />
           <button 
             className="secondary-btn" 
             onClick={() => {
@@ -559,7 +563,7 @@ export const LandingPage: React.FC = () => {
             }} 
             style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
           >
-            👤 Login
+            👤 {t('nav.login', 'Login')}
           </button>
 
         </div>
@@ -586,13 +590,13 @@ export const LandingPage: React.FC = () => {
             letterSpacing: '1px', 
             marginBottom: '20px' 
           }}>
-            ⚡ Pure Care, Same-day Delivery
+            ⚡ {t('landing.badge', 'Pure Care, Same-day Delivery')}
           </span>
           <h1 style={{ fontSize: '3.4rem', fontWeight: '900', lineHeight: 1.1, marginBottom: '20px', color: '#0f172a', letterSpacing: '-1.5px' }}>
-            The operating system for <span style={{ background: 'linear-gradient(to right, #2563eb, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>modern garment care</span>.
+            {t('landing.heroTitle', 'The operating system for modern garment care.')}
           </h1>
           <p style={{ fontSize: '1.1rem', color: '#475569', lineHeight: 1.6, marginBottom: '36px', fontWeight: '500' }}>
-            Book premium dry cleaning, wash & fold, or steam pressing directly online. Enjoy automated tracking, custom preferences, and doorstep pickup.
+            {t('landing.heroSubtitle', 'Book premium dry cleaning, wash & fold, or steam pressing directly online. Enjoy automated tracking, custom preferences, and doorstep pickup.')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className="cta-row">

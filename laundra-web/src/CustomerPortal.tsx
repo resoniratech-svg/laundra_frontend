@@ -59,7 +59,7 @@ export const CustomerPortal: React.FC = () => {
   
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const urlLoginId = params.get('login');
+    const urlLoginId = params.get('login') || params.get('cust_id') || params.get('customer_id');
     if (urlLoginId) {
       const currentActiveId = localStorage.getItem('ll_active_customer_id');
       if (urlLoginId !== currentActiveId) {
@@ -73,7 +73,7 @@ export const CustomerPortal: React.FC = () => {
   }, [db.activeCompanyId]);
 
   const urlParams = new URLSearchParams(window.location.search);
-  const activeCustId = urlParams.get('login') || localStorage.getItem(`ll_${db.activeCompanyId}_active_customer_id`) || localStorage.getItem('ll_active_customer_id');
+  const activeCustId = urlParams.get('login') || urlParams.get('cust_id') || urlParams.get('customer_id') || localStorage.getItem(`ll_${db.activeCompanyId}_active_customer_id`) || localStorage.getItem('ll_active_customer_id');
 
   useEffect(() => {
     const loadCustomer = async () => {
