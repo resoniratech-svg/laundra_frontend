@@ -7683,13 +7683,18 @@ export const AdminPortal: React.FC = () => {
                 if (fullAppleWalletUrl && fullAppleWalletUrl.startsWith('/')) {
                   fullAppleWalletUrl = `${publicBackendUrl}${fullAppleWalletUrl}`;
                 }
+                if (!fullAppleWalletUrl && walletPassPreview.customerId) {
+                  fullAppleWalletUrl = `${publicBackendUrl}/api/v1/wallet/apple/pass/customer/${walletPassPreview.customerId}`;
+                }
+
+                const appleWalletLine = fullAppleWalletUrl ? `\n🍏 ${t('Add to Apple Wallet:')} ${fullAppleWalletUrl}\n` : '';
 
                 const qrEncodedData = fullAppleWalletUrl || `${window.location.origin}/customer?login=${walletPassPreview.customerId}`;
                 const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrEncodedData)}`;
 
-                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n\n[📷 ${t('QR Image Attached')}]\n`;
+                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}\n[📷 ${t('QR Image Attached')}]\n`;
 
-                let sendMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n`;
+                let sendMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}`;
 
                 const handleSendWhatsAppWithQRImage = async () => {
                   const cleanPhone = (walletPassPreview.phone || '').replace(/[^0-9]/g, '');
