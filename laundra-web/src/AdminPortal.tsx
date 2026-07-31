@@ -1446,6 +1446,7 @@ export const AdminPortal: React.FC = () => {
         const balance = data.current_balance !== undefined ? data.current_balance : (data.package_value || pkg.original_price || pkg.offer_price);
         const expiry = data.expiry_date ? new Date(data.expiry_date).toLocaleDateString() : (pkg.validity_days ? `${pkg.validity_days} Days` : 'N/A');
         const appleWalletUrl = data.apple_wallet_url || '';
+        const googleWalletUrl = data.google_wallet_url || '';
         const custId = sellingPackageTo.id;
 
         setWalletPassPreview({
@@ -1455,6 +1456,7 @@ export const AdminPortal: React.FC = () => {
           balance: balance,
           expiryDate: expiry,
           appleWalletUrl: appleWalletUrl,
+          googleWalletUrl: googleWalletUrl,
           customerId: custId
         });
 
@@ -3179,6 +3181,7 @@ export const AdminPortal: React.FC = () => {
       const balance = activePkg ? (activePkg.current_balance !== undefined ? activePkg.current_balance : activePkg.package_value) : (c.walletBalance || 0);
       const expiry = activePkg?.expiry_date ? new Date(activePkg.expiry_date).toLocaleDateString() : 'N/A';
       const walletUrl = activePkg?.apple_wallet_url || (activePkg?.secure_token ? `/api/v1/wallet/apple/pass/${activePkg.secure_token}` : '');
+      const googleWalletUrl = activePkg?.google_wallet_url || '';
 
       setWalletPassPreview({
         customerName: c.name,
@@ -3187,6 +3190,7 @@ export const AdminPortal: React.FC = () => {
         balance: balance,
         expiryDate: expiry,
         appleWalletUrl: walletUrl,
+        googleWalletUrl: googleWalletUrl,
         customerId: c.id
       });
     } catch (e) {
@@ -7679,6 +7683,7 @@ export const AdminPortal: React.FC = () => {
               {/* WhatsApp Quick Message Box */}
               {(() => {
                 let fullAppleWalletUrl = walletPassPreview.appleWalletUrl || '';
+                let fullGoogleWalletUrl = walletPassPreview.googleWalletUrl || '';
                 const publicBackendUrl = (BASE_URL && !BASE_URL.includes('localhost')) ? BASE_URL : 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
                 if (fullAppleWalletUrl && fullAppleWalletUrl.startsWith('/')) {
                   fullAppleWalletUrl = `${publicBackendUrl}${fullAppleWalletUrl}`;
@@ -7687,14 +7692,22 @@ export const AdminPortal: React.FC = () => {
                   fullAppleWalletUrl = `${publicBackendUrl}/api/v1/wallet/apple/pass/customer/${walletPassPreview.customerId}`;
                 }
 
-                const appleWalletLine = fullAppleWalletUrl ? `\n🍏 ${t('Add to Apple Wallet:')} ${fullAppleWalletUrl}\n` : '';
+                if (fullGoogleWalletUrl && fullGoogleWalletUrl.startsWith('/')) {
+                  fullGoogleWalletUrl = `${publicBackendUrl}${fullGoogleWalletUrl}`;
+                }
+                if (!fullGoogleWalletUrl && walletPassPreview.customerId) {
+                  fullGoogleWalletUrl = `${publicBackendUrl}/api/v1/wallet/google/pass/${walletPassPreview.customerId}`;
+                }
 
-                const qrEncodedData = fullAppleWalletUrl || `${window.location.origin}/customer?login=${walletPassPreview.customerId}`;
+                const appleWalletLine = fullAppleWalletUrl ? `\n🍏 ${t('Add to Apple Wallet:')} ${fullAppleWalletUrl}\n` : '';
+                const googleWalletLine = fullGoogleWalletUrl ? `\n🤖 ${t('Add to Google Wallet:')} ${fullGoogleWalletUrl}\n` : '';
+
+                const qrEncodedData = fullAppleWalletUrl || fullGoogleWalletUrl || `${window.location.origin}/customer?login=${walletPassPreview.customerId}`;
                 const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrEncodedData)}`;
 
-                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}\n[📷 ${t('QR Image Attached')}]\n`;
+                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}${googleWalletLine}\n[📷 ${t('QR Image Attached')}]\n`;
 
-                let sendMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}`;
+                let sendMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}${googleWalletLine}`;
 
                 const handleSendWhatsAppWithQRImage = async () => {
                   const cleanPhone = (walletPassPreview.phone || '').replace(/[^0-9]/g, '');
