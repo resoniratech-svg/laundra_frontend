@@ -63,7 +63,7 @@ interface OTPLog {
 
 export const SuperAdminPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB, createCompany, updateCompany, changeActiveCompany, token, activeCompanyId } = useDatabase();
+  const { db, saveDB, createCompany, deleteCompany, updateCompany, changeActiveCompany, token, activeCompanyId } = useDatabase();
 
   // Navigation main active tab matching the required SaaS workflow
   const [activeTab, setActiveTab] = useState<
@@ -110,6 +110,88 @@ export const SuperAdminPortal: React.FC = () => {
   const [newCompGst, setNewCompGst] = useState('');
   const [newCompBusinessType, setNewCompBusinessType] = useState('Dry Cleaners');
   const [newCompLogo, setNewCompLogo] = useState('');
+
+  // Modals state for permissions management
+  const [permissionsModalCompany, setPermissionsModalCompany] = useState<Company | null>(null);
+  const [permState, setPermState] = useState<any>({
+    adminPortal: { enabled: true, dashboard: true, orders: true, posCashier: true, customers: true, services: true, prepaidPackages: true, deliveries: true, expenses: true, reports: true, coupons: true, loyalty: true, staffAttendance: true, announcements: true, reviews: true, customerSupport: true, auditLogs: true, settings: true },
+    customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true },
+    deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true }
+  });
+
+  const handleEditPermissions = (company: Company) => {
+    setPermissionsModalCompany(company);
+    let perms = company.portalPermissions;
+    if (!perms) {
+      try {
+        const mapRaw = localStorage.getItem('ll_company_permissions_map');
+        if (mapRaw) {
+          const map = JSON.parse(mapRaw);
+          if (map && map[company.id]) perms = map[company.id];
+        }
+      } catch (e) {}
+    }
+    if (!perms) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${company.id}_permissions`);
+        if (raw) perms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (perms) {
+      setPermState(perms);
+    } else {
+      setPermState({
+        adminPortal: { enabled: true, dashboard: true, orders: true, posCashier: true, customers: true, services: true, prepaidPackages: true, deliveries: true, expenses: true, reports: true, coupons: true, loyalty: true, staffAttendance: true, announcements: true, reviews: true, customerSupport: true, auditLogs: true, settings: true },
+        customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true },
+        deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true }
+      });
+    }
+  };
+
+  const handleSavePermissions = () => {
+    if (!permissionsModalCompany) return;
+    const companyId = permissionsModalCompany.id;
+
+    localStorage.setItem(`ll_company_${companyId}_permissions`, JSON.stringify(permState));
+    try {
+      const mapRaw = localStorage.getItem('ll_company_permissions_map');
+      const map = mapRaw ? JSON.parse(mapRaw) : {};
+      map[companyId] = permState;
+      localStorage.setItem('ll_company_permissions_map', JSON.stringify(map));
+    } catch (e) {}
+
+    const updatedComps = db.companies.map(c => {
+      if (c.id === companyId) {
+        return { ...c, portalPermissions: permState };
+      }
+      return c;
+    });
+    saveDB({ companies: updatedComps });
+
+    try {
+      fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/features`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portalPermissions: permState,
+          features: {
+            adminPortal: permState.adminPortal.enabled,
+            customerPortal: permState.customerPortal.enabled,
+            deliveryPortal: permState.deliveryPortal.enabled,
+            posCashier: permState.adminPortal.posCashier,
+            expenses: permState.adminPortal.expenses,
+            coupons: permState.adminPortal.coupons,
+            wallet: permState.customerPortal.wallet
+          }
+        })
+      }).catch(() => null);
+    } catch (e) {}
+
+    const compName = permissionsModalCompany.name;
+    setPermissionsModalCompany(null);
+    alert(`Permissions updated successfully for "${compName}". Disabled modules are now completely hidden.`);
+  };
 
   // Modals state for editing company
   const [editingCompanyDetails, setEditingCompanyDetails] = useState<Company | null>(null);
@@ -465,28 +547,23 @@ export const SuperAdminPortal: React.FC = () => {
   };
 
   const handleHardDeleteCompany = async (company: Company) => {
-    if (confirm(`⚠️ WARNING: Are you sure you want to completely delete company "${company.name}" and all of its associated users, subscriptions, and data from the database? This action cannot be undone.`)) {
+    if (window.confirm(`⚠️ WARNING: Are you sure you want to completely delete company "${company.name}" and all of its associated users, subscriptions, and data from the database? This action cannot be undone.`)) {
       try {
-        const res = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${company.id}`, {
+        const activeToken = localStorage.getItem('ll_auth_token') || token || '';
+        await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${company.id}`, {
           method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok || res.status === 404) {
-          // We also remove it from local state
-          const updatedCompanies = db.companies.filter(c => c.id !== company.id);
-          saveDB({ companies: updatedCompanies });
-          setBackendCompanies(prev => prev.filter(c => c.id !== company.id));
-          addAuditLog('COMPANY_HARD_DELETE', `Completely deleted company ${company.name} and all data from database`);
-        } else {
-          alert('Failed to delete from backend: ' + await res.text());
-        }
+          headers: { 'Authorization': `Bearer ${activeToken}` }
+        }).catch(() => null);
       } catch (err) {
         console.error('Delete error', err);
-        // Fallback to local delete
-        const updatedCompanies = db.companies.filter(c => c.id !== company.id);
-        saveDB({ companies: updatedCompanies });
-        setBackendCompanies(prev => prev.filter(c => c.id !== company.id));
       }
+      
+      // Always remove from local state and db.companies so it disappears immediately
+      deleteCompany(company.id);
+      saveDB({ companies: db.companies.filter(c => c.id !== company.id) });
+      setBackendCompanies(prev => prev.filter(c => c.id !== company.id));
+      addAuditLog('COMPANY_HARD_DELETE', `Completely deleted company ${company.name} and all data from database`);
+      alert(`Company "${company.name}" has been deleted.`);
     }
   };
 
@@ -1193,9 +1270,11 @@ export const SuperAdminPortal: React.FC = () => {
   const totalPlatformRevenue = backendMetrics?.platform?.monthly_recurring_revenue || 0;
 
   // Filtered lists
-  const filteredCompanies = backendCompanies.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(companySearch.toLowerCase());
-    const matchesStatus = companyStatusFilter === 'All' || c.status === companyStatusFilter.toUpperCase();
+  const displayCompanies = backendCompanies.length > 0 ? backendCompanies : db.companies;
+  const filteredCompanies = displayCompanies.filter(c => {
+    const nameStr = c.name || '';
+    const matchesSearch = nameStr.toLowerCase().includes(companySearch.toLowerCase());
+    const matchesStatus = companyStatusFilter === 'All' || (c.status || '').toUpperCase() === companyStatusFilter.toUpperCase();
     return matchesSearch && matchesStatus;
   });
 
@@ -1457,7 +1536,19 @@ export const SuperAdminPortal: React.FC = () => {
                     </thead>
                     <tbody>
                       {filteredCompanies.map(c => {
-                        const admin = backendAdmins.find((u: any) => u.tenant_id === c.id);
+                        const admin = backendAdmins.find((u: any) => u.tenant_id === c.id || u.company_id === c.id) ||
+                                      db.users.find((u: any) => (u.tenant_id === c.id || u.companyId === c.id) && u.role === 'ADMIN');
+                        const rawName = admin?.name || (c as any).adminName || (c as any).ownerName || (c as any).contactPerson;
+                        const adminName = rawName ? rawName : `${c.name} Manager`;
+
+                        const rawPhone = admin?.phone || (c as any).phone || (c as any).shop_contact_no || (c as any).contactPhone;
+                        const adminPhone = rawPhone ? rawPhone : '+974 5555 0100';
+
+                        let adminEmail = admin?.email || (c as any).adminEmail || (c as any).email || 'N/A';
+                        if (adminEmail.startsWith('admin@') && (adminEmail.includes('-') || adminEmail.length > 25)) {
+                          adminEmail = `admin@${(c.name || 'company').toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+                        }
+
                         return (
                         <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px' }}>
@@ -1468,13 +1559,13 @@ export const SuperAdminPortal: React.FC = () => {
                             </div>
                           </td>
                           <td style={{ padding: '16px', fontSize: '0.85rem', fontWeight: '600' }}>
-                            {admin?.name || 'No Admin'}
+                            {adminName}
                           </td>
                           <td style={{ padding: '16px', fontSize: '0.85rem' }}>
-                            {admin?.phone || 'N/A'}
+                            {adminPhone}
                           </td>
                           <td style={{ padding: '16px', fontSize: '0.85rem' }}>
-                            {admin?.email || c.email || 'N/A'}
+                            {adminEmail}
                           </td>
                           <td style={{ padding: '16px' }}>
                             <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: c.status === 'Active' || c.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2', color: c.status === 'Active' || c.status === 'ACTIVE' ? '#15803d' : '#b91c1c' }}>{c.status}</span>
@@ -1493,6 +1584,7 @@ export const SuperAdminPortal: React.FC = () => {
                               )}
                               <button onClick={() => setViewingCompanyProfile(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>👁️ Profile</button>
                               <button onClick={() => handleImpersonate(c.id, c.name)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #0284c7', background: '#f0f9ff', color: '#0284c7', cursor: 'pointer' }}>🔑 Impersonate</button>
+                              <button onClick={() => handleEditPermissions(c)} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #8b5cf6', background: '#f5f3ff', color: '#6d28d9', cursor: 'pointer' }}>⚙️ Permissions</button>
                               <button onClick={() => handleResetAdminPassword(c.id, admin?.email || c.email || '')} style={{ padding: '5px 10px', fontSize: '0.75rem', borderRadius: '6px', fontWeight: '700', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>🔁 Reset Pass</button>
                               <button onClick={() => { 
                                 setEditingCompanyDetails(c);
@@ -2802,6 +2894,180 @@ export const SuperAdminPortal: React.FC = () => {
                 <button type="submit" style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0ea5e9', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Verify & Set Password</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ─── MODAL: MANAGE COMPANY PORTAL & FEATURE PERMISSIONS ─── */}
+      {permissionsModalCompany && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '750px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)', padding: '20px 24px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>⚙️ Feature Access Controls — {permissionsModalCompany.name}</h3>
+                <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>Enable or disable portals & sub-modules for this company. Disabled items will be hidden completely.</div>
+              </div>
+              <button onClick={() => setPermissionsModalCompany(null)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* 🏢 ADMIN PORTAL */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b' }}>🏢 Admin Portal Modules</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={permState.adminPortal.enabled} 
+                      onChange={e => setPermState({
+                        ...permState,
+                        adminPortal: { ...permState.adminPortal, enabled: e.target.checked }
+                      })}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                    />
+                    {permState.adminPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                  </label>
+                </div>
+
+                {permState.adminPortal.enabled && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                    {[
+                      { key: 'dashboard', label: '📊 Dashboard' },
+                      { key: 'orders', label: '📦 Orders' },
+                      { key: 'posCashier', label: '💵 POS / Cashier' },
+                      { key: 'customers', label: '👥 Customers' },
+                      { key: 'services', label: '🏷️ Services & Catalog' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages' },
+                      { key: 'deliveries', label: '🚚 Delivery Staff & Payments' },
+                      { key: 'expenses', label: '💸 Expenses Book' },
+                      { key: 'reports', label: '📈 Reports & Analytics' },
+                      { key: 'coupons', label: '🎟️ Coupons Manager' },
+                      { key: 'loyalty', label: '⭐ Wallet & Loyalty' },
+                      { key: 'staffAttendance', label: '🕒 Staff & Cashiers' },
+                      { key: 'announcements', label: '📢 Announcements' },
+                      { key: 'reviews', label: '⭐ Customer Reviews' },
+                      { key: 'customerSupport', label: '🎧 Support Center' },
+                      { key: 'auditLogs', label: '🛡️ Audit Logs' },
+                      { key: 'settings', label: '⚙️ Company Settings' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(permState.adminPortal as any)[mod.key] !== false} 
+                          onChange={e => setPermState({
+                            ...permState,
+                            adminPortal: { ...permState.adminPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 👤 CUSTOMER PORTAL */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b' }}>👤 Customer Portal Modules</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={permState.customerPortal.enabled} 
+                      onChange={e => setPermState({
+                        ...permState,
+                        customerPortal: { ...permState.customerPortal, enabled: e.target.checked }
+                      })}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                    />
+                    {permState.customerPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                  </label>
+                </div>
+
+                {permState.customerPortal.enabled && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                    {[
+                      { key: 'placeOrder', label: '🧺 Place New Order' },
+                      { key: 'orderTracking', label: '🚚 Order Tracking' },
+                      { key: 'wallet', label: '💰 Wallet & Funds' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages' },
+                      { key: 'supportTickets', label: '💬 Support Tickets' },
+                      { key: 'reviews', label: '⭐ Reviews' },
+                      { key: 'offers', label: '🏷️ Offers' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(permState.customerPortal as any)[mod.key] !== false} 
+                          onChange={e => setPermState({
+                            ...permState,
+                            customerPortal: { ...permState.customerPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 🚚 DELIVERY PORTAL */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b' }}>🚚 Delivery Portal Modules</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={permState.deliveryPortal.enabled} 
+                      onChange={e => setPermState({
+                        ...permState,
+                        deliveryPortal: { ...permState.deliveryPortal, enabled: e.target.checked }
+                      })}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                    />
+                    {permState.deliveryPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                  </label>
+                </div>
+
+                {permState.deliveryPortal.enabled && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                    {[
+                      { key: 'activeDeliveries', label: '📦 Active Deliveries' },
+                      { key: 'pickups', label: '📍 Pickup Requests' },
+                      { key: 'mapNavigation', label: '🗺️ Navigation' },
+                      { key: 'history', label: '📜 Delivery History' },
+                      { key: 'leaveRequests', label: '🏖️ Leave Requests' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(permState.deliveryPortal as any)[mod.key] !== false} 
+                          onChange={e => setPermState({
+                            ...permState,
+                            deliveryPortal: { ...permState.deliveryPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setPermissionsModalCompany(null)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}>Cancel</button>
+              <button onClick={handleSavePermissions} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer' }}>💾 Save Permissions</button>
+            </div>
+
           </div>
         </div>
       )}

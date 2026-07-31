@@ -571,6 +571,49 @@ export const AdminPortal: React.FC = () => {
   const limits = activeComp.limits || { maxAdmins: 3, maxCashiers: 5, maxDeliveryStaff: 10, maxCustomers: 5000, maxOrdersPerMonth: 2000 };
   const companyHeaderName = activeComp ? `${activeComp.name}${activeComp.address ? `, ${activeComp.address}` : ''}` : 'Laundry Desk';
 
+  // Auto-switch away if activeModule is disabled by Super Admin permissions
+  useEffect(() => {
+    const companyId = db.activeCompanyId || activeComp?.id;
+    if (!companyId) return;
+
+    let perms = activeComp?.portalPermissions;
+    if (!perms) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_permissions`);
+        if (raw) perms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (perms?.adminPortal) {
+      const isAllowedMod = (mod: string) => {
+        if (perms.adminPortal.enabled === false) return false;
+        if (mod === 'dashboard' && perms.adminPortal.dashboard === false) return false;
+        if ((mod === 'orders' || mod === 'order-history') && perms.adminPortal.orders === false) return false;
+        if (mod === 'pos' && perms.adminPortal.posCashier === false) return false;
+        if (mod === 'customers' && perms.adminPortal.customers === false) return false;
+        if (mod === 'services' && perms.adminPortal.services === false) return false;
+        if (mod === 'prepaid-packages' && perms.adminPortal.prepaidPackages === false) return false;
+        if ((mod === 'delivery-staff' || mod === 'delivery-payment') && perms.adminPortal.deliveries === false) return false;
+        if (mod === 'expenses' && perms.adminPortal.expenses === false) return false;
+        if (mod === 'reports' && perms.adminPortal.reports === false) return false;
+        if (mod === 'coupons' && perms.adminPortal.coupons === false) return false;
+        if (mod === 'wallet-loyalty' && perms.adminPortal.loyalty === false) return false;
+        if (mod === 'cashiers' && perms.adminPortal.staffAttendance === false) return false;
+        if (mod === 'audit-logs' && perms.adminPortal.auditLogs === false) return false;
+        if (mod === 'settings' && perms.adminPortal.settings === false) return false;
+        return true;
+      };
+
+      if (!isAllowedMod(activeModule)) {
+        const availableModules = ['dashboard', 'pos', 'orders', 'order-history', 'customers', 'cashiers', 'delivery-staff', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'expenses', 'reports', 'settings'];
+        const firstValid = availableModules.find(m => isAllowedMod(m));
+        if (firstValid && firstValid !== activeModule) {
+          setActiveModule(firstValid);
+        }
+      }
+    }
+  }, [db.activeCompanyId, activeComp, activeModule]);
+
   // Sync activities
   useEffect(() => {
     localStorage.setItem(`ll_${db.activeCompanyId}_activities`, JSON.stringify(activities));

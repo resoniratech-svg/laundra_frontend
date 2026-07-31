@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-
 import { getApiBaseUrl } from './config';
+import { useLanguage } from './LanguageContext';
 
 const BASE_URL = getApiBaseUrl();
 
 export default function CustomerPrepaidPackages({ customerId, token }: { customerId: string, token: string }) {
+  const { t } = useLanguage();
   const [availablePackages, setAvailablePackages] = useState<any[]>([]);
   const [myPackages, setMyPackages] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'available' | 'my-packages'>('my-packages');
@@ -68,7 +69,7 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
     }
   };
 
-  if (loading) return <div>Loading Packages...</div>;
+  if (loading) return <div>{t('Loading Packages...')}</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -77,13 +78,13 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
           onClick={() => setActiveTab('my-packages')}
           style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', background: activeTab === 'my-packages' ? '#8b5cf6' : 'transparent', color: activeTab === 'my-packages' ? 'white' : '#64748b' }}
         >
-          My Packages & QR
+          {t('My Packages & QR')}
         </button>
         <button 
           onClick={() => setActiveTab('available')}
           style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', background: activeTab === 'available' ? '#8b5cf6' : 'transparent', color: activeTab === 'available' ? 'white' : '#64748b' }}
         >
-          Buy New Package
+          {t('Buy New Package')}
         </button>
       </div>
 
@@ -95,12 +96,12 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
               <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>{p.description}</p>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                <span>Total Items:</span>
+                <span>{t('Total Items:')}</span>
                 <span style={{ fontWeight: 'bold' }}>{p.total_quantity}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                <span>Validity:</span>
-                <span style={{ fontWeight: 'bold' }}>{p.validity_days ? `${p.validity_days} Days` : 'Lifetime'}</span>
+                <span>{t('Validity:')}</span>
+                <span style={{ fontWeight: 'bold' }}>{p.validity_days ? `${p.validity_days} ${t('Days')}` : t('Lifetime')}</span>
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
@@ -112,13 +113,13 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
                   onClick={() => handlePurchase(p.id, p.offer_price)}
                   style={{ background: '#8b5cf6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
                 >
-                  Purchase
+                  {t('Purchase')}
                 </button>
               </div>
             </div>
           ))}
           {availablePackages.length === 0 && (
-            <div style={{ color: '#64748b', textAlign: 'center', gridColumn: '1 / -1', padding: '20px' }}>No packages currently available.</div>
+            <div style={{ color: '#64748b', textAlign: 'center', gridColumn: '1 / -1', padding: '20px' }}>{t('No packages currently available.')}</div>
           )}
         </div>
       )}
@@ -130,34 +131,34 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h3 style={{ margin: 0 }}>{mp.package_name}</h3>
                 <span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', background: mp.status === 'ACTIVE' ? '#ede9fe' : '#f1f5f9', color: mp.status === 'ACTIVE' ? '#8b5cf6' : '#64748b' }}>
-                  {mp.status}
+                  {t(mp.status)}
                 </span>
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                <span style={{ color: '#64748b' }}>Remaining Balance:</span>
-                <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{mp.remaining_quantity} / {mp.total_quantity} Items</span>
+                <span style={{ color: '#64748b' }}>{t('Remaining Balance:')}</span>
+                <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{mp.remaining_quantity} / {mp.total_quantity} {t('items')}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                <span style={{ color: '#64748b' }}>Expires:</span>
-                <span style={{ fontWeight: 'bold', color: '#ef4444' }}>{mp.expiry_date ? new Date(mp.expiry_date).toLocaleDateString() : 'Never'}</span>
+                <span style={{ color: '#64748b' }}>{t('Expires:')}</span>
+                <span style={{ fontWeight: 'bold', color: '#ef4444' }}>{mp.expiry_date ? new Date(mp.expiry_date).toLocaleDateString() : t('Never')}</span>
               </div>
               
               {/* QR Code display */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px' }}>
                 <img src={`${BASE_URL}/api/v1/wallet/generate-qr?data=${encodeURIComponent(mp.qr_token)}`} alt="Package QR Code" width="150" height="150" />
-                <p style={{ margin: '10px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>Show this QR Code at checkout</p>
+                <p style={{ margin: '10px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>{t('Show this QR Code at checkout')}</p>
                 <div style={{ fontSize: '0.7rem', fontFamily: 'monospace', marginTop: '4px', color: '#94a3b8' }}>{mp.qr_token}</div>
               </div>
               
               {/* Usage History Mini */}
               {mp.usage_history && mp.usage_history.length > 0 && (
                 <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '8px' }}>Recent Usage:</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '8px' }}>{t('Recent Usage:')}</div>
                   {mp.usage_history.slice(0, 3).map((h: any) => (
                     <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>
                       <span>Order #{h.order_id}</span>
-                      <span style={{ color: '#ef4444' }}>-{h.quantity_used} items</span>
+                      <span style={{ color: '#ef4444' }}>-{h.quantity_used} {t('items')}</span>
                     </div>
                   ))}
                 </div>
@@ -166,7 +167,7 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
           ))}
           {myPackages.length === 0 && (
             <div style={{ color: '#64748b', textAlign: 'center', gridColumn: '1 / -1', padding: '40px', background: 'white', borderRadius: '12px' }}>
-              You don't have any active packages.
+              {t("You don't have any active packages.")}
             </div>
           )}
         </div>

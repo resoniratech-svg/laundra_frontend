@@ -88,17 +88,49 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   // Get active company context for feature checking
   const activeComp = db.companies.find(c => c.id === db.activeCompanyId);
 
-  // Filter allowed modules based on Super Admin flags
+  // Filter allowed modules based on Super Admin flags & portal permissions
   const isAllowed = (moduleId: string) => {
-    if (!activeComp) return true;
+    const companyId = db.activeCompanyId || activeComp?.id;
+    if (!companyId) return true;
 
-    // Feature toggles
-    if (moduleId === 'cashiers' && activeComp.features?.cashierModule === false) return false;
-    if (moduleId === 'delivery-staff' && activeComp.features?.deliveryModule === false) return false;
-    if (moduleId === 'expenses' && activeComp.features?.expenseModule === false) return false;
-    if (moduleId === 'reports' && activeComp.features?.reports === false) return false;
-    if (moduleId === 'coupons' && activeComp.features?.coupons === false) return false;
-    if (moduleId === 'wallet-loyalty' && activeComp.features?.wallet === false && activeComp.features?.loyaltyProgram === false) return false;
+    // Load permissions from activeComp or central/local storage
+    let perms = activeComp?.portalPermissions;
+    if (!perms) {
+      try {
+        const mapRaw = localStorage.getItem('ll_company_permissions_map');
+        if (mapRaw) {
+          const map = JSON.parse(mapRaw);
+          if (map && map[companyId]) perms = map[companyId];
+        }
+      } catch (e) {}
+    }
+    if (!perms) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_permissions`);
+        if (raw) perms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (perms?.adminPortal) {
+      if (perms.adminPortal.enabled === false) return false;
+      if (moduleId === 'dashboard' && perms.adminPortal.dashboard === false) return false;
+      if ((moduleId === 'orders' || moduleId === 'order-history') && perms.adminPortal.orders === false) return false;
+      if (moduleId === 'pos' && perms.adminPortal.posCashier === false) return false;
+      if (moduleId === 'customers' && perms.adminPortal.customers === false) return false;
+      if (moduleId === 'services' && perms.adminPortal.services === false) return false;
+      if (moduleId === 'prepaid-packages' && perms.adminPortal.prepaidPackages === false) return false;
+      if ((moduleId === 'delivery-staff' || moduleId === 'delivery-payment') && perms.adminPortal.deliveries === false) return false;
+      if (moduleId === 'expenses' && perms.adminPortal.expenses === false) return false;
+      if (moduleId === 'reports' && perms.adminPortal.reports === false) return false;
+      if (moduleId === 'coupons' && perms.adminPortal.coupons === false) return false;
+      if (moduleId === 'wallet-loyalty' && perms.adminPortal.loyalty === false) return false;
+      if (moduleId === 'cashiers' && perms.adminPortal.staffAttendance === false) return false;
+      if (moduleId === 'announcements' && perms.adminPortal.announcements === false) return false;
+      if (moduleId === 'reviews' && perms.adminPortal.reviews === false) return false;
+      if (moduleId === 'customer-support' && perms.adminPortal.customerSupport === false) return false;
+      if (moduleId === 'audit-logs' && perms.adminPortal.auditLogs === false) return false;
+      if (moduleId === 'settings' && perms.adminPortal.settings === false) return false;
+    }
 
     // Role-based restrictions
     if (role === 'Delivery Staff' || role === 'Delivery Boy') {

@@ -237,6 +237,43 @@ export interface Company {
     multiLanguage?: boolean;
     backupRestore?: boolean;
   };
+  portalPermissions?: {
+    adminPortal: {
+      enabled: boolean;
+      dashboard?: boolean;
+      orders?: boolean;
+      posCashier?: boolean;
+      customers?: boolean;
+      services?: boolean;
+      prepaidPackages?: boolean;
+      deliveries?: boolean;
+      expenses?: boolean;
+      reports?: boolean;
+      coupons?: boolean;
+      loyalty?: boolean;
+      staffAttendance?: boolean;
+      auditLogs?: boolean;
+      settings?: boolean;
+    };
+    customerPortal: {
+      enabled: boolean;
+      placeOrder?: boolean;
+      orderTracking?: boolean;
+      wallet?: boolean;
+      prepaidPackages?: boolean;
+      supportTickets?: boolean;
+      reviews?: boolean;
+      offers?: boolean;
+    };
+    deliveryPortal: {
+      enabled: boolean;
+      activeDeliveries?: boolean;
+      pickups?: boolean;
+      mapNavigation?: boolean;
+      history?: boolean;
+      leaveRequests?: boolean;
+    };
+  };
   limits?: {
     maxAdmins?: number;
     maxCashiers?: number;
@@ -1107,6 +1144,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const saveDB = (fields: Partial<Database>) => {
+    if (fields.companies !== undefined) setCompanies(fields.companies);
     if (fields.services !== undefined) setServices(fields.services);
     if (fields.items !== undefined) setItems(fields.items);
     if (fields.serviceTypes !== undefined) setServiceTypes(fields.serviceTypes);

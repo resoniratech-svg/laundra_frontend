@@ -10,10 +10,12 @@ interface WizardProps {
 }
 
 import { getApiBaseUrl } from '../config';
+import { useDatabase } from '../DatabaseContext';
 
 const BASE_URL = getApiBaseUrl();
 
 export default function CompanyOnboardingWizard({ token, onClose, onComplete, addAuditLog, resumeData }: WizardProps) {
+  const { db, saveDB } = useDatabase();
   const [step, setStep] = useState(resumeData?.step || 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -83,14 +85,47 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
   }, [companyId, token]);
 
   
-  // Step 6 data
-  const [features, setFeatures] = useState<Record<string, boolean>>({
-    CUSTOMER_MANAGEMENT: true,
-    ORDER_MANAGEMENT: true,
-    DELIVERY_MODULE: false,
-    WALLET: false
+  // Step 6 / 10 data: Permissions & Access Controls
+  const [portalPermissions, setPortalPermissions] = useState({
+    adminPortal: {
+      enabled: true,
+      dashboard: true,
+      orders: true,
+      posCashier: true,
+      customers: true,
+      services: true,
+      prepaidPackages: true,
+      deliveries: true,
+      expenses: true,
+      reports: true,
+      coupons: true,
+      loyalty: true,
+      staffAttendance: true,
+      auditLogs: true,
+      settings: true
+    },
+    customerPortal: {
+      enabled: true,
+      placeOrder: true,
+      orderTracking: true,
+      wallet: true,
+      prepaidPackages: true,
+      supportTickets: true,
+      reviews: true,
+      offers: true
+    },
+    deliveryPortal: {
+      enabled: true,
+      activeDeliveries: true,
+      pickups: true,
+      mapNavigation: true,
+      history: true,
+      leaveRequests: true
+    }
   });
-  
+
+  const [expandedPortal, setExpandedPortal] = useState<'admin' | 'customer' | 'delivery' | null>('admin');
+
   // Step 7 data
   const [file, setFile] = useState<File | null>(null);
 
@@ -281,12 +316,66 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
   const handleStep9 = async () => {
     setLoading(true); setError('');
     try {
+      // 1. Save portalPermissions to localStorage for immediate lookup
+      if (companyId) {
+        try {
+          localStorage.setItem(`ll_company_${companyId}_permissions`, JSON.stringify(portalPermissions));
+          const mapRaw = localStorage.getItem('ll_company_permissions_map');
+          const map = mapRaw ? JSON.parse(mapRaw) : {};
+          map[companyId] = portalPermissions;
+          localStorage.setItem('ll_company_permissions_map', JSON.stringify(map));
+        } catch (e) {}
+      }
+
+      // 2. Update company object in db.companies
+      const updatedCompanies = db.companies.map(c => {
+        if (c.id === companyId) {
+          return {
+            ...c,
+            portalPermissions,
+            features: {
+              ...c.features,
+              cashierModule: portalPermissions.adminPortal.posCashier,
+              deliveryModule: portalPermissions.deliveryPortal.enabled,
+              expenseModule: portalPermissions.adminPortal.expenses,
+              reports: portalPermissions.adminPortal.reports,
+              coupons: portalPermissions.adminPortal.coupons,
+              wallet: portalPermissions.customerPortal.wallet
+            }
+          };
+        }
+        return c;
+      });
+      saveDB({ companies: updatedCompanies });
+
+      // 3. Sync features to backend
+      if (companyId) {
+        try {
+          await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/features`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              portalPermissions,
+              features: {
+                adminPortal: portalPermissions.adminPortal.enabled,
+                customerPortal: portalPermissions.customerPortal.enabled,
+                deliveryPortal: portalPermissions.deliveryPortal.enabled,
+                cashierModule: portalPermissions.adminPortal.posCashier,
+                expenseModule: portalPermissions.adminPortal.expenses,
+                coupons: portalPermissions.adminPortal.coupons,
+                wallet: portalPermissions.customerPortal.wallet
+              }
+            })
+          }).catch(() => null);
+        } catch (e) {}
+      }
+
       const statusRes = await fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/status?status=ACTIVE`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!statusRes.ok) throw new Error(await statusRes.text());
-      addAuditLog('ONBOARDING_STEP9', `Activated company ${compName}`);
+      addAuditLog('ONBOARDING_STEP9', `Activated company ${compName} with configured permissions`);
       onComplete();
     } catch (err: any) {
       setError(err.message);
@@ -301,13 +390,28 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
       <div style={{ background: 'white', width: '900px', maxWidth: '95%', height: '80vh', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
         
         {/* Header */}
-        <div style={{ padding: '24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', color: '#0f172a' }}>Company Onboarding Wizard</h2>
-            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Step {step > 6 ? step - 2 : step > 2 ? step - 1 : step} of 7</div>
-          </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-        </div>
+        {(() => {
+          const getStepNum = (s: number) => {
+            if (s === 1) return 1;
+            if (s === 3) return 2;
+            if (s === 4) return 3;
+            if (s === 5) return 4;
+            if (s === 7) return 5;
+            if (s === 8) return 6;
+            if (s === 10) return 7;
+            if (s === 9) return 8;
+            return s;
+          };
+          return (
+            <div style={{ padding: '24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', color: '#0f172a' }}>Company Onboarding Wizard</h2>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Step {getStepNum(step)} of 8</div>
+              </div>
+              <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+            </div>
+          );
+        })()}
 
         {/* Content */}
         <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
@@ -442,18 +546,237 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setStep(7)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
-                <button onClick={() => setStep(9)} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>Looks Good, Continue →</button>
+                <button onClick={() => setStep(10)} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>Continue to Feature Permissions →</button>
+              </div>
+            </div>
+          )}
+
+          {step === 10 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <h3 style={{ margin: '0 0 6px 0', fontSize: '1.2rem', color: '#0f172a' }}>7. Module & Portal Feature Permissions & Access Controls</h3>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+                  Enable or disable entire portals or fine-tune individual sub-module permissions for this tenant. Disabled items will be hidden across all users of this company.
+                </p>
+              </div>
+
+              {/* 🏢 ADMIN PORTAL */}
+              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#ffffff' }}>
+                <div style={{ padding: '16px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedPortal(expandedPortal === 'admin' ? null : 'admin')}>
+                    <span style={{ fontSize: '1.4rem' }}>🏢</span>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0f172a' }}>Admin Portal</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Management Dashboard, Orders, POS, Services, Staff, Settings</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={portalPermissions.adminPortal.enabled} 
+                        onChange={e => setPortalPermissions({
+                          ...portalPermissions,
+                          adminPortal: { ...portalPermissions.adminPortal, enabled: e.target.checked }
+                        })}
+                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                      />
+                      {portalPermissions.adminPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                    </label>
+                    <button type="button" onClick={() => setExpandedPortal(expandedPortal === 'admin' ? null : 'admin')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
+                      {expandedPortal === 'admin' ? '▲' : '▼'}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedPortal === 'admin' && portalPermissions.adminPortal.enabled && (
+                  <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', background: '#fafafa' }}>
+                    {[
+                      { key: 'dashboard', label: '📊 Dashboard Analytics' },
+                      { key: 'orders', label: '📦 Orders Management' },
+                      { key: 'posCashier', label: '💵 POS / Cashier Module' },
+                      { key: 'customers', label: '👥 Customer Management' },
+                      { key: 'services', label: '🏷️ Services & Catalog Engine' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages & Wallet' },
+                      { key: 'deliveries', label: '🚚 Delivery Operations' },
+                      { key: 'expenses', label: '💸 Expenses & Financials' },
+                      { key: 'reports', label: '📈 Reports & Analytics' },
+                      { key: 'coupons', label: '🎟️ Coupons & Promotions' },
+                      { key: 'loyalty', label: '⭐ Loyalty & Rewards' },
+                      { key: 'staffAttendance', label: '🕒 Staff & Attendance' },
+                      { key: 'auditLogs', label: '🛡️ Audit Logs & Security' },
+                      { key: 'settings', label: '⚙️ Settings & Profile' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(portalPermissions.adminPortal as any)[mod.key] !== false} 
+                          onChange={e => setPortalPermissions({
+                            ...portalPermissions,
+                            adminPortal: { ...portalPermissions.adminPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 👤 CUSTOMER PORTAL */}
+              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#ffffff' }}>
+                <div style={{ padding: '16px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedPortal(expandedPortal === 'customer' ? null : 'customer')}>
+                    <span style={{ fontSize: '1.4rem' }}>👤</span>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0f172a' }}>Customer Portal</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Self-service ordering, Live Tracking, Digital Wallet, Support</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={portalPermissions.customerPortal.enabled} 
+                        onChange={e => setPortalPermissions({
+                          ...portalPermissions,
+                          customerPortal: { ...portalPermissions.customerPortal, enabled: e.target.checked }
+                        })}
+                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                      />
+                      {portalPermissions.customerPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                    </label>
+                    <button type="button" onClick={() => setExpandedPortal(expandedPortal === 'customer' ? null : 'customer')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
+                      {expandedPortal === 'customer' ? '▲' : '▼'}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedPortal === 'customer' && portalPermissions.customerPortal.enabled && (
+                  <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', background: '#fafafa' }}>
+                    {[
+                      { key: 'placeOrder', label: '🧺 Place New Order' },
+                      { key: 'orderTracking', label: '🚚 Order Tracking & History' },
+                      { key: 'wallet', label: '💰 Wallet & Add Funds' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages' },
+                      { key: 'supportTickets', label: '💬 Support Tickets' },
+                      { key: 'reviews', label: '⭐ Reviews & Ratings' },
+                      { key: 'offers', label: '🏷️ Promotions & Offers' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(portalPermissions.customerPortal as any)[mod.key] !== false} 
+                          onChange={e => setPortalPermissions({
+                            ...portalPermissions,
+                            customerPortal: { ...portalPermissions.customerPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 🚚 DELIVERY PORTAL */}
+              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#ffffff' }}>
+                <div style={{ padding: '16px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedPortal(expandedPortal === 'delivery' ? null : 'delivery')}>
+                    <span style={{ fontSize: '1.4rem' }}>🚚</span>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0f172a' }}>Delivery Portal</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Driver App, Pickups, Map Navigation, Delivery Log, Leave Requests</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={portalPermissions.deliveryPortal.enabled} 
+                        onChange={e => setPortalPermissions({
+                          ...portalPermissions,
+                          deliveryPortal: { ...portalPermissions.deliveryPortal, enabled: e.target.checked }
+                        })}
+                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                      />
+                      {portalPermissions.deliveryPortal.enabled ? 'Master Enabled' : 'Master Disabled'}
+                    </label>
+                    <button type="button" onClick={() => setExpandedPortal(expandedPortal === 'delivery' ? null : 'delivery')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
+                      {expandedPortal === 'delivery' ? '▲' : '▼'}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedPortal === 'delivery' && portalPermissions.deliveryPortal.enabled && (
+                  <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', background: '#fafafa' }}>
+                    {[
+                      { key: 'activeDeliveries', label: '📦 Active Deliveries' },
+                      { key: 'pickups', label: '📍 Pickup Requests' },
+                      { key: 'mapNavigation', label: '🗺️ Map & Navigation' },
+                      { key: 'history', label: '📜 Delivery History' },
+                      { key: 'leaveRequests', label: '🏖️ Leave Requests' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(portalPermissions.deliveryPortal as any)[mod.key] !== false} 
+                          onChange={e => setPortalPermissions({
+                            ...portalPermissions,
+                            deliveryPortal: { ...portalPermissions.deliveryPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setStep(8)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button onClick={() => setStep(9)} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>Save Permissions & Provision →</button>
               </div>
             </div>
           )}
 
           {step === 9 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', paddingTop: '40px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', paddingTop: '30px' }}>
               <div style={{ fontSize: '3rem' }}>🎉</div>
-              <h3>7. Tenant Environment Ready!</h3>
-              <p style={{ color: '#64748b', textAlign: 'center' }}>The isolated tenant environment for {compName} has been successfully provisioned.</p>
+              <h3>8. Tenant Environment Ready!</h3>
+              <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '500px' }}>
+                The isolated tenant environment for <strong>{compName}</strong> has been successfully provisioned.
+              </p>
+              
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '550px', fontSize: '0.85rem' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#0f172a' }}>Provisioned Access Controls Summary:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🏢 Admin Portal:</span>
+                    <strong style={{ color: portalPermissions.adminPortal.enabled ? '#16a34a' : '#dc2626' }}>
+                      {portalPermissions.adminPortal.enabled ? 'Master Enabled' : 'Disabled'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>👤 Customer Portal:</span>
+                    <strong style={{ color: portalPermissions.customerPortal.enabled ? '#16a34a' : '#dc2626' }}>
+                      {portalPermissions.customerPortal.enabled ? 'Master Enabled' : 'Disabled'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🚚 Delivery Portal:</span>
+                    <strong style={{ color: portalPermissions.deliveryPortal.enabled ? '#16a34a' : '#dc2626' }}>
+                      {portalPermissions.deliveryPortal.enabled ? 'Master Enabled' : 'Disabled'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px', width: '100%' }}>
-                <button type="button" onClick={() => setStep(8)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
+                <button type="button" onClick={() => setStep(10)} style={{ ...btnStyle, background: '#64748b', flex: 1, marginTop: 0 }}>← Back</button>
                 <button onClick={handleStep9} disabled={loading} style={{ ...btnStyle, flex: 2, marginTop: 0 }}>
                   {loading ? 'Activating...' : 'Activate Company'}
                 </button>
@@ -462,15 +785,15 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
           )}
 
           {/* Catch-all: if step number is not handled, show a helpful fallback instead of blank */}
-          {![1, 3, 4, 5, 7, 8, 9].includes(step) && (
+          {![1, 3, 4, 5, 7, 8, 10, 9].includes(step) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', paddingTop: '40px' }}>
               <div style={{ fontSize: '2.5rem' }}>⚠️</div>
               <h3 style={{ color: '#b45309' }}>Resuming from Step {step}</h3>
               <p style={{ color: '#64748b', textAlign: 'center' }}>
                 This step was previously completed. Continue to the next available step.
               </p>
-              <button onClick={() => setStep(7)} style={{ ...btnStyle, width: 'auto', padding: '12px 32px', background: '#f59e0b' }}>
-                Continue → Service Catalog Import
+              <button onClick={() => setStep(10)} style={{ ...btnStyle, width: 'auto', padding: '12px 32px', background: '#f59e0b' }}>
+                Continue → Module & Portal Permissions
               </button>
             </div>
           )}
