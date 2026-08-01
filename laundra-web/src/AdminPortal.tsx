@@ -6562,7 +6562,7 @@ export const AdminPortal: React.FC = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                               <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                                 <tr>
-                                  <th style={{ padding: '10px' }}>{t('Service Name')}</th>
+                                  <th style={{ padding: '10px' }}>{t('Cloth Name')}</th>
                                   <th style={{ padding: '10px', textAlign: 'center' }}>{t('Deducted Quantity')}</th>
                                   <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
                                 </tr>
@@ -6570,7 +6570,7 @@ export const AdminPortal: React.FC = () => {
                               <tbody>
                                 {itemsList.map((it: any, idx: number) => (
                                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#1e293b' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#1e293b' }}>{it.service_name || it.serviceName || it.name || it.service || `Item ${idx + 1}`}</td>
                                     <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>{it.qty || it.quantity || it.orderedQuantity || 1}</td>
                                     <td style={{ padding: '10px', textAlign: 'center' }}>
                                       <span style={{ padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d' }}>
