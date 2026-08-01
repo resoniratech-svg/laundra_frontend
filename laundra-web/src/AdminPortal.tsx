@@ -3715,7 +3715,6 @@ export const AdminPortal: React.FC = () => {
                             <button onClick={() => setSellingPackageTo(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fdba74', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>
                               {(isCompleted || isExpired) ? '🔄 Renew Package' : (hasPkg ? `🎁 ${t('Add Package')}` : `🎁 ${t('Purchase Package')}`)}
                             </button>
-                            <button onClick={() => handleShowCustomerWalletDetails(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>💳 {t('Wallet')}</button>
                             <button onClick={() => handleOpenDeductModal(c)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>➖ {t('Deduct Usage')}</button>
                             <button onClick={() => { setLoyaltyCust(c); setLoyaltyDir('add'); }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#faf5ff', color: '#6b21a8', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>⭐ {t('Loyalty')}</button>
                             {hasPkg && (
@@ -7582,7 +7581,7 @@ export const AdminPortal: React.FC = () => {
                   onClick={handleConfirmDeductUsage}
                   style={{ flex: 2, padding: '12px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}
                 >
-                  {t('Save & Update Apple Wallet')}
+                  {t('Save & Update Wallet')}
                 </button>
               </div>
             </div>
