@@ -160,6 +160,7 @@ export const AdminPortal: React.FC = () => {
 
   // Local state for modals & details
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  const [readyInputs, setReadyInputs] = useState<Record<string, number>>({});
   const [viewingInvoice, setViewingInvoice] = useState<Order | null>(null);
   const [payLaterModalOrder, setPayLaterModalOrder] = useState<Order | null>(null);
   const [payLaterSelectedMethod, setPayLaterSelectedMethod] = useState<'Cash' | 'Card' | 'UPI' | 'Wallet'>('Cash');
@@ -1951,6 +1952,22 @@ export const AdminPortal: React.FC = () => {
   // Order Management actions
   const handleUpdateOrderStatus = (orderId: string, nextStatus: Order['status']) => {
     const orderObj = db.orders.find(o => o.id === orderId);
+    if (!orderObj) return;
+
+    // Validation: Ready status is ONLY allowed if at least one item has readyQuantity > 0
+    if (nextStatus === 'Ready' || nextStatus === 'READY') {
+      const itemsList = orderObj.items || orderObj.services || [];
+      const hasReadyItems = itemsList.some((it: any) => {
+        const rdy = it.readyQuantity || 0;
+        return Number(rdy) > 0;
+      });
+
+      if (!hasReadyItems) {
+        alert('⚠️ Cannot set Order Status to Ready. Please enter and save Ready For Delivery quantities in the Item-Level table first.');
+        return;
+      }
+    }
+
     const customerName = orderObj ? orderObj.customerName : 'Customer';
 
     const updated = db.orders.map(o => {
@@ -2811,8 +2828,8 @@ export const AdminPortal: React.FC = () => {
               : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
             const currentDelivered = it.deliveredQuantity || it.delivered_quantity || 0;
 
-            const validDispatchQty = qtyEntered !== undefined ? qtyEntered : 1;
-            const newDelivered = currentDelivered + validDispatchQty;
+            const validDispatchQty = qtyEntered !== undefined ? qtyEntered : 0;
+            const newDelivered = Math.min(picked, currentDelivered + validDispatchQty);
             const newPending = Math.max(0, picked - newDelivered);
             let s = it.itemStatus || it.item_status || 'CREATED';
             if (newDelivered >= ord) s = 'FULLY_DELIVERED';
@@ -2822,6 +2839,7 @@ export const AdminPortal: React.FC = () => {
               ...it,
               orderedQuantity: ord,
               pickedUpQuantity: picked,
+              readyQuantity: 0,
               deliveredQuantity: newDelivered,
               dispatchedForDeliveryQuantity: validDispatchQty,
               dispatched_quantity: validDispatchQty,
@@ -2830,17 +2848,18 @@ export const AdminPortal: React.FC = () => {
             };
           });
 
+          const totalPending = updatedItems.reduce((acc: number, i: any) => acc + (i.deliveryPendingQuantity || 0), 0);
           const allDelivered = updatedItems.every((i: any) => (i.deliveredQuantity || 0) >= (i.orderedQuantity || i.qty || 1));
-          const anyDelivered = updatedItems.some((i: any) => (i.deliveredQuantity || 0) > 0);
           let newStatus = o.status;
-          if (allDelivered && updatedItems.length > 0) newStatus = 'Delivered';
-          else if (anyDelivered) newStatus = 'Partially Delivered';
+          if (allDelivered && totalPending === 0) newStatus = 'Delivered';
+          else newStatus = 'Partially Delivered';
 
           return {
             ...o,
             status: newStatus,
-            deliveryStatus: allDelivered ? 'Delivered' : 'Out for Delivery',
-            items: updatedItems
+            deliveryStatus: newStatus,
+            items: updatedItems,
+            services: updatedItems
           };
         }
         return o;
@@ -4388,14 +4407,36 @@ export const AdminPortal: React.FC = () => {
                               <select
                                 value={o.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? o.courier : '') || ''}
                                 onChange={e => handleAssignPickupCourier(o.id, e.target.value)}
-                                disabled={!!(o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase()))}
+                                disabled={(() => {
+                                  const items = o.items || o.services || [];
+                                  if (items.length === 0) {
+                                    return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase());
+                                  }
+                                  const hasPending = items.some((it: any) => {
+                                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                    const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                    const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                    return pend > 0;
+                                  });
+                                  return !hasPending;
+                                })()}
                                 style={{ 
                                   padding: '4px 6px', 
                                   border: '1.5px solid #cbd5e1', 
                                   borderRadius: '6px', 
                                   fontSize: '0.8rem', 
-                                  background: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase())) ? '#e2e8f0' : 'white', 
-                                  cursor: (o.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((o.status || '').toLowerCase())) ? 'not-allowed' : 'pointer',
+                                  background: (() => {
+                                    const items = o.items || o.services || [];
+                                    if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? '#e2e8f0' : 'white';
+                                    const hasPending = items.some((it: any) => {
+                                      const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                      const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                      const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                      return pend > 0;
+                                    });
+                                    return !hasPending ? '#e2e8f0' : 'white';
+                                  })(), 
+                                  cursor: 'pointer',
                                   width: '120px' 
                                 }}
                               >
@@ -4416,14 +4457,34 @@ export const AdminPortal: React.FC = () => {
                               <select
                                 value={o.deliveryCourier || ((o.status || '').toLowerCase() === 'delivered' ? o.courier : '') || ''}
                                 onChange={e => handleAssignDeliveryCourier(o.id, e.target.value)}
-                                disabled={!!(o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered')}
+                                disabled={(() => {
+                                  const items = o.items || o.services || [];
+                                  if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered';
+                                  const totalDelPending = items.reduce((acc: number, it: any) => {
+                                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                    const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                    const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                    return acc + Math.max(0, pck - del);
+                                  }, 0);
+                                  return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered';
+                                })()}
                                 style={{ 
                                   padding: '4px 6px', 
                                   border: '1.5px solid #cbd5e1', 
                                   borderRadius: '6px', 
                                   fontSize: '0.8rem', 
-                                  background: (o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', 
-                                  cursor: (o.deliveryAccepted || (o.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer',
+                                  background: (() => {
+                                    const items = o.items || o.services || [];
+                                    if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#e2e8f0' : 'white';
+                                    const totalDelPending = items.reduce((acc: number, it: any) => {
+                                      const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                      const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                      const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                      return acc + Math.max(0, pck - del);
+                                    }, 0);
+                                    return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#e2e8f0' : 'white';
+                                  })(), 
+                                  cursor: 'pointer',
                                   width: '120px' 
                                 }}
                               >
@@ -4502,41 +4563,127 @@ export const AdminPortal: React.FC = () => {
                               <option key={s} value={s}>{t(s)}</option>
                             ))}
                           </select>
-                          <button onClick={() => {
-                            const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
-                            setPickupModalOrder(fresh);
-                            const initialInputs: Record<string, number> = {};
-                            (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
-                              const key = it.id || it.serviceId || it.service_id || String(idx);
-                              const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                              const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
-                              const pending = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - picked);
-                              initialInputs[key] = pending;
-                            });
-                            setPickupInputs(initialInputs);
-                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📦 {t('Pickup')}</button>
+                          <button 
+                            disabled={(() => {
+                              const items = o.items || o.services || [];
+                              if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase());
+                              const hasPending = items.some((it: any) => {
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                return pend > 0;
+                              });
+                              return !hasPending;
+                            })()}
+                            onClick={() => {
+                              const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
+                              setPickupModalOrder(fresh);
+                              const initialInputs: Record<string, number> = {};
+                              (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
+                                const key = it.id || it.serviceId || it.service_id || String(idx);
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                const pending = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - picked);
+                                initialInputs[key] = pending;
+                              });
+                              setPickupInputs(initialInputs);
+                            }} 
+                            style={{ 
+                              padding: '4px 8px', 
+                              fontSize: '0.75rem', 
+                              background: (() => {
+                                const items = o.items || o.services || [];
+                                if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? '#f1f5f9' : '#e0e7ff';
+                                const hasPending = items.some((it: any) => {
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                  const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                  return pend > 0;
+                                });
+                                return !hasPending ? '#f1f5f9' : '#e0e7ff';
+                              })(), 
+                              color: (() => {
+                                const items = o.items || o.services || [];
+                                if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? '#94a3b8' : '#3730a3';
+                                const hasPending = items.some((it: any) => {
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                  const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                  return pend > 0;
+                                });
+                                return !hasPending ? '#94a3b8' : '#3730a3';
+                              })(), 
+                              border: '1px solid #c7d2fe', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontWeight: 'bold' 
+                            }}
+                          >📦 {t('Pickup')}</button>
 
-                          <button onClick={() => {
-                            const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
-                            setDeliveryModalOrder(fresh);
-                            const initialInputs: Record<string, number> = {};
-                            (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
-                              const key = it.id || it.serviceId || it.service_id || String(idx);
-                              const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                              const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
-                                ? Number(it.pickedUpQuantity)
-                                : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
-                              const delivered = it.deliveredQuantity || it.delivered_quantity || 0;
-                              const remainingToDeliver = Math.max(0, picked - delivered);
-                              const delPending = remainingToDeliver > 0 ? remainingToDeliver : ord;
+                          <button 
+                            disabled={(() => {
+                              const items = o.items || o.services || [];
+                              if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered';
+                              const totalDelPending = items.reduce((acc: number, it: any) => {
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                return acc + Math.max(0, pck - del);
+                              }, 0);
+                              return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered';
+                            })()}
+                            onClick={() => {
+                              const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
+                              setDeliveryModalOrder(fresh);
+                              const initialInputs: Record<string, number> = {};
+                              (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
+                                const key = it.id || it.serviceId || it.service_id || String(idx);
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
+                                  ? Number(it.pickedUpQuantity)
+                                  : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
+                                const delivered = it.deliveredQuantity || it.delivered_quantity || 0;
+                                const remainingToDeliver = Math.max(0, picked - delivered);
+                                const delPending = remainingToDeliver > 0 ? remainingToDeliver : ord;
 
-                              initialInputs[key] = delPending;
-                              initialInputs[String(idx)] = delPending;
-                              if (it.id) initialInputs[it.id] = delPending;
-                              if (it.name) initialInputs[it.name] = delPending;
-                            });
-                            setDeliveryInputs(initialInputs);
-                          }} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🚚 {t('Deliver')}</button>
+                                initialInputs[key] = delPending;
+                                initialInputs[String(idx)] = delPending;
+                                if (it.id) initialInputs[it.id] = delPending;
+                                if (it.name) initialInputs[it.name] = delPending;
+                              });
+                              setDeliveryInputs(initialInputs);
+                            }} 
+                            style={{ 
+                              padding: '4px 8px', 
+                              fontSize: '0.75rem', 
+                              background: (() => {
+                                const items = o.items || o.services || [];
+                                if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#f1f5f9' : '#dcfce7';
+                                const totalDelPending = items.reduce((acc: number, it: any) => {
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                  return acc + Math.max(0, pck - del);
+                                }, 0);
+                                return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#f1f5f9' : '#dcfce7';
+                              })(), 
+                              color: (() => {
+                                const items = o.items || o.services || [];
+                                if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#94a3b8' : '#166534';
+                                const totalDelPending = items.reduce((acc: number, it: any) => {
+                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                  return acc + Math.max(0, pck - del);
+                                }, 0);
+                                return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#94a3b8' : '#166534';
+                              })(), 
+                              border: '1px solid #bbf7d0', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontWeight: 'bold' 
+                            }}
+                          >🚚 {t('Deliver')}</button>
                           <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
@@ -4956,7 +5103,45 @@ export const AdminPortal: React.FC = () => {
                         Qty: {item.qty} — <strong>QR {(item.price * item.qty).toFixed(2)}</strong>
                       </div>
                     </div>
-                    <button onClick={() => setPosCart(posCart.filter((_, idx) => idx !== i))} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>✕</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button 
+                        type="button"
+                        title={t('Decrease Quantity')}
+                        onClick={() => {
+                          if (item.qty > 1) {
+                            setPosCart(posCart.map((cartItem, idx) => idx === i ? { ...cartItem, qty: cartItem.qty - 1 } : cartItem));
+                          } else {
+                            setPosCart(posCart.filter((_, idx) => idx !== i));
+                          }
+                        }} 
+                        style={{ 
+                          border: '1px solid #cbd5e1', 
+                          background: 'white', 
+                          color: '#475569', 
+                          cursor: 'pointer', 
+                          borderRadius: '4px',
+                          width: '22px',
+                          height: '22px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '800',
+                          fontSize: '0.85rem',
+                          lineHeight: '1',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                      >
+                        −
+                      </button>
+                      <button 
+                        type="button"
+                        title={t('Remove Item')}
+                        onClick={() => setPosCart(posCart.filter((_, idx) => idx !== i))} 
+                        style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem', padding: '2px 4px' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -5090,334 +5275,308 @@ export const AdminPortal: React.FC = () => {
               </div>
 
 
-              {posCustId === '' ? (
-                showGuestFields && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Customer Name')}</label>
-                    <input type="text" maxLength={20} value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Phone Number')}</label>
-                    <input type="text" value={posCustPhone} maxLength={15} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Email Address')}</label>
-                    <input type="email" value={posCustEmail} onChange={e => setPosCustEmail(e.target.value)} placeholder="Enter guest email..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Physical Address')}</label>
-                    <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Enter guest address..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                  </div>
-                  </div>
-                )
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Name (Read-only)')}</label>
-                      <input type="text" value={tName(posCustName)} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Email (Read-only)')}</label>
-                      <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Wallet Balance')}</label>
-                        {db.customers.find(c => c.id === posCustId) && (
-                          <button 
-                            type="button" 
-                            onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setWalletCust(cust); setWalletDir('in'); } }} 
-                            style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
-                            title="Add Wallet Balance"
-                          >
-                            {t('➕ Add')}
-                          </button>
+              {(() => {
+                const selCust = db.customers.find(c => c.id === posCustId);
+                const hasActivePkgFromDb = Boolean(selCust && (
+                  selCust.packageStatus === 'ACTIVE' || 
+                  selCust.packageStatus === 'IN_USE' || 
+                  (selCust.activePackageName && selCust.packageStatus !== 'COMPLETED' && selCust.packageStatus !== 'EXPIRED')
+                ));
+                const hasActivePkgFromApi = posCustomerPackages.some(cp => {
+                  const st = (cp.status || '').toUpperCase();
+                  return st === 'ACTIVE' || st === 'IN_USE';
+                });
+                const isPackageCustomer = Boolean(posCustId && (hasActivePkgFromDb || hasActivePkgFromApi));
+                const activePkgName = (
+                  posCustomerPackages.find(cp => ['ACTIVE', 'IN_USE'].includes((cp.status || '').toUpperCase()))?.package?.name ||
+                  posCustomerPackages[0]?.package?.name ||
+                  selCust?.activePackageName ||
+                  'Prepaid Package'
+                );
+
+                return (
+                  <>
+                    {posCustId === '' ? (
+                      showGuestFields && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Customer Name')}</label>
+                            <input type="text" maxLength={20} value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Phone Number')}</label>
+                            <input type="text" value={posCustPhone} maxLength={15} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Email Address')}</label>
+                            <input type="email" value={posCustEmail} onChange={e => setPosCustEmail(e.target.value)} placeholder="Enter guest email..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Physical Address')}</label>
+                            <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder="Enter guest address..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Name (Read-only)')}</label>
+                            <input type="text" value={tName(posCustName)} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Email (Read-only)')}</label>
+                            <input type="text" value={posCustEmail} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                              <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Wallet Balance')}</label>
+                              {db.customers.find(c => c.id === posCustId) && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setWalletCust(cust); setWalletDir('in'); } }} 
+                                  style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                                  title="Add Wallet Balance"
+                                >
+                                  {t('➕ Add')}
+                                </button>
+                              )}
+                            </div>
+                            <input type="text" value={`QR ${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                              <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Loyalty Points')}</label>
+                              {db.customers.find(c => c.id === posCustId) && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setLoyaltyCust(cust); setLoyaltyDir('add'); } }} 
+                                  style={{ background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
+                                  title="Add Loyalty Points"
+                                >
+                                  {t('➕ Add')}
+                                </button>
+                              )}
+                            </div>
+                            <input type="text" value={`⭐ ${db.customers.find(c => c.id === posCustId)?.loyaltyPoints || 0} pts`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #fde68a', borderRadius: '4px', background: '#fffbeb', color: '#b45309', fontWeight: '800' }} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Phone Number')}</label>
+                            <input type="text" maxLength={15} value={posCustPhone} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder={t('Update phone...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Address')}</label>
+                          <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder={t('Update address...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
+                        </div>
+
+                        {/* Active Package Banner when customer has an ACTIVE prepaid package */}
+                        {isPackageCustomer && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f5f3ff', padding: '10px 12px', borderRadius: '6px', border: '1.5px solid #ddd6fe', marginTop: '4px' }}>
+                            <span style={{ fontSize: '1.3rem' }}>🎁</span>
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#6d28d9' }}>
+                                {t('Active Prepaid Package')}: {activePkgName}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: '600' }}>
+                                {t('Package Customer Mode — Payment fields hidden. Order will be created without payment.')}
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <input type="text" value={`QR ${db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: '800' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>{t('Loyalty Points')}</label>
-                        {db.customers.find(c => c.id === posCustId) && (
-                          <button 
-                            type="button" 
-                            onClick={() => { const cust = db.customers.find(c => c.id === posCustId); if (cust) { setLoyaltyCust(cust); setLoyaltyDir('add'); } }} 
-                            style={{ background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer' }}
-                            title="Add Loyalty Points"
-                          >
-                            {t('➕ Add')}
-                          </button>
+                    )}
+
+                    {(posCustId !== '' || showGuestFields) && (
+                      <>
+                        {!isPackageCustomer ? (
+                          <>
+                            {/* Coupon input field */}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                              <input 
+                                type="text" 
+                                placeholder={t('Enter Coupon Code')} 
+                                value={posCouponCode} 
+                                onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
+                                style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+                              />
+                              <button 
+                                onClick={handleApplyCoupon} 
+                                style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                              >
+                                {t('Apply')}
+                              </button>
+                            </div>
+                            {posCouponApplied && (
+                              <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>
+                                Discount Applied: -QR {posDiscount.toFixed(2)}
+                              </div>
+                            )}
+
+                            {/* Cart Summary & Total Breakdown */}
+                            <div style={{ marginTop: '14px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              
+                              {/* Subtotal */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Cart Subtotal:')}</span>
+                                <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
+                                  QR {posCart.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}
+                                </span>
+                              </div>
+
+                              {/* Applied Prepaid Package Banner */}
+                              {posPrepaidPackageApplied && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f3ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
+                                  <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#7c3aed' }}>
+                                      📦 {posPrepaidPackageApplied.name || posPrepaidPackageApplied.package_name || 'Prepaid Package'}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: '#6d28d9' }}>
+                                      Covering {posPrepaidPackageApplied.qtyToRedeem || 0} item(s)
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#7c3aed' }}>
+                                    -QR {posDiscount.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Manual Discount field */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Manual Discount (QR):')}</span>
+                                <input 
+                                  type="number" 
+                                  step="0.01" 
+                                  value={customPOSDiscount} 
+                                  className="no-spinners"
+                                  placeholder="0.00"
+                                  onChange={e => setCustomPOSDiscount(e.target.value)} 
+                                  style={{ width: '90px', padding: '4px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.9rem', color: '#0f172a', textAlign: 'right' }} 
+                                />
+                              </div>
+
+                              <div style={{ height: '1px', background: '#cbd5e1', margin: '2px 0' }} />
+
+                              {/* Final POS Total Amount */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>{t('POS Total Amount:')}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#2563eb' }}>QR</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    value={customPOSAmount !== '' ? customPOSAmount : getPOSCartTotal().toFixed(2)} 
+                                    className="no-spinners"
+                                    onChange={e => setCustomPOSAmount(e.target.value)} 
+                                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '900', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                                  />
+                                </div>
+                              </div>
+
+                            </div>
+
+                            {posPayMethod === 'Wallet' && posCustId && (
+                              <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '6px', color: '#334155', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                                <span style={{ fontWeight: '600' }}>{t('Available Wallet Balance:')}</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0ea5e9' }}>QR {db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}</span>
+                              </div>
+                            )}
+                            {posPayMethod === 'Wallet' && !posCustId && (
+                              <div style={{ padding: '10px 12px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '6px', color: '#b45309', fontSize: '0.85rem', fontWeight: '600', marginTop: '12px', textAlign: 'center' }}>
+                                ⚠️ Please select a registered customer to use Wallet payment
+                              </div>
+                            )}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet'].includes(posPayMethod) ? '1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+                              <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
+                                <option value="Cash">{t('Cash payment')}</option>
+                                <option value="Card">{t('Card payment')}</option>
+                                <option value="Wallet">{t('Wallet payment')}</option>
+                                <option value="Pay Later">{t('Pay Later')}</option>
+                              </select>
+                              
+                              {['Card', 'Wallet'].includes(posPayMethod) && (
+                                <input 
+                                  type="text"
+                                  value={posRemark}
+                                  onChange={e => setPosRemark(e.target.value)}
+                                  placeholder="Add payment remark (e.g. Txn ID)"
+                                  style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
+                                />
+                              )}
+                            </div>
+
+                            <button 
+                              onClick={() => {
+                                const posTotal = customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal();
+                                if (posCart.length === 0) {
+                                  alert('Please add at least one laundry service to the cart before checking out.');
+                                  return;
+                                }
+                                if (posTotal <= 0) {
+                                  alert('POS Total Amount must be greater than 0 to checkout.');
+                                  return;
+                                }
+                                if (['Card', 'UPI', 'Wallet'].includes(posPayMethod) && !posRemark.trim()) {
+                                  alert(`Please enter a remark (e.g. Transaction ID or Reference) for ${posPayMethod} payment.`);
+                                  return;
+                                }
+                                handleCheckoutPOS();
+                              }} 
+                              disabled={posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0}
+                              style={{ 
+                                padding: '10px', 
+                                background: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? '#94a3b8' : '#16a34a', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '6px', 
+                                fontWeight: '700', 
+                                cursor: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 'not-allowed' : 'pointer',
+                                opacity: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 0.6 : 1,
+                                marginTop: '12px',
+                                width: '100%'
+                              }}
+                            >
+                              {t('Checkout')}
+                            </button>
+                          </>
+                        ) : (
+                          /* Package Customer Mode: Payment fields hidden! Direct Checkout button enabled */
+                          <div style={{ marginTop: '14px' }}>
+                            <button 
+                              onClick={() => {
+                                if (posCart.length === 0) {
+                                  alert('Please add at least one laundry service to the cart before checking out.');
+                                  return;
+                                }
+                                handleCheckoutPOS();
+                              }} 
+                              disabled={posCart.length === 0}
+                              style={{ 
+                                padding: '12px', 
+                                background: posCart.length === 0 ? '#94a3b8' : '#7c3aed', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '6px', 
+                                fontWeight: '800', 
+                                fontSize: '0.95rem',
+                                cursor: posCart.length === 0 ? 'not-allowed' : 'pointer',
+                                opacity: posCart.length === 0 ? 0.6 : 1,
+                                width: '100%',
+                                boxShadow: posCart.length === 0 ? 'none' : '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
+                              }}
+                            >
+                              📦 {t('Checkout (Package Customer — No Payment)')}
+                            </button>
+                          </div>
                         )}
-                      </div>
-                      <input type="text" value={`⭐ ${db.customers.find(c => c.id === posCustId)?.loyaltyPoints || 0} pts`} readOnly style={{ width: '100%', padding: '6px', border: '1px solid #fde68a', borderRadius: '4px', background: '#fffbeb', color: '#b45309', fontWeight: '800' }} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Phone Number')}</label>
-                      <input type="text" maxLength={15} value={posCustPhone} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder={t('Update phone...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '700', color: '#0f172a' }}>{t('Update Address')}</label>
-                    <input type="text" value={posCustAddress} onChange={e => setPosCustAddress(e.target.value)} placeholder={t('Update address...')} style={{ width: '100%', padding: '6px', border: '1px solid #94a3b8', borderRadius: '4px' }} />
-                  </div>
-                </div>
-              )}
-
-              {(posCustId !== '' || showGuestFields) && (
-                <>
-                  {/* Coupon input field */}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <input 
-                  type="text" 
-                  placeholder={t('Enter Coupon Code')} 
-                  value={posCouponCode} 
-                  onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
-                  style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
-                />
-                <button 
-                  onClick={handleApplyCoupon} 
-                  style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  {t('Apply')}
-                </button>
-              </div>
-              {posCouponApplied && (
-                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>
-                  Discount Applied: -QR {posDiscount.toFixed(2)}
-                </div>
-              )}
-
-
-
-
-              {/* Cart Summary & Total Breakdown */}
-              <div style={{ marginTop: '14px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                
-                {/* Subtotal */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Cart Subtotal:')}</span>
-                  <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
-                    QR {posCart.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}
-                  </span>
-                </div>
-
-                {/* Applied Prepaid Package Banner */}
-                {posPrepaidPackageApplied && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f3ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#7c3aed' }}>
-                        📦 {posPrepaidPackageApplied.name || posPrepaidPackageApplied.package_name || 'Prepaid Package'}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: '#6d28d9' }}>
-                        Covering {posPrepaidPackageApplied.qtyToRedeem || 0} item(s)
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#7c3aed' }}>
-                      -QR {posDiscount.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Manual Discount field */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Manual Discount (QR):')}</span>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={customPOSDiscount} 
-                    className="no-spinners"
-                    placeholder="0.00"
-                    onChange={e => setCustomPOSDiscount(e.target.value)} 
-                    style={{ width: '90px', padding: '4px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.9rem', color: '#0f172a', textAlign: 'right' }} 
-                  />
-                </div>
-
-                <div style={{ height: '1px', background: '#cbd5e1', margin: '2px 0' }} />
-
-                {/* Final POS Total Amount */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>{t('POS Total Amount:')}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#2563eb' }}>QR</span>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      value={customPOSAmount !== '' ? customPOSAmount : getPOSCartTotal().toFixed(2)} 
-                      className="no-spinners"
-                      onChange={e => setCustomPOSAmount(e.target.value)} 
-                      style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '900', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
-                    />
-                  </div>
-                </div>
-
-              </div>
-
-              {posPayMethod === 'Wallet' && posCustId && (
-                <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '6px', color: '#334155', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                  <span style={{ fontWeight: '600' }}>{t('Available Wallet Balance:')}</span>
-                  <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0ea5e9' }}>QR {db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}</span>
-                </div>
-              )}
-              {posPayMethod === 'Wallet' && !posCustId && (
-                <div style={{ padding: '10px 12px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '6px', color: '#b45309', fontSize: '0.85rem', fontWeight: '600', marginTop: '12px', textAlign: 'center' }}>
-                  ⚠️ Please select a registered customer to use Wallet payment
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: ['Card', 'Wallet'].includes(posPayMethod) ? '1fr 1fr' : '1fr 1fr', gap: '8px', marginTop: '12px' }}>
-                <select value={posPayMethod} onChange={e => setPosPayMethod(e.target.value as any)} style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                  <option value="Cash">{t('Cash payment')}</option>
-                  <option value="Card">{t('Card payment')}</option>
-                  <option value="Wallet">{t('Wallet payment')}</option>
-                  <option value="Pay Later">{t('Pay Later')}</option>
-                </select>
-                
-                {['Card', 'Wallet'].includes(posPayMethod) && (
-                  <input 
-                    type="text"
-                    value={posRemark}
-                    onChange={e => setPosRemark(e.target.value)}
-                    placeholder="Add payment remark (e.g. Txn ID)"
-                    style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
-                  />
-                )}
-
-                {posPayMethod === 'Package' && (
-                  <select 
-                    value={posSelectedPackageId} 
-                    onChange={e => {
-                      const val = e.target.value;
-                      setPosSelectedPackageId(val);
-                      const foundPkg = posCustomerPackages.find(cp => cp.id === val || cp.secure_token === val) || (db.customerPackages || []).find(cp => cp.id === val);
-                      if (foundPkg) {
-                        const pkgName = foundPkg.package?.name || foundPkg.packageName || foundPkg.name || 'Prepaid Package';
-                        const remQty = foundPkg.remaining_quantity ?? foundPkg.total_quantity ?? 5;
-                        
-                        let currentCart = [...posCart];
-                        const eligibleList = foundPkg.package?.eligible_services || foundPkg.eligible_services || [];
-
-                        // If cart is empty, auto-populate cart with eligible services!
-                        if (currentCart.length === 0 && eligibleList.length > 0) {
-                          const autoCartItems: any[] = [];
-                          const allServices = [...(backendServices || []), ...(db.services || [])];
-
-                          eligibleList.forEach((srvItem: any) => {
-                            const serviceId = typeof srvItem === 'string' ? srvItem : (srvItem.id || srvItem.service_id);
-                            const itemQty = (typeof srvItem === 'object' && srvItem.qty) ? srvItem.qty : 1;
-                            
-                            if (serviceId === 'ALL') {
-                              allServices.slice(0, remQty || 1).forEach(s => {
-                                autoCartItems.push({
-                                  itemId: s.id,
-                                  itemName: s.name,
-                                  serviceTypeId: s.category || 'Wash',
-                                  serviceTypeName: s.category || 'Wash',
-                                  variantId: `normal_${s.id}`,
-                                  variantName: 'Normal',
-                                  price: parseFloat(s.price) || 0,
-                                  qty: 1
-                                });
-                              });
-                            } else {
-                              const matchedService = allServices.find((s: any) => s.id === serviceId || s.name === serviceId);
-                              if (matchedService) {
-                                autoCartItems.push({
-                                  itemId: matchedService.id,
-                                  itemName: matchedService.name,
-                                  serviceTypeId: matchedService.category || 'Wash',
-                                  serviceTypeName: matchedService.category || 'Wash',
-                                  variantId: `normal_${matchedService.id}`,
-                                  variantName: 'Normal',
-                                  price: parseFloat(matchedService.price) || 0,
-                                  qty: itemQty
-                                });
-                              }
-                            }
-                          });
-
-                          if (autoCartItems.length > 0) {
-                            currentCart = autoCartItems;
-                            setPosCart(autoCartItems);
-                          }
-                        }
-
-                        const totalCartQty = currentCart.reduce((sum, i) => sum + i.qty, 0);
-                        const qtyToRedeem = Math.min(totalCartQty, remQty);
-                        const cartSubtotal = currentCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-                        
-                        setPosPrepaidPackageApplied({
-                          ...foundPkg,
-                          id: foundPkg.id,
-                          packageName: pkgName,
-                          qtyToRedeem,
-                          discountAmount: cartSubtotal
-                        });
-                        setPosDiscount(cartSubtotal);
-                      }
-                    }} 
-                    style={{ padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}
-                  >
-                    <option value="">Select Package</option>
-                    {(() => {
-                      const availablePkgs = [
-                        ...posCustomerPackages.map(cp => ({
-                          id: cp.id,
-                          name: cp.package?.name || cp.packageName || 'Prepaid Package',
-                          subtitle: `${cp.total_quantity - cp.used_quantity} items left`
-                        })),
-                        ...(db.customerPackages || []).filter(cp => cp.customerId === posCustId && (cp.status?.toUpperCase() === 'ACTIVE' || cp.status === 'Active')).map(cp => ({
-                          id: cp.id,
-                          name: cp.packageName || 'Prepaid Package',
-                          subtitle: `QR ${cp.currentBalance} left`
-                        }))
-                      ];
-                      const uniquePkgs = Array.from(new Map(availablePkgs.map(p => [p.id, p])).values());
-                      return uniquePkgs.map(cp => (
-                        <option key={cp.id} value={cp.id}>{cp.name} ({cp.subtitle})</option>
-                      ));
-                    })()}
-                  </select>
-                )}
-
-                <button 
-                  onClick={() => {
-                    const posTotal = customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal();
-                    if (posCart.length === 0) {
-                      alert('Please add at least one laundry service to the cart before checking out.');
-                      return;
-                    }
-                    if (posTotal <= 0) {
-                      alert('POS Total Amount must be greater than 0 to checkout.');
-                      return;
-                    }
-                    if (['Card', 'UPI', 'Wallet'].includes(posPayMethod) && !posRemark.trim()) {
-                      alert(`Please enter a remark (e.g. Transaction ID or Reference) for ${posPayMethod} payment.`);
-                      return;
-                    }
-                    handleCheckoutPOS();
-                  }} 
-                  disabled={posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0}
-                  style={{ 
-                    padding: '10px', 
-                    background: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? '#94a3b8' : '#16a34a', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '6px', 
-                    fontWeight: '700', 
-                    cursor: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 'not-allowed' : 'pointer',
-                    opacity: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 0.6 : 1
-                  }}
-                >
-                  {t('Checkout')}
-                </button>
-              </div>
-                </>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
 
@@ -6829,36 +6988,140 @@ export const AdminPortal: React.FC = () => {
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ordered')}</th>
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Picked Up')}</th>
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Pickup Pending')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ready Qty')}</th>
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivered')}</th>
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivery Pending')}</th>
                                     <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {itemsList.map((it: any, idx: number) => (
-                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
-                                      <td style={{ padding: '10px', textAlign: 'center' }}>
-                                        <span style={{
-                                          padding: '3px 8px',
-                                          borderRadius: '4px',
-                                          fontWeight: 'bold',
-                                          fontSize: '0.72rem',
-                                          background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
-                                          color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
-                                        }}>
-                                          {it.itemStatus || 'CREATED'}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {itemsList.map((it: any, idx: number) => {
+                                    const itemKey = it.id || it.serviceId || it.service_id || String(idx);
+                                    const ord = it.orderedQuantity || it.quantity || 1;
+                                    const pck = it.pickedUpQuantity || 0;
+                                    const currentReadyVal = readyInputs[itemKey] !== undefined ? readyInputs[itemKey] : (it.readyQuantity ?? pck);
+                                    const isInvalidReady = currentReadyVal < 0 || currentReadyVal > pck;
+
+                                    return (
+                                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                        <td style={{ padding: '10px', textAlign: 'center' }}>{ord}</td>
+                                        <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{pck}</td>
+                                        <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? Math.max(0, ord - pck)}</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          <input 
+                                            type="number"
+                                            min={0}
+                                            max={pck}
+                                            value={currentReadyVal}
+                                            onChange={(e) => {
+                                              const val = parseInt(e.target.value, 10);
+                                              const numVal = isNaN(val) ? 0 : val;
+                                              setReadyInputs(prev => ({
+                                                ...prev,
+                                                [itemKey]: numVal
+                                              }));
+                                            }}
+                                            style={{
+                                              width: '55px',
+                                              padding: '4px 6px',
+                                              border: isInvalidReady ? '1.5px solid #dc2626' : '1.5px solid #2563eb',
+                                              borderRadius: '4px',
+                                              fontWeight: '800',
+                                              textAlign: 'center',
+                                              fontSize: '0.82rem',
+                                              background: isInvalidReady ? '#fef2f2' : '#eff6ff',
+                                              color: isInvalidReady ? '#dc2626' : '#1d4ed8',
+                                              boxSizing: 'border-box'
+                                            }}
+                                          />
+                                        </td>
+                                        <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
+                                        <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
+                                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                                          <span style={{
+                                            padding: '3px 8px',
+                                            borderRadius: '4px',
+                                            fontWeight: 'bold',
+                                            fontSize: '0.72rem',
+                                            background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
+                                            color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
+                                          }}>
+                                            {it.itemStatus || 'CREATED'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
+                            </div>
+
+                            {/* Save Ready Quantities Button */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Validate ready quantities before saving
+                                  for (let idx = 0; idx < itemsList.length; idx++) {
+                                    const it = itemsList[idx];
+                                    const key = it.id || it.serviceId || it.service_id || String(idx);
+                                    const sName = it.serviceName || it.name || `Service ${idx + 1}`;
+                                    const pck = it.pickedUpQuantity || 0;
+                                    const val = readyInputs[key] !== undefined ? readyInputs[key] : (it.readyQuantity ?? pck);
+
+                                    if (val < 0) {
+                                      alert(`Ready Quantity for "${sName}" cannot be negative.`);
+                                      return;
+                                    }
+                                    if (val > pck) {
+                                      alert(`Ready Quantity for "${sName}" (${val} Pcs) cannot exceed Picked Up Quantity (${pck} Pcs).`);
+                                      return;
+                                    }
+                                  }
+
+                                  // Update items with new readyQuantity & deliveryPendingQuantity
+                                  const updatedItems = itemsList.map((it: any, idx: number) => {
+                                    const key = it.id || it.serviceId || it.service_id || String(idx);
+                                    const pck = it.pickedUpQuantity || 0;
+                                    const del = it.deliveredQuantity || 0;
+                                    const val = readyInputs[key] !== undefined ? readyInputs[key] : (it.readyQuantity ?? pck);
+                                    const newDelPending = Math.max(0, val - del);
+                                    return {
+                                      ...it,
+                                      readyQuantity: val,
+                                      deliveryPendingQuantity: newDelPending
+                                    };
+                                  });
+
+                                  const updatedOrder = {
+                                    ...viewingOrder,
+                                    items: updatedItems,
+                                    services: updatedItems
+                                  };
+
+                                  const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? updatedOrder : o);
+                                  saveDB({ orders: updatedOrders });
+                                  setViewingOrder(updatedOrder);
+                                  alert('💾 Ready For Delivery quantities saved successfully! Order can now be updated to Ready status.');
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  background: '#2563eb',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                }}
+                              >
+                                💾 {t('Save Ready Quantities')}
+                              </button>
                             </div>
 
                             {/* Summaries */}

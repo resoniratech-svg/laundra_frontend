@@ -459,6 +459,26 @@ export const DeliveryPortal: React.FC = () => {
   const submitPickupCompletion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pickupDetailsOrder) return;
+
+    const rawItemList = pickupDetailsOrder.items || pickupDetailsOrder.services || [];
+
+    // Validate received quantities before submitting
+    for (let idx = 0; idx < rawItemList.length; idx++) {
+      const it = rawItemList[idx];
+      const key = it.id || it.serviceId || it.service_id || String(idx);
+      const sName = it.serviceName || it.name || `Item ${idx + 1}`;
+      const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+      const rec = pickupItemQuantities[key] !== undefined ? pickupItemQuantities[key] : ord;
+
+      if (rec < 0) {
+        alert(`Received quantity for "${sName}" cannot be negative.`);
+        return;
+      }
+      if (rec > ord) {
+        alert(`Received quantity for "${sName}" (${rec} Pcs) cannot exceed Ordered Quantity (${ord} Pcs).`);
+        return;
+      }
+    }
     
     const token = localStorage.getItem('ll_auth_token');
     const targetId = pickupDetailsOrder.backendId || pickupDetailsOrder.id;
@@ -592,15 +612,49 @@ export const DeliveryPortal: React.FC = () => {
 
       const updatedOrders = db.orders.map(o => {
         if (o.id === order.id) {
+          const updatedItems = (o.items || o.services || []).map((it: any) => {
+            const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+            const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
+              ? Number(it.pickedUpQuantity)
+              : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
+            const prevDel = it.deliveredQuantity || it.delivered_quantity || 0;
+            const readyQty = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : 0);
+            
+            const delBatch = readyQty > 0 ? readyQty : 0;
+            const newDelivered = Math.min(pck, prevDel + delBatch);
+            const newReady = 0;
+            const newDelPending = Math.max(0, pck - newDelivered);
+            
+            let s = it.itemStatus || it.item_status || 'CREATED';
+            if (newDelivered >= pck && newDelivered >= ord) s = 'FULLY_DELIVERED';
+            else if (newDelivered > 0) s = 'PARTIALLY_DELIVERED';
+
+            return {
+              ...it,
+              orderedQuantity: ord,
+              pickedUpQuantity: pck,
+              readyQuantity: newReady,
+              deliveredQuantity: newDelivered,
+              deliveryPendingQuantity: newDelPending,
+              itemStatus: s
+            };
+          });
+
+          const totalPending = updatedItems.reduce((acc: number, it: any) => acc + (it.deliveryPendingQuantity || 0), 0);
+          const allDelivered = updatedItems.every((it: any) => (it.deliveredQuantity || 0) >= (it.orderedQuantity || it.qty || 1));
+          const finalStatus = (allDelivered && totalPending === 0) ? ('Delivered' as const) : ('Partially Delivered' as const);
+
           return {
             ...o,
-            status: 'Delivered' as const,
-            deliveryStatus: 'Delivered',
+            status: finalStatus,
+            deliveryStatus: finalStatus,
             paymentStatus: 'Paid',
             deliveredDate: new Date().toISOString(),
             courier: currentUser ? currentUser.name : o.courier,
             deliveryCourier: o.deliveryCourier && o.deliveryCourier !== 'All Delivery Staff' ? o.deliveryCourier : (currentUser ? currentUser.name : o.deliveryCourier),
-            deliveryAccepted: true
+            deliveryAccepted: true,
+            items: updatedItems,
+            services: updatedItems
           };
         }
         return o;
@@ -608,7 +662,7 @@ export const DeliveryPortal: React.FC = () => {
 
       const newNotification = {
         id: Date.now(),
-        text: `✅ Order #${order.id} has been marked DELIVERED!`,
+        text: `✅ Order #${order.id} delivery update processed!`,
         time: 'Just now',
         unread: true
       };
@@ -688,8 +742,18 @@ export const DeliveryPortal: React.FC = () => {
   const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
   const deliveryReadyStatuses = ['ready', 'out for delivery', 'partially delivered'];
   
+  const isDeliveryOrderActive = (o: Order) => {
+    if (!isMyDeliveryOrder(o)) return false;
+    if (!deliveryReadyStatuses.includes((o.status || '').toLowerCase())) return false;
+    const items = o.items || o.services || [];
+    return items.some((it: any) => {
+      const rq = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : 0);
+      return rq > 0;
+    });
+  };
+
   const pendingPickupsCount = assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length;
-  const pendingDeliveriesCount = assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).length;
+  const pendingDeliveriesCount = assignedOrders.filter(isDeliveryOrderActive).length;
   const totalPendingTasksCount = pendingPickupsCount + pendingDeliveriesCount;
 
   // Actual commission earnings calculation (total of completed pickups and deliveries)
@@ -1285,10 +1349,10 @@ export const DeliveryPortal: React.FC = () => {
                       ))
                     )
                   ) : (
-                    assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).length === 0 ? (
+                    assignedOrders.filter(isDeliveryOrderActive).length === 0 ? (
                       <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>No pending delivery assignments.</div>
                     ) : (
-                      assignedOrders.filter(o => isMyDeliveryOrder(o) && deliveryReadyStatuses.includes(o.status.toLowerCase())).map(o => (
+                      assignedOrders.filter(isDeliveryOrderActive).map(o => (
                         <div key={o.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -1302,25 +1366,12 @@ export const DeliveryPortal: React.FC = () => {
                               <div>🧺 <strong>Services & Delivery Quantities:</strong></div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '2px' }}>
                                 {(o.items || o.services || []).map((it: any, idx: number) => {
-                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                  
-                                  let givenForDel = 0;
-                                  if (it.dispatchedForDeliveryQuantity !== undefined && Number(it.dispatchedForDeliveryQuantity) > 0) {
-                                    givenForDel = Number(it.dispatchedForDeliveryQuantity);
-                                  } else if (it.dispatched_quantity !== undefined && Number(it.dispatched_quantity) > 0) {
-                                    givenForDel = Number(it.dispatched_quantity);
-                                  } else if (del > 0) {
-                                    givenForDel = del;
-                                  } else {
-                                    givenForDel = ord;
-                                  }
-
-                                  const remPending = Math.max(0, ord - givenForDel);
+                                  const readyQty = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : 0);
+                                  const displayQty = readyQty;
 
                                   return (
                                     <div key={idx} style={{ fontSize: '0.8rem', color: '#1e293b' }}>
-                                      • <strong>{it.serviceName || it.name}</strong>: Actual Order <strong>{ord} Pcs</strong> | Given for Delivery: <strong style={{ color: '#15803d' }}>{givenForDel} Pcs</strong> {remPending > 0 ? ` (Pending: ${remPending} Pcs)` : ''}
+                                      • <strong>{it.serviceName || it.name}</strong>: Given for Delivery: <strong style={{ color: '#15803d' }}>{displayQty} Pcs</strong>
                                     </div>
                                   );
                                 })}
@@ -1337,7 +1388,7 @@ export const DeliveryPortal: React.FC = () => {
                               <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 Contact Client</button>
                               <button onClick={() => alert(`Launching navigation to: ${o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Delivery Address'}`)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🗺️ Navigate</button>
                             </div>
-                            {o.status === 'Ready' && (
+                            {(o.status === 'Ready' || o.status === 'Partially Delivered') && (
                               <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 Mark Out For Delivery</button>
                             )}
                             {o.status === 'Out for Delivery' && (
@@ -1670,17 +1721,55 @@ export const DeliveryPortal: React.FC = () => {
                     const itemKey = it.id || it.serviceId || it.service_id || String(idx);
                     const sName = it.serviceName || it.name || `Service ${idx + 1}`;
                     const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                    const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                    const currentVal = pickupItemQuantities[itemKey] !== undefined ? pickupItemQuantities[itemKey] : ord;
+                    const isInvalid = currentVal < 0 || currentVal > ord;
 
                     return (
-                      <div key={idx} style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#0f172a' }}>{sName}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Total Order Quantity: <strong>{ord} Pcs</strong></span>
-                          <span style={{ fontSize: '0.78rem', color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #bbf7d0' }}>
-                            Received: {ord} Pcs
+                      <div key={idx} style={{ background: isInvalid ? '#fef2f2' : '#f8fafc', padding: '12px', borderRadius: '8px', border: isInvalid ? '1.5px solid #fca5a5' : '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.88rem', color: '#0f172a' }}>{sName}</div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
+                            Ordered Quantity: <strong style={{ color: '#0f172a' }}>{ord} Pcs</strong>
                           </span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: '700', color: '#334155' }}>Received:</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={ord}
+                              value={currentVal}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                const numVal = isNaN(val) ? 0 : val;
+                                setPickupItemQuantities(prev => ({
+                                  ...prev,
+                                  [itemKey]: numVal
+                                }));
+                              }}
+                              style={{ 
+                                width: '65px', 
+                                padding: '4px 8px', 
+                                border: isInvalid ? '1.5px solid #dc2626' : '1.5px solid #16a34a', 
+                                borderRadius: '6px', 
+                                fontWeight: '800', 
+                                fontSize: '0.9rem', 
+                                textAlign: 'center',
+                                background: isInvalid ? '#fee2e2' : '#f0fdf4',
+                                color: isInvalid ? '#dc2626' : '#15803d',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>Pcs</span>
+                          </div>
                         </div>
+
+                        {isInvalid && (
+                          <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: '700', marginTop: '4px' }}>
+                            ⚠️ Quantity must be between 0 and {ord} Pcs
+                          </div>
+                        )}
                       </div>
                     );
                   })}
