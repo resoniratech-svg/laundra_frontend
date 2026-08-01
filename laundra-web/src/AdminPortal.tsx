@@ -862,8 +862,8 @@ export const AdminPortal: React.FC = () => {
             return {
               id: item.id,
               serviceId: item.service_id,
-              serviceName: matchedService ? matchedService.name : `Service`,
-              name: matchedService ? matchedService.name : `Service`,
+              serviceName: item.service_name || (matchedService ? matchedService.name : `Service`),
+              name: item.service_name || (matchedService ? matchedService.name : `Service`),
               qty: item.quantity,
               price: parseFloat(item.price || '0'),
               orderedQuantity: ordered,
@@ -895,7 +895,9 @@ export const AdminPortal: React.FC = () => {
             quantity: totalQty,
             planType: o.is_express ? 'Express' : 'One-time / Daily',
             paymentMethod: o.payment_method || 'CASH',
-            paymentStatus: o.payment_status === 'PAID' ? 'Paid' : 'Unpaid',
+            paymentStatus: (o.payment_status === 'PAID' || o.payment_status === 'Paid') ? 'Paid' : 'Unpaid',
+            appliedPackageId: o.applied_package_id || o.appliedPackageId || null,
+            specialInstructions: o.special_instructions || o.remarks || '',
             status: displayStatus,
             courier: o.delivery_boy_name || null,
             deliveryStatus: o.status === 'DELIVERED' ? 'Delivered' : 'Pending',
@@ -6523,353 +6525,423 @@ export const AdminPortal: React.FC = () => {
             {/* Scrollable Body */}
             <div style={{ padding: '24px', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
               
-              {/* TOP ROW: 2-Column Grid (Order Summary vs QR Portal Status) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {(() => {
+                const isPackageDeduction = !!(viewingOrder.appliedPackageId || (viewingOrder.specialInstructions && viewingOrder.specialInstructions.toLowerCase().includes('package deduction')));
                 
-                {/* Left: Basic Order Details */}
-                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>📋 {t('Order Summary')}</div>
-                  <div><strong>{t('Order ID:')}</strong> #{viewingOrder.id}</div>
-                  <div><strong>{t('Customer Name:')}</strong> {tName(viewingOrder.customerName)}</div>
-                  <div><strong>{t('Placing Date:')}</strong> {viewingOrder.date}</div>
-                  <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: viewingOrder.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7', color: viewingOrder.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>{viewingOrder.paymentStatus}</span></div>
-                  <div><strong>{t('Timeline Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>{viewingOrder.status}</span></div>
-                  {viewingOrder.pickupNotes && (
-                    <div style={{ color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: '6px', fontWeight: '600', marginTop: '4px', fontSize: '0.8rem' }}>
-                      ⚠️ <strong>Pickup Notes:</strong> {viewingOrder.pickupNotes}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: QR Portal Status */}
-                <div>
-                  {(() => {
-                    const customerObj = db.customers.find(c => c.id === viewingOrder.customerId || c.name === viewingOrder.customerName);
-                    if (!customerObj) return null;
-                    return (
-                      <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '800', fontSize: '0.9rem' }}>
-                            <span>📱 {t('QR Customer Portal Active')}</span>
-                          </div>
-                          <div style={{ color: '#15803d', fontSize: '0.8rem' }}>{t('Customer manages orders, invoices, and payments via their unique QR link in browser.')}</div>
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            const portalUrl = `${window.location.origin}/customer?login=${encodeURIComponent(customerObj.id)}`;
-                            const message = `Hi ${customerObj.name} 👋!\n\nHere is your direct access link to your Laundry Customer Portal:\n🔗 ${portalUrl}\n\nYou can view your active bookings, wallet balance, laundry rates, and order history anytime!`;
-                            const cleanPhone = (customerObj.phone || '').replace(/[^0-9+]/g, '');
-                            const waUrl = cleanPhone 
-                              ? `https://api.whatsapp.com/send?phone=${encodeURIComponent(cleanPhone)}&text=${encodeURIComponent(message)}`
-                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-                            window.open(waUrl, '_blank');
-                          }}
-                          style={{ padding: '8px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start' }}
-                        >
-                          💬 {t('Resend Portal Link via WhatsApp')}
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-              </div>
-
-              {/* MIDDLE ROW: 2-Column Grid (Timeline Progress vs Courier Assignment) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                
-                {/* Timeline Progress */}
-                <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontWeight: '800', marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>⏱️ {t('Timeline Progress')}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {[
-                      { label: t('Order Created'), ok: true },
-                      { label: t('Accepted'), ok: ['Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                      { label: t('Washing & Processing'), ok: ['Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                      { label: t('Ready for Collection'), ok: ['Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
-                      { label: t('Delivered'), ok: viewingOrder.status === 'Delivered' }
-                    ].map((step, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem' }}>
-                        <span style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          background: step.ok ? '#22c55e' : '#cbd5e1',
-                          color: 'white',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '11px',
-                          fontWeight: 'bold'
-                        }}>
-                          {step.ok ? '✓' : '•'}
-                        </span>
-                        <span style={{ fontWeight: step.ok ? '700' : '500', color: step.ok ? '#0f172a' : '#94a3b8' }}>
-                          {step.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Courier Assignment & Commissions */}
-                <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.9rem' }}>🚚 {t('Assign Couriers')}</div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Pickup Courier')}</label>
-                      <select 
-                        value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
-                        onChange={e => {
-                          handleAssignPickupCourier(viewingOrder.id, e.target.value);
-                          const updated = db.orders.find(o => o.id === viewingOrder.id);
-                          if (updated) setViewingOrder(updated);
-                        }}
-                        disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
-                      >
-                        <option value="">Unassigned</option>
-                        <option value="Store">Store</option>
-                        <option value="All Delivery Staff">All Delivery Staff</option>
-                        {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                          <option key={u.id} value={u.name}>{tName(u.name)}</option>
-                        ))}
-                        {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
-                          <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Delivery Courier')}</label>
-                      <select 
-                        value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
-                        onChange={e => {
-                          handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
-                          const updated = db.orders.find(o => o.id === viewingOrder.id);
-                          if (updated) setViewingOrder(updated);
-                        }}
-                        disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
-                      >
-                        <option value="">Unassigned</option>
-                        <option value="Store">Store</option>
-                        <option value="All Delivery Staff">All Delivery Staff</option>
-                        {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                          <option key={u.id} value={u.name}>{tName(u.name)}</option>
-                        ))}
-                        {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
-                          <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Commissions */}
-                  {(() => {
-                    const hasPickupCourier = !!viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && viewingOrder.pickupCourier !== '-- Unassigned --';
-                    const hasDeliveryCourier = !!viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && viewingOrder.deliveryCourier !== '-- Unassigned --';
-
-                    if (!hasPickupCourier && !hasDeliveryCourier) return null;
-
-                    const isPickupCompleted = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) || !!viewingOrder.pickupCommissionPaid;
-                    const isDeliveryCompleted = (viewingOrder.status || '').toLowerCase() === 'delivered' || !!viewingOrder.deliveryCommissionPaid;
-
-                    return (
-                      <div style={{ display: 'flex', gap: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                        {hasPickupCourier && (
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#b45309' }}>📦 {t('Pickup Comm (QR):')}</label>
-                            <input 
-                              type="number" 
-                              placeholder="0.00"
-                              disabled={isPickupCompleted}
-                              value={viewingOrder.pickupCommission ? viewingOrder.pickupCommission : ''}
-                              onChange={e => {
-                                const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
-                                setViewingOrder({...viewingOrder, pickupCommission: val});
-                                const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
-                                saveDB({ orders: updatedOrders });
-                              }}
-                              style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
-                            />
-                          </div>
-                        )}
-                        
-                        {hasDeliveryCourier && (
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Comm (QR):</label>
-                            <input 
-                              type="number" 
-                              placeholder="0.00"
-                              disabled={isDeliveryCompleted}
-                              value={viewingOrder.deliveryCommission ? viewingOrder.deliveryCommission : ''}
-                              onChange={e => {
-                                const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
-                                setViewingOrder({...viewingOrder, deliveryCommission: val});
-                                const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
-                                saveDB({ orders: updatedOrders });
-                              }}
-                              style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-              </div>
-
-              {/* BOTTOM SECTION: Item-Level Quantity & Status Breakdown Table */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>📦 {t('Item-Level Quantity & Status Breakdown')}</h4>
-                
-                {(() => {
+                if (isPackageDeduction) {
                   const itemsList = viewingOrder.items || [];
-                  if (itemsList.length === 0) {
-                    return <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No item details available.</div>;
-                  }
-
-                  let totalOrd = 0;
-                  let totalPick = 0;
-                  let totalPickPend = 0;
-                  let totalDel = 0;
-                  let totalDelPend = 0;
-
-                  itemsList.forEach(it => {
-                    const ord = it.orderedQuantity || it.quantity || 1;
-                    const pck = it.pickedUpQuantity || 0;
-                    const del = it.deliveredQuantity || 0;
-                    totalOrd += ord;
-                    totalPick += pck;
-                    totalPickPend += (it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck));
-                    totalDel += del;
-                    totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, pck - del));
-                  });
-
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                          <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                            <tr>
-                              <th style={{ padding: '10px' }}>{t('Service')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ordered')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Picked Up')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Pickup Pending')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivered')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivery Pending')}</th>
-                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itemsList.map((it, idx) => (
-                              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
-                                <td style={{ padding: '10px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
-                                <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
-                                <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
-                                <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
-                                <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
-                                <td style={{ padding: '10px', textAlign: 'center' }}>
-                                  <span style={{
-                                    padding: '3px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.72rem',
-                                    background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
-                                    color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
-                                  }}>
-                                    {it.itemStatus || 'CREATED'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Summaries */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.82rem' }}>
-                        <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                          <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '6px' }}>📦 {t('Pickup Summary:')}</strong>
-                          <div>{t('Total Ordered:')} <strong>{totalOrd}</strong></div>
-                          <div>{t('Total Picked Up:')} <strong style={{ color: '#2563eb' }}>{totalPick}</strong></div>
-                          <div>Pickup Pending: <strong style={{ color: totalPickPend > 0 ? '#d97706' : '#16a34a' }}>{totalPickPend}</strong></div>
-                          <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalPickPend === 0 ? '#15803d' : totalPick > 0 ? '#b45309' : '#475569' }}>
-                            Status: {totalPickPend === 0 ? 'FULLY PICKED UP' : totalPick > 0 ? 'PARTIALLY PICKED UP' : 'CREATED'}
-                          </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {/* Top Summary */}
+                      <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>💳 {t('Package Deduction Details')}</div>
+                          <div><strong>{t('Order ID:')}</strong> #{viewingOrder.id}</div>
+                          <div><strong>{t('Customer Name:')}</strong> {tName(viewingOrder.customerName)}</div>
+                          <div><strong>{t('Placing Date:')}</strong> {viewingOrder.date}</div>
+                          <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>Paid</span></div>
+                          <div><strong>{t('Order Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>Completed</span></div>
                         </div>
-
-                        <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                          <strong style={{ color: '#15803d', display: 'block', marginBottom: '6px' }}>🚚 {t('Delivery Summary:')}</strong>
-                          <div>{t('Total Picked Up:')} <strong>{totalPick}</strong></div>
-                          <div>{t('Total Delivered:')} <strong style={{ color: '#16a34a' }}>{totalDel}</strong></div>
-                          <div>Delivery Pending: <strong style={{ color: totalDelPend > 0 ? '#dc2626' : '#16a34a' }}>{totalDelPend}</strong></div>
-                          <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalDel === totalOrd && totalOrd > 0 ? '#15803d' : totalDel > 0 ? '#b45309' : '#475569' }}>
-                            Status: {totalDel === totalOrd && totalOrd > 0 ? 'FULLY DELIVERED' : totalDel > 0 ? 'PARTIALLY DELIVERED' : 'PENDING DELIVERY'}
-                          </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>📦 {t('Package Summary')}</div>
+                          <div><strong>{t('Package Name:')}</strong> {viewingOrder.packageName || 'Prepaid Package'}</div>
+                          <div><strong>{t('Wallet Amount Deducted:')}</strong> QR {(viewingOrder.totalAmount || viewingOrder.total || 0).toFixed(2)}</div>
+                          <div><strong>{t('Remarks / Notes:')}</strong> {viewingOrder.specialInstructions || 'N/A'}</div>
                         </div>
                       </div>
 
-                      {/* Transaction History Logs */}
-                      {((viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0) || (viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0)) && (
-                        <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                          <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#1e293b' }}>📜 Transaction History Logs</h4>
-                          
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                            {/* Pickup Logs */}
-                            {viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0 && (
-                              <div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#2563eb', marginBottom: '4px' }}>Pickup History:</div>
-                                {viewingOrder.pickupHistory.map((log: any, lIdx: number) => (
-                                  <div key={lIdx} style={{ background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ fontWeight: 'bold', color: '#475569' }}>⏰ {log.timestamp} - Picked Up By: {log.staff_name || 'Delivery Staff'}</div>
-                                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                                      {(log.items || []).map((it: any, iIdx: number) => (
-                                        <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Delivery Logs */}
-                            {viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0 && (
-                              <div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '4px' }}>Delivery History:</div>
-                                {viewingOrder.deliveryHistory.map((log: any, lIdx: number) => (
-                                  <div key={lIdx} style={{ background: '#f0fdf4', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #bbf7d0' }}>
-                                    <div style={{ fontWeight: 'bold', color: '#166534' }}>⏰ {log.timestamp} - Delivered By: {log.staff_name || 'Delivery Staff'}</div>
-                                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                                      {(log.items || []).map((it: any, iIdx: number) => (
-                                        <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                      {/* Deducted Services Breakdown */}
+                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                        <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>🧺 {t('Deducted Services Breakdown')}</h4>
+                        {itemsList.length === 0 ? (
+                          <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem' }}>
+                            💰 {t('Wallet Balance Deduction (No specific service items deducted)')}
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                              <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                <tr>
+                                  <th style={{ padding: '10px' }}>{t('Service Name')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'center' }}>{t('Deducted Quantity')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {itemsList.map((it: any, idx: number) => (
+                                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#1e293b' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>{it.qty || it.quantity || it.orderedQuantity || 1}</td>
+                                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                                      <span style={{ padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d' }}>
+                                        COMPLETED
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                        <button onClick={() => setViewingOrder(null)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>{t('Close')}</button>
+                      </div>
                     </div>
                   );
-                })()}
-              </div>
+                }
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                <button onClick={() => setViewingOrder(null)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>{t('Close')}</button>
-              </div>
+                return (
+                  <>
+                    {/* TOP ROW: 2-Column Grid (Order Summary vs QR Portal Status) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      
+                      {/* Left: Basic Order Details */}
+                      <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>📋 {t('Order Summary')}</div>
+                        <div><strong>{t('Order ID:')}</strong> #{viewingOrder.id}</div>
+                        <div><strong>{t('Customer Name:')}</strong> {tName(viewingOrder.customerName)}</div>
+                        <div><strong>{t('Placing Date:')}</strong> {viewingOrder.date}</div>
+                        <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: viewingOrder.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7', color: viewingOrder.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>{viewingOrder.paymentStatus}</span></div>
+                        <div><strong>{t('Timeline Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>{viewingOrder.status}</span></div>
+                        {viewingOrder.pickupNotes && (
+                          <div style={{ color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: '6px', fontWeight: '600', marginTop: '4px', fontSize: '0.8rem' }}>
+                            ⚠️ <strong>Pickup Notes:</strong> {viewingOrder.pickupNotes}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: QR Portal Status */}
+                      <div>
+                        {(() => {
+                          const customerObj = db.customers.find(c => c.id === viewingOrder.customerId || c.name === viewingOrder.customerName);
+                          if (!customerObj) return null;
+                          return (
+                            <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '800', fontSize: '0.9rem' }}>
+                                  <span>📱 {t('QR Customer Portal Active')}</span>
+                                </div>
+                                <div style={{ color: '#15803d', fontSize: '0.8rem' }}>{t('Customer manages orders, invoices, and payments via their unique QR link in browser.')}</div>
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  const portalUrl = `${window.location.origin}/customer?login=${encodeURIComponent(customerObj.id)}`;
+                                  const message = `Hi ${customerObj.name} 👋!\n\nHere is your direct access link to your Laundry Customer Portal:\n🔗 ${portalUrl}\n\nYou can view your active bookings, wallet balance, laundry rates, and order history anytime!`;
+                                  const cleanPhone = (customerObj.phone || '').replace(/[^0-9+]/g, '');
+                                  const waUrl = cleanPhone 
+                                    ? `https://api.whatsapp.com/send?phone=${encodeURIComponent(cleanPhone)}&text=${encodeURIComponent(message)}`
+                                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                                  window.open(waUrl, '_blank');
+                                }}
+                                style={{ padding: '8px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start' }}
+                              >
+                                💬 {t('Resend Portal Link via WhatsApp')}
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                    </div>
+
+                    {/* MIDDLE ROW: 2-Column Grid (Timeline Progress vs Courier Assignment) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      
+                      {/* Timeline Progress */}
+                      <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: '800', marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>⏱️ {t('Timeline Progress')}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {[
+                            { label: t('Order Created'), ok: true },
+                            { label: t('Accepted'), ok: ['Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                            { label: t('Washing & Processing'), ok: ['Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                            { label: t('Ready for Collection'), ok: ['Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
+                            { label: t('Delivered'), ok: viewingOrder.status === 'Delivered' }
+                          ].map((step, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem' }}>
+                              <span style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '50%',
+                                background: step.ok ? '#22c55e' : '#cbd5e1',
+                                color: 'white',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                fontWeight: 'bold'
+                              }}>
+                                {step.ok ? '✓' : '•'}
+                              </span>
+                              <span style={{ fontWeight: step.ok ? '700' : '500', color: step.ok ? '#0f172a' : '#94a3b8' }}>
+                                {step.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Courier Assignment & Commissions */}
+                      <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.9rem' }}>🚚 {t('Assign Couriers')}</div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Pickup Courier')}</label>
+                            <select 
+                              value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
+                              onChange={e => {
+                                handleAssignPickupCourier(viewingOrder.id, e.target.value);
+                                const updated = db.orders.find(o => o.id === viewingOrder.id);
+                                if (updated) setViewingOrder(updated);
+                              }}
+                              disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
+                              style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
+                            >
+                              <option value="">Unassigned</option>
+                              <option value="Store">Store</option>
+                              <option value="All Delivery Staff">All Delivery Staff</option>
+                              {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                                <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                              ))}
+                              {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
+                                <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
+                              )}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Delivery Courier')}</label>
+                            <select 
+                              value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
+                              onChange={e => {
+                                handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
+                                const updated = db.orders.find(o => o.id === viewingOrder.id);
+                                if (updated) setViewingOrder(updated);
+                              }}
+                              disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
+                              style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
+                            >
+                              <option value="">Unassigned</option>
+                              <option value="Store">Store</option>
+                              <option value="All Delivery Staff">All Delivery Staff</option>
+                              {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                                <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                              ))}
+                              {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
+                                <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Commissions */}
+                        {(() => {
+                          const hasPickupCourier = !!viewingOrder.pickupCourier && viewingOrder.pickupCourier !== 'Store' && viewingOrder.pickupCourier !== '-- Unassigned --';
+                          const hasDeliveryCourier = !!viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== 'Store' && viewingOrder.deliveryCourier !== '-- Unassigned --';
+
+                          if (!hasPickupCourier && !hasDeliveryCourier) return null;
+
+                          const isPickupCompleted = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) || !!viewingOrder.pickupCommissionPaid;
+                          const isDeliveryCompleted = (viewingOrder.status || '').toLowerCase() === 'delivered' || !!viewingOrder.deliveryCommissionPaid;
+
+                          return (
+                            <div style={{ display: 'flex', gap: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              {hasPickupCourier && (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#b45309' }}>📦 {t('Pickup Comm (QR):')}</label>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0.00"
+                                    disabled={isPickupCompleted}
+                                    value={viewingOrder.pickupCommission ? viewingOrder.pickupCommission : ''}
+                                    onChange={e => {
+                                      const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
+                                      setViewingOrder({...viewingOrder, pickupCommission: val});
+                                      const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
+                                      saveDB({ orders: updatedOrders });
+                                    }}
+                                    style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
+                                  />
+                                </div>
+                              )}
+                              
+                              {hasDeliveryCourier && (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Comm (QR):</label>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0.00"
+                                    disabled={isDeliveryCompleted}
+                                    value={viewingOrder.deliveryCommission ? viewingOrder.deliveryCommission : ''}
+                                    onChange={e => {
+                                      const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
+                                      setViewingOrder({...viewingOrder, deliveryCommission: val});
+                                      const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
+                                      saveDB({ orders: updatedOrders });
+                                    }}
+                                    style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                    </div>
+
+                    {/* BOTTOM SECTION: Item-Level Quantity Breakdown */}
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>📦 {t('Item-Level Quantity & Status Breakdown')}</h4>
+                      {(() => {
+                        const itemsList = viewingOrder.items || [];
+                        if (itemsList.length === 0) {
+                          return <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No item details available.</div>;
+                        }
+
+                        let totalOrd = 0;
+                        let totalPick = 0;
+                        let totalPickPend = 0;
+                        let totalDel = 0;
+                        let totalDelPend = 0;
+
+                        itemsList.forEach((it: any) => {
+                          const ord = it.orderedQuantity || it.quantity || 1;
+                          const pck = it.pickedUpQuantity || 0;
+                          const del = it.deliveredQuantity || 0;
+                          totalOrd += ord;
+                          totalPick += pck;
+                          totalPickPend += (it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck));
+                          totalDel += del;
+                          totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, pck - del));
+                        });
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                                <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                  <tr>
+                                    <th style={{ padding: '10px' }}>{t('Service')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ordered')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Picked Up')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Pickup Pending')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivered')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivery Pending')}</th>
+                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {itemsList.map((it: any, idx: number) => (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center' }}>{it.orderedQuantity || it.quantity || 1}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{it.pickedUpQuantity || 0}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? 0}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
+                                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                                        <span style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          fontWeight: 'bold',
+                                          fontSize: '0.72rem',
+                                          background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
+                                          color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
+                                        }}>
+                                          {it.itemStatus || 'CREATED'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Summaries */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.82rem' }}>
+                              <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                                <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '6px' }}>📦 {t('Pickup Summary:')}</strong>
+                                <div>{t('Total Ordered:')} <strong>{totalOrd}</strong></div>
+                                <div>{t('Total Picked Up:')} <strong style={{ color: '#2563eb' }}>{totalPick}</strong></div>
+                                <div>Pickup Pending: <strong style={{ color: totalPickPend > 0 ? '#d97706' : '#16a34a' }}>{totalPickPend}</strong></div>
+                                <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalPickPend === 0 ? '#15803d' : totalPick > 0 ? '#b45309' : '#475569' }}>
+                                  Status: {totalPickPend === 0 ? 'FULLY PICKED UP' : totalPick > 0 ? 'PARTIALLY PICKED UP' : 'CREATED'}
+                                </div>
+                              </div>
+
+                              <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                                <strong style={{ color: '#15803d', display: 'block', marginBottom: '6px' }}>🚚 {t('Delivery Summary:')}</strong>
+                                <div>{t('Total Picked Up:')} <strong>{totalPick}</strong></div>
+                                <div>{t('Total Delivered:')} <strong style={{ color: '#16a34a' }}>{totalDel}</strong></div>
+                                <div>Delivery Pending: <strong style={{ color: totalDelPend > 0 ? '#dc2626' : '#16a34a' }}>{totalDelPend}</strong></div>
+                                <div style={{ marginTop: '6px', fontWeight: 'bold', color: totalDel === totalOrd && totalOrd > 0 ? '#15803d' : totalDel > 0 ? '#b45309' : '#475569' }}>
+                                  Status: {totalDel === totalOrd && totalOrd > 0 ? 'FULLY DELIVERED' : totalDel > 0 ? 'PARTIALLY DELIVERED' : 'PENDING DELIVERY'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Transaction History Logs */}
+                            {((viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0) || (viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0)) && (
+                              <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#1e293b' }}>📜 Transaction History Logs</h4>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                  {/* Pickup Logs */}
+                                  {viewingOrder.pickupHistory && viewingOrder.pickupHistory.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#2563eb', marginBottom: '4px' }}>Pickup History:</div>
+                                      {viewingOrder.pickupHistory.map((log: any, lIdx: number) => (
+                                        <div key={lIdx} style={{ background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
+                                          <div style={{ fontWeight: 'bold', color: '#475569' }}>⏰ {log.timestamp} - Picked Up By: {log.staff_name || 'Delivery Staff'}</div>
+                                          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                            {(log.items || []).map((it: any, iIdx: number) => (
+                                              <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Delivery Logs */}
+                                  {viewingOrder.deliveryHistory && viewingOrder.deliveryHistory.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '4px' }}>Delivery History:</div>
+                                      {viewingOrder.deliveryHistory.map((log: any, lIdx: number) => (
+                                        <div key={lIdx} style={{ background: '#f0fdf4', padding: '8px', borderRadius: '6px', marginBottom: '6px', fontSize: '0.75rem', border: '1px solid #bbf7d0' }}>
+                                          <div style={{ fontWeight: 'bold', color: '#166534' }}>⏰ {log.timestamp} - Delivered By: {log.staff_name || 'Delivery Staff'}</div>
+                                          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                            {(log.items || []).map((it: any, iIdx: number) => (
+                                              <li key={iIdx}>{it.service_name || 'Service'}: <strong>{it.quantity} Qty</strong></li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                      <button onClick={() => setViewingOrder(null)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>{t('Close')}</button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
       )}
-
       {/* PICKUP DETAILS MODAL */}
       {pickupModalOrder && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
@@ -7987,8 +8059,6 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-    </PortalLayout>
-
       {/* WALLET HISTORY MODAL */}
       {viewingWalletHistoryCust && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
@@ -8041,6 +8111,7 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
+    </PortalLayout>
     </>
   );
 };
