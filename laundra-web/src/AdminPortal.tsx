@@ -7705,51 +7705,16 @@ export const AdminPortal: React.FC = () => {
                 const qrEncodedData = fullAppleWalletUrl || fullGoogleWalletUrl || `${window.location.origin}/customer?login=${walletPassPreview.customerId}`;
                 const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrEncodedData)}`;
 
-                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}${googleWalletLine}\n[📷 ${t('QR Image Attached')}]\n`;
+                let previewMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}${googleWalletLine}`;
 
                 let sendMsg = `${t('Hi')} ${tName(walletPassPreview.customerName)} 👋!\n${t('Your prepaid package')} (${walletPassPreview.packageName}) ${t('is active.')}\n\n${t('Current Balance:')} ${walletPassPreview.balance} QR\n${t('Valid Until:')} ${walletPassPreview.expiryDate}\n${appleWalletLine}${googleWalletLine}`;
 
-                const handleSendWhatsAppWithQRImage = async () => {
+                const handleSendWhatsAppTextMessage = () => {
                   const cleanPhone = (walletPassPreview.phone || '').replace(/[^0-9]/g, '');
-                  
-                  try {
-                    // Fetch generated QR image blob
-                    const res = await fetch(qrApiUrl);
-                    const blob = await res.blob();
-                    const file = new File([blob], `QR_Pass_${walletPassPreview.customerName.replace(/\s+/g, '_')}.png`, { type: 'image/png' });
-
-                    // Try native Web Share with QR Image file (Works on Mobile/Tablets -> sends actual QR Image to WhatsApp)
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                      await navigator.share({
-                        title: `${walletPassPreview.customerName} - Digital Pass QR`,
-                        text: sendMsg,
-                        files: [file]
-                      });
-                      return;
-                    }
-
-                    // Desktop fallback: Download QR Image file + Open WhatsApp Web with clean text
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `QR_Pass_${walletPassPreview.customerName.replace(/\s+/g, '_')}.png`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-
-                    setTimeout(() => {
-                      const waUrl = cleanPhone 
-                        ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(sendMsg)}`
-                        : `https://api.whatsapp.com/send?text=${encodeURIComponent(sendMsg)}`;
-                      window.open(waUrl, '_blank');
-                    }, 400);
-
-                  } catch (e) {
-                    console.error('Error attaching QR image:', e);
-                    const waUrl = cleanPhone 
-                      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(sendMsg)}`
-                      : `https://api.whatsapp.com/send?text=${encodeURIComponent(sendMsg)}`;
-                    window.open(waUrl, '_blank');
-                  }
+                  const waUrl = cleanPhone 
+                    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(sendMsg)}`
+                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(sendMsg)}`;
+                  window.open(waUrl, '_blank');
                 };
 
                 return (
@@ -7761,10 +7726,10 @@ export const AdminPortal: React.FC = () => {
                       {previewMsg}
                     </div>
                     <button 
-                      onClick={handleSendWhatsAppWithQRImage} 
+                      onClick={handleSendWhatsAppTextMessage} 
                       style={{ width: '100%', marginTop: '12px', padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(34,197,94,0.3)' }}
                     >
-                      <span>📲 {t('Send WhatsApp Message & QR Image')}</span>
+                      <span>📲 {t('Send WhatsApp Message')}</span>
                     </button>
                   </div>
                 );
