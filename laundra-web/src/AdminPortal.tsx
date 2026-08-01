@@ -7393,8 +7393,8 @@ export const AdminPortal: React.FC = () => {
       {/* ➖ DEDUCT USAGE MODAL */}
       {deductCust && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '16px', maxWidth: '520px', width: '100%', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #ea580c, #c2410c)', padding: '20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'white', borderRadius: '16px', maxWidth: '520px', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #ea580c, #c2410c)', padding: '20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>➖ {t('Deduct Package Usage')}</h3>
                 <p style={{ margin: '4px 0 0 0', opacity: 0.9, fontSize: '0.85rem' }}>Customer: {deductCust.name}</p>
@@ -7402,7 +7402,7 @@ export const AdminPortal: React.FC = () => {
               <button onClick={() => setDeductCust(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
             </div>
 
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
               {/* Package Summary Header */}
               {(() => {
                 const counts = getEffectiveCounts(deductCust);
