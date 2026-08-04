@@ -1,0 +1,15 @@
+export const STRINGS = {
+  APP_NAME: 'IRON GO Delivery App',
+  SIGN_IN_TITLE: 'Delivery Agent Sign In',
+  EMAIL_LABEL: 'Email Address',
+  PASSWORD_LABEL: 'Password',
+  SIGN_IN_BTN: 'Sign In to Workspace',
+  PICKUPS: 'Pickups Today',
+  DELIVERIES: 'Deliveries Today',
+  DROPS: 'Drops Completed',
+  EARNINGS: 'Total Earnings',
+  LIVE_NOTIFICATIONS: '🔔 Live Notifications Feed',
+  ANNOUNCEMENTS: '📢 Active Company Announcements',
+  CURRENCY: 'QR',
+  NO_TASKS: 'No pending task assignments at this time.',
+};

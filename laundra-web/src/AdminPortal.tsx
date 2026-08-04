@@ -160,6 +160,66 @@ export const AdminPortal: React.FC = () => {
 
   // Local state for modals & details
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+
+  const handleOpenViewModal = async (o: Order) => {
+    setReadyInputs({});
+    
+    // Always load latest order version from db.orders array
+    const latestLocalOrder = db.orders.find(item => item.id === o.id || (item.backendId && item.backendId === o.backendId)) || o;
+    setViewingOrder(latestLocalOrder);
+
+    const token = localStorage.getItem('ll_auth_token');
+    const targetId = latestLocalOrder.backendId || latestLocalOrder.id;
+    if (token && targetId) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const fresh = await res.json();
+          const mappedItems = fresh.items ? fresh.items.map((item: any) => {
+            const matchedService = (backendServices || []).find((s: any) => s.id === item.service_id);
+            const ordered = item.ordered_quantity ?? item.quantity ?? 1;
+            const picked = item.picked_up_quantity ?? 0;
+            const pickupPending = item.pickup_pending_quantity ?? Math.max(0, ordered - picked);
+            const delivered = item.delivered_quantity ?? 0;
+            const deliveryPending = item.delivery_pending_quantity ?? Math.max(0, picked - delivered);
+            const ready = item.ready_quantity !== undefined ? Number(item.ready_quantity) : 0;
+            let status = item.item_status || 'CREATED';
+            if (delivered >= picked && picked >= ordered && ordered > 0) status = 'FULLY_DELIVERED';
+            else if (delivered > 0) status = 'PARTIALLY_DELIVERED';
+            else if (picked >= ordered) status = 'FULLY_PICKED_UP';
+            else if (picked > 0) status = 'PARTIALLY_PICKED_UP';
+
+            return {
+              id: item.id,
+              serviceId: item.service_id,
+              serviceName: matchedService ? matchedService.name : (item.service_name || 'Service'),
+              name: matchedService ? matchedService.name : (item.service_name || 'Service'),
+              orderedQuantity: ordered,
+              pickedUpQuantity: picked,
+              pickupPendingQuantity: pickupPending,
+              readyQuantity: ready,
+              deliveredQuantity: delivered,
+              deliveryPendingQuantity: deliveryPending,
+              itemStatus: status,
+              price: item.price
+            };
+          }) : latestLocalOrder.items;
+
+          setViewingOrder({
+            ...latestLocalOrder,
+            status: fresh.status || latestLocalOrder.status,
+            items: mappedItems,
+            services: mappedItems,
+            pickupHistory: fresh.pickup_history ? (typeof fresh.pickup_history === 'string' ? JSON.parse(fresh.pickup_history) : fresh.pickup_history) : latestLocalOrder.pickupHistory
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to fetch fresh order for modal:', e);
+      }
+    }
+  };
   const [readyInputs, setReadyInputs] = useState<Record<string, number>>({});
   const [viewingInvoice, setViewingInvoice] = useState<Order | null>(null);
   const [payLaterModalOrder, setPayLaterModalOrder] = useState<Order | null>(null);
@@ -920,15 +980,15 @@ export const AdminPortal: React.FC = () => {
         const mergedOrders = mappedOrders.map((freshOrder: any) => {
           const existing = currentOrders.find((e: any) => e.id === freshOrder.id || e.backendId === freshOrder.backendId);
           if (existing) {
-            const rawItems = (existing.items && existing.items.some((i: any) => (i.pickedUpQuantity || 0) > 0 || (i.deliveredQuantity || 0) > 0 || (i.dispatchedForDeliveryQuantity || 0) > 0))
-              ? existing.items
-              : (freshOrder.items || existing.items || []);
+            const rawItems = (freshOrder.items && freshOrder.items.length > 0)
+              ? freshOrder.items
+              : (existing.items || []);
 
             const activeItems = rawItems.map((item: any) => {
               const existItem = (existing.items || []).find((ei: any) => ei.id === item.id || ei.serviceId === item.serviceId || ei.name === item.name || ei.serviceName === item.serviceName);
-              const disp = (existItem?.dispatchedForDeliveryQuantity !== undefined && Number(existItem?.dispatchedForDeliveryQuantity) > 0)
-                ? Number(existItem.dispatchedForDeliveryQuantity)
-                : ((item.dispatchedForDeliveryQuantity !== undefined && Number(item.dispatchedForDeliveryQuantity) > 0) ? Number(item.dispatchedForDeliveryQuantity) : (item.orderedQuantity || item.qty || 1));
+              const disp = (item.dispatchedForDeliveryQuantity !== undefined && Number(item.dispatchedForDeliveryQuantity) > 0)
+                ? Number(item.dispatchedForDeliveryQuantity)
+                : ((existItem?.dispatchedForDeliveryQuantity !== undefined && Number(existItem?.dispatchedForDeliveryQuantity) > 0) ? Number(existItem.dispatchedForDeliveryQuantity) : (item.orderedQuantity || item.qty || 1));
 
               return {
                 ...item,
@@ -937,9 +997,9 @@ export const AdminPortal: React.FC = () => {
               };
             });
 
-            const activePickupHistory = (existing.pickupHistory && existing.pickupHistory.length > 0)
-              ? existing.pickupHistory
-              : (freshOrder.pickupHistory || []);
+            const activePickupHistory = (freshOrder.pickupHistory && freshOrder.pickupHistory.length > 0)
+              ? freshOrder.pickupHistory
+              : (existing.pickupHistory || []);
 
             const activeDeliveryHistory = (existing.deliveryHistory && existing.deliveryHistory.length > 0)
               ? existing.deliveryHistory
@@ -2048,16 +2108,46 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
+  const syncDeliveryToBackend = async (orderId: string, courierName: string, deliveryType: 'PICKUP' | 'DELIVERY') => {
+    const targetOrder = db.orders.find(o => o.id === orderId);
+    const targetId = targetOrder?.backendId || orderId;
+    const adminToken = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || token || '';
+    if (!adminToken || !targetId || !courierName) return;
+
+    let driverId: string | null = null;
+    if (courierName !== 'All Delivery Staff' && courierName !== 'Store' && courierName !== 'Unassigned') {
+      const driver = db.users.find(u => u.name === courierName || u.name?.toLowerCase() === courierName.toLowerCase());
+      if (driver && driver.id) {
+        driverId = driver.id;
+      }
+    }
+
+    try {
+      await fetch(`${BASE_URL}/api/v1/deliveries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({
+          order_id: targetId,
+          delivery_boy_id: driverId,
+          type: deliveryType
+        })
+      });
+    } catch (err) {
+      console.error('Failed to sync delivery assignment to backend:', err);
+    }
+  };
+
   const handleAssignDeliveryBoy = (orderId: string, courierName: string) => {
     const updated = db.orders.map(o => {
       if (o.id === orderId) {
         let nextDeliveryStatus = o.deliveryStatus;
         if (courierName) {
-          // Orders that are Ready or beyond get delivery assignment
           if (['Ready', 'Out For Delivery', 'Out for Delivery'].includes(o.status)) {
             nextDeliveryStatus = 'Out For Delivery';
           } else {
-            // All other statuses (Created, Received, Washing, etc.) need pickup first
             nextDeliveryStatus = 'Pending Pickup';
           }
         } else {
@@ -2075,6 +2165,10 @@ export const AdminPortal: React.FC = () => {
     });
     saveDB({ orders: updated });
     addActivity('Order', `Assigned delivery agent ${courierName || 'None'} to order #${orderId}`);
+    if (courierName) {
+      const isDeliveryType = ['Ready', 'Out For Delivery', 'Out for Delivery'].includes(db.orders.find(o => o.id === orderId)?.status || '');
+      syncDeliveryToBackend(orderId, courierName, isDeliveryType ? 'DELIVERY' : 'PICKUP');
+    }
   };
 
   const handleAssignPickupCourier = (orderId: string, courierName: string) => {
@@ -2096,6 +2190,9 @@ export const AdminPortal: React.FC = () => {
     });
     saveDB({ orders: updated });
     addActivity('Order', `Assigned pickup agent ${courierName || 'None'} to order #${orderId}`);
+    if (courierName) {
+      syncDeliveryToBackend(orderId, courierName, 'PICKUP');
+    }
   };
 
   const handleAssignDeliveryCourier = (orderId: string, courierName: string) => {
@@ -2117,6 +2214,9 @@ export const AdminPortal: React.FC = () => {
     });
     saveDB({ orders: updated });
     addActivity('Order', `Assigned delivery agent ${courierName || 'None'} to order #${orderId}`);
+    if (courierName) {
+      syncDeliveryToBackend(orderId, courierName, 'DELIVERY');
+    }
   };
 
   // Payments / POS manual orders checkout
@@ -2272,31 +2372,70 @@ export const AdminPortal: React.FC = () => {
     let backendOrderId: string | null = null;
     let backendOrderNumber: string | null = null;
 
-    // posCustId is either a backend UUID (from dropdown) or empty (guest)
-    if (posCustId && posCart.length > 0) {
-      try {
-        const itemsPayload = posCart.map(i => ({
-          service_id: i.itemId,
-          quantity: i.qty
-        }));
-        const res = await fetch(`${BASE_URL}/api/v1/orders`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            customer_id: posCustId,
-            items: itemsPayload,
-            coupon_code: posCouponApplied ? posCouponCode : null,
-            is_express: posCart.some(i => i.variantName === 'Express'),
-            pay_with_package_id: (posPayMethod === 'Package' && posSelectedPackageId) ? posSelectedPackageId : null
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          backendOrderId = data.id;
-          backendOrderNumber = data.order_number;
+    // Ensure customer is registered in PostgreSQL backend
+    let targetBackendCustId = posCustId;
+    if (token && posCart.length > 0) {
+      if (!targetBackendCustId || targetBackendCustId.startsWith('c-') || targetBackendCustId === 'guest') {
+        try {
+          const custRes = await fetch(`${BASE_URL}/api/v1/customers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              name: customerName || 'POS Customer',
+              phone: posCustPhone || '555-0199',
+              email: posCustEmail || `customer_${Date.now()}@laundra.com`,
+              address: posCustAddress || 'Branch Pickup'
+            })
+          });
+          if (custRes.ok) {
+            const custData = await custRes.json();
+            targetBackendCustId = custData.id;
+          }
+        } catch (e) {
+          console.error('Failed to auto-register customer in backend:', e);
+        }
+      }
+
+      if (targetBackendCustId) {
+        try {
+          const itemsPayload = posCart.map(i => {
+            let srvId = i.variantId || i.itemId || i.serviceId;
+            const matchedService = (backendServices || []).find((bs: any) => 
+              bs.id === srvId || bs.name?.toLowerCase() === i.itemName?.toLowerCase()
+            ) || (backendServices && backendServices[0]);
+            if (matchedService && matchedService.id) {
+              srvId = matchedService.id;
+            }
+            return {
+              service_id: srvId,
+              quantity: i.qty
+            };
+          });
+
+          const res = await fetch(`${BASE_URL}/api/v1/orders`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              customer_id: targetBackendCustId,
+              items: itemsPayload,
+              coupon_code: posCouponApplied ? posCouponCode : null,
+              is_express: posCart.some(i => i.variantName === 'Express'),
+              pay_with_package_id: (posPayMethod === 'Package' && posSelectedPackageId) ? posSelectedPackageId : null,
+              pickup_address: posCustAddress || undefined,
+              delivery_address: posCustAddress || undefined,
+              special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            backendOrderId = data.id;
+            backendOrderNumber = data.order_number;
           
           // Redeem the package if applied
           if (posPrepaidPackageApplied) {
@@ -2326,6 +2465,7 @@ export const AdminPortal: React.FC = () => {
         console.error('Network error creating backend order:', err);
       }
     }
+  }
 
     const newOrderId = backendOrderNumber || String(Math.floor(100000 + Math.random() * 900000));
 
@@ -4446,7 +4586,7 @@ export const AdminPortal: React.FC = () => {
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
-                                {o.pickupCourier && !db.users.some(u => u.name === o.pickupCourier) && (
+                                {o.pickupCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(o.pickupCourier) && !db.users.some(u => u.name === o.pickupCourier) && (
                                   <option value={o.pickupCourier}>{tName(o.pickupCourier)}</option>
                                 )}
                               </select>
@@ -4494,7 +4634,7 @@ export const AdminPortal: React.FC = () => {
                                 {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                   <option key={u.id} value={u.name}>{tName(u.name)}</option>
                                 ))}
-                                {o.deliveryCourier && !db.users.some(u => u.name === o.deliveryCourier) && (
+                                {o.deliveryCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(o.deliveryCourier) && !db.users.some(u => u.name === o.deliveryCourier) && (
                                   <option value={o.deliveryCourier}>{tName(o.deliveryCourier)}</option>
                                 )}
                               </select>
@@ -4684,7 +4824,7 @@ export const AdminPortal: React.FC = () => {
                               fontWeight: 'bold' 
                             }}
                           >🚚 {t('Deliver')}</button>
-                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
+                          <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
@@ -4873,7 +5013,7 @@ export const AdminPortal: React.FC = () => {
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button onClick={() => setViewingOrder(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('View')}</button>
+                          <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('View')}</button>
                           <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🧾 {t('Invoice')}</button>
                         </div>
                       </td>
@@ -6865,7 +7005,7 @@ export const AdminPortal: React.FC = () => {
                               {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                 <option key={u.id} value={u.name}>{tName(u.name)}</option>
                               ))}
-                              {viewingOrder.pickupCourier && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
+                              {viewingOrder.pickupCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.pickupCourier) && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
                                 <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
                               )}
                             </select>
@@ -6880,7 +7020,17 @@ export const AdminPortal: React.FC = () => {
                                 const updated = db.orders.find(o => o.id === viewingOrder.id);
                                 if (updated) setViewingOrder(updated);
                               }}
-                              disabled={!!(viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered')}
+                              disabled={(() => {
+                                const items = viewingOrder.items || viewingOrder.services || [];
+                                if (items.length === 0) return (viewingOrder.status || '').toLowerCase() === 'delivered';
+                                const totalDelPending = items.reduce((acc: number, it: any) => {
+                                  const ord = it.orderedQuantity || it.quantity || 1;
+                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                  const del = it.deliveredQuantity || 0;
+                                  return acc + Math.max(0, pck - del);
+                                }, 0);
+                                return totalDelPending === 0 && (viewingOrder.status || '').toLowerCase() === 'delivered';
+                              })()}
                               style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
                             >
                               <option value="">Unassigned</option>
@@ -6889,7 +7039,7 @@ export const AdminPortal: React.FC = () => {
                               {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
                                 <option key={u.id} value={u.name}>{tName(u.name)}</option>
                               ))}
-                              {viewingOrder.deliveryCourier && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
+                              {viewingOrder.deliveryCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.deliveryCourier) && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
                                 <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
                               )}
                             </select>
@@ -6975,7 +7125,7 @@ export const AdminPortal: React.FC = () => {
                           totalPick += pck;
                           totalPickPend += (it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck));
                           totalDel += del;
-                          totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, pck - del));
+                          totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, (viewingOrder.status || '').toLowerCase() === 'delivered' ? 0 : (it.readyQuantity ?? pck) - del));
                         });
 
                         return (
@@ -7061,8 +7211,10 @@ export const AdminPortal: React.FC = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   // Validate ready quantities before saving
+                                  const payloadItems: { item_id: string; quantity: number }[] = [];
+
                                   for (let idx = 0; idx < itemsList.length; idx++) {
                                     const it = itemsList[idx];
                                     const key = it.id || it.serviceId || it.service_id || String(idx);
@@ -7077,6 +7229,29 @@ export const AdminPortal: React.FC = () => {
                                     if (val > pck) {
                                       alert(`Ready Quantity for "${sName}" (${val} Pcs) cannot exceed Picked Up Quantity (${pck} Pcs).`);
                                       return;
+                                    }
+
+                                    payloadItems.push({
+                                      item_id: it.id || it.serviceId || it.service_id,
+                                      quantity: val
+                                    });
+                                  }
+
+                                  const token = localStorage.getItem('ll_auth_token');
+                                  const targetId = viewingOrder.backendId || viewingOrder.id;
+
+                                  if (token && targetId) {
+                                    try {
+                                      await fetch(`${BASE_URL}/api/v1/orders/${targetId}/ready-items`, {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Authorization': `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({ items: payloadItems })
+                                      });
+                                    } catch (e) {
+                                      console.error('Failed to sync ready quantities to backend:', e);
                                     }
                                   }
 
