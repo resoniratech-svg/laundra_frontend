@@ -8,10 +8,7 @@ interface NotificationState {
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
-  notifications: [
-    { id: 1, text: 'New home pickup requested by Selena Gomez.', time: '10 mins ago', unread: true },
-    { id: 2, text: 'Order #OR-8839 status changed to Ready for Delivery.', time: '2 hours ago', unread: false },
-  ],
+  notifications: [],
   setNotifications: (notifications) => set({ notifications }),
   markAsRead: (id) =>
     set((state) => ({

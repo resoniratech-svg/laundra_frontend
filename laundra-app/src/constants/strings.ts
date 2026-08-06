@@ -1,5 +1,5 @@
 export const STRINGS = {
-  APP_NAME: 'IRON GO Delivery App',
+  APP_NAME: 'Qubexe Delivery App',
   SIGN_IN_TITLE: 'Delivery Agent Sign In',
   EMAIL_LABEL: 'Email Address',
   PASSWORD_LABEL: 'Password',

@@ -1,45 +1,52 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Header } from '../components/Header';
 import { AnnouncementCard } from '../components/AnnouncementCard';
 import { EmptyState } from '../components/EmptyState';
 import { Announcement } from '../types/announcement';
 import { useNavigation } from '@react-navigation/native';
+import { AnnouncementService } from '../services/AnnouncementService';
 
 export const AnnouncementsScreen = () => {
   const navigation = useNavigation();
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const announcements: Announcement[] = [
-    {
-      id: 'ann-1',
-      title: '🚚 Peak Shift Express Delivery Notice',
-      content: 'All driver staff must prioritize ready express orders before 4 PM. Ensure customer OTP is verified upon drop-off.',
-      created_at: new Date().toISOString(),
-      priority: 'High',
-    },
-    {
-      id: 'ann-2',
-      title: '⛽ Monthly Fuel Allowance Disbursement',
-      content: 'Fuel allowances for the month have been processed and added to driver commission settlements.',
-      created_at: new Date().toISOString(),
-      priority: 'Low',
-    },
-  ];
+  const loadAnnouncements = async () => {
+    setLoading(true);
+    const data = await AnnouncementService.fetchAnnouncements();
+    if (Array.isArray(data)) {
+      setAnnouncements(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
 
   return (
     <ScreenContainer>
       <Header title="Company Announcements" showBack onBack={() => navigation.goBack()} />
       <View style={styles.container}>
-        <FlatList
-          data={announcements}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <AnnouncementCard item={item} />}
-          contentContainerStyle={{ padding: 16 }}
-          ListEmptyComponent={
-            <EmptyState icon="📢" title="No Active Announcements" message="Check back later for company broadcasts and notices." />
-          }
-        />
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#2563eb" />
+          </View>
+        ) : (
+          <FlatList
+            data={announcements}
+            keyExtractor={(item, index) => item.id || String(index)}
+            renderItem={({ item }) => <AnnouncementCard item={item} />}
+            contentContainerStyle={{ padding: 16 }}
+            onRefresh={loadAnnouncements}
+            refreshing={loading}
+            ListEmptyComponent={
+              <EmptyState icon="📢" title="No Active Announcements" message="Check back later for company broadcasts and notices." />
+            }
+          />
+        )}
       </View>
     </ScreenContainer>
   );

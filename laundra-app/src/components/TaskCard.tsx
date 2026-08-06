@@ -20,8 +20,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onCall,
 }) => {
   const isPickup = type === 'pickup';
-  const readyQty = order.delivery_pending_quantity || order.deliveryPendingQuantity || (order.itemCount || 5);
-
   const statusStr = (order.deliveryStatus || order.status || '').toLowerCase();
 
   let primaryBtnText = '🚀 Mark On the Way';
@@ -36,39 +34,46 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       primaryBtnBg = colors.success; // Green
     }
   } else {
-    if (statusStr === 'ready' || statusStr === 'partially delivered' || statusStr === 'pending delivery') {
-      primaryBtnText = '🚚 Mark Out For Delivery';
-      primaryBtnBg = colors.primary; // Blue
-    } else if (statusStr === 'out for delivery') {
+    if (statusStr === 'out for delivery' || statusStr === 'out_for_delivery') {
       primaryBtnText = '✅ Complete Delivery';
       primaryBtnBg = colors.success; // Green
+    } else {
+      primaryBtnText = '🚚 Mark Out For Delivery';
+      primaryBtnBg = colors.primary; // Blue
     }
   }
 
   const handleNavigate = () => {
-    const address = encodeURIComponent(order.pickupAddress || order.address || 'Doha');
+    const address = encodeURIComponent(order.deliveryAddress || order.pickupAddress || order.address || 'Doha');
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
   };
 
-  const clientPhone = order.customerPhone || '9351332324';
-  const clientAddress = order.pickupAddress || order.address || 'Pickup at Branch';
-  const commissionAmt = isPickup ? (order.pickupCommission !== undefined ? order.pickupCommission : 0.00) : (order.deliveryCommission !== undefined ? order.deliveryCommission : 15.00);
+  const clientPhone = order.customerPhone || (order as any).phone || '9351332324';
+  const clientAddress = (isPickup ? order.pickupAddress : order.deliveryAddress) || order.address || 'Branch Location';
+  const commissionAmt = isPickup
+    ? (order.pickupCommission !== undefined ? order.pickupCommission : 0.00)
+    : (order.deliveryCommission !== undefined ? order.deliveryCommission : 0.00);
 
-  // Format Services string matching web
-  const servicesText = (order.items && order.items.length > 0)
-    ? order.items.map((it: any) => `${it.name || it.service_name || it.serviceName || 'Laundry Service'} x${it.quantity || it.qty || 1}`).join(', ')
-    : ((order as any).services && (order as any).services.length > 0)
-      ? (order as any).services.map((s: any) => `${s.name || s.serviceName || 'Laundry Service'} x${s.qty || s.quantity || 1}`).join(', ')
-      : 'Standard Laundry Load';
+  const itemList = (order.items && order.items.length > 0) ? order.items : ((order as any).services || []);
 
-  const pickupTimeStr = order.pickupDate || (order.created_at ? order.created_at.split('T')[0] : '2026-08-01');
+  const servicesText = itemList.length > 0
+    ? itemList.map((it: any) => `${it.name || it.service_name || it.serviceName || 'Laundry Service'} x${it.quantity || it.qty || 1}`).join(', ')
+    : 'Standard Laundry Load';
+
+  const dateStr = order.pickupDate || (order.created_at ? order.created_at.split('T')[0] : new Date().toLocaleDateString());
+
+  const badgeLabel = ['out for delivery', 'out_for_delivery'].includes(statusStr)
+    ? 'Out for Delivery'
+    : (isPickup
+        ? (order.deliveryStatus || order.status || 'Pending Pickup')
+        : (statusStr === 'assigned' ? 'Assigned' : (order.deliveryStatus || order.status || 'Assigned')));
 
   return (
     <View style={[styles.card, shadow.card]}>
       {/* Top Header */}
       <View style={styles.header}>
         <Text style={styles.orderId}>Order #{order.id}</Text>
-        <Badge label={order.deliveryStatus || order.status || 'Pending Pickup'} />
+        <Badge label={badgeLabel} />
       </View>
 
       {/* Main Details Section */}
@@ -76,21 +81,35 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <Text style={styles.detailItem}>👤 <Text style={styles.boldLabel}>Client Name:</Text> {order.customerName}</Text>
         <Text style={styles.detailItem}>📞 <Text style={styles.boldLabel}>Client Phone:</Text> {clientPhone}</Text>
         <Text style={styles.detailItem}>📍 <Text style={styles.boldLabel}>Address:</Text> {clientAddress}</Text>
-        {isPickup && (
-          <Text style={styles.detailItem}>🧺 <Text style={styles.boldLabel}>Services:</Text> {servicesText}</Text>
-        )}
-        <Text style={styles.detailItem}>📅 <Text style={styles.boldLabel}>{isPickup ? 'Pickup' : 'Delivery'} Time:</Text> {pickupTimeStr} (10:00 AM - 1:00 PM)</Text>
-        <Text style={styles.detailItem}>📝 <Text style={styles.boldLabel}>Instructions:</Text> Handle with care, separate whites.</Text>
 
-        {/* Ready Batch Items Detail for Deliveries */}
-        {!isPickup && (
+        {isPickup ? (
+          <Text style={styles.detailItem}>🧺 <Text style={styles.boldLabel}>Services:</Text> {servicesText}</Text>
+        ) : (
           <View style={styles.servicesBox}>
             <Text style={styles.servicesHeader}>🧺 Services & Delivery Quantities:</Text>
-            <Text style={styles.serviceLine}>
-              • <Text style={{ fontWeight: '800' }}>{servicesText}</Text>: Given for Delivery: <Text style={styles.qtyGreen}>{readyQty} Pcs</Text>
-            </Text>
+            {itemList.map((it: any, idx: number) => {
+              const sName = it.name || it.service_name || it.serviceName || `Service ${idx + 1}`;
+              const displayQty = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : (it.quantity || it.orderedQuantity || 1));
+              return (
+                <Text key={idx} style={styles.serviceLine}>
+                  • <Text style={{ fontWeight: '800' }}>{sName}</Text>: Given for Delivery: <Text style={styles.qtyGreen}>{displayQty} Pcs</Text>
+                </Text>
+              );
+            })}
           </View>
         )}
+
+        <Text style={styles.detailItem}>
+          📅 <Text style={styles.boldLabel}>{isPickup ? 'Pickup' : 'Delivery'} Time:</Text> {dateStr} ({isPickup ? '10:00 AM - 1:00 PM' : '3:00 PM - 6:00 PM'})
+        </Text>
+
+        {!isPickup && (
+          <Text style={styles.detailItem}>💳 <Text style={styles.boldLabel}>Method:</Text> CASH (Paid)</Text>
+        )}
+
+        <Text style={styles.detailItem}>
+          📝 <Text style={styles.boldLabel}>Instructions:</Text> {isPickup ? 'Handle with care, separate whites.' : 'Deliver order directly to customer upon arrival.'}
+        </Text>
 
         {/* Commission Tag */}
         <View style={[styles.commissionTag, isPickup ? styles.pickupCommissionBg : styles.deliveryCommissionBg]}>
@@ -100,12 +119,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </View>
       </View>
 
-      {/* Secondary Buttons: Contact Client */}
-      <View style={{ marginBottom: 10 }}>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={() => onCall?.(clientPhone)}>
-          <Text style={styles.secondaryBtnText}>📞 Contact Client</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Secondary Action Buttons */}
+      {isPickup ? (
+        <View style={{ marginBottom: 10 }}>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => onCall?.(clientPhone)}>
+            <Text style={styles.secondaryBtnText}>📞 Contact Client</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => onCall?.(clientPhone)}>
+            <Text style={styles.secondaryBtnText}>📞 Contact Client</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={handleNavigate}>
+            <Text style={styles.secondaryBtnText}>🗺️ Navigate</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Primary Action Button */}
       <TouchableOpacity
@@ -161,6 +191,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginVertical: 4,
+    gap: 4,
   },
   servicesHeader: {
     fontSize: 12,
@@ -205,7 +236,7 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     marginBottom: 10,
   },
   secondaryBtn: {

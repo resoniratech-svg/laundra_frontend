@@ -28,14 +28,17 @@ export const TasksScreen = () => {
     return orders.filter((o) => isMyPickupOrder(o, currentUser) && pickupStatuses.includes((o.deliveryStatus || o.status || '').toLowerCase()));
   }, [orders, currentUser]);
 
+  const isDeliveryOrderActive = (o: Order) => {
+    if (!isMyDeliveryOrder(o, currentUser)) return false;
+    const delStatus = (o.deliveryStatus || o.status || '').toLowerCase();
+    if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed') return false;
+
+    const activeStatuses = ['out for delivery', 'out_for_delivery', 'ready', 'assigned', 'on_the_way', 'courier on the way', 'reached customer', 'reached_customer', 'partially delivered', 'partially_delivered'];
+    return activeStatuses.includes(delStatus);
+  };
+
   const deliveryOrders = useMemo(() => {
-    return orders.filter((o) => {
-      if (!isMyDeliveryOrder(o, currentUser)) return false;
-      const statusStr = (o.deliveryStatus || o.status || '').toLowerCase();
-      const isDeliv = statusStr === 'ready' || statusStr === 'out for delivery' || statusStr === 'partially delivered' || statusStr === 'pending delivery';
-      const hasQty = (o.delivery_pending_quantity || o.deliveryPendingQuantity || 0) > 0;
-      return isDeliv || hasQty;
-    });
+    return orders.filter(isDeliveryOrderActive);
   }, [orders, currentUser]);
 
   const currentList = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
@@ -48,22 +51,50 @@ export const TasksScreen = () => {
     const statusStr = (order.deliveryStatus || order.status || '').toLowerCase();
 
     if (activeTab === 'pickups') {
+      const targetId = (order as any).deliveryId || (order as any).backendId || order.id;
       if (statusStr === 'created' || statusStr === 'accepted' || statusStr === 'pickup assigned' || statusStr === 'pending pickup') {
-        await updateStatus({ orderId: order.id, status: 'Accepted', deliveryStatus: 'Courier on the way' });
-        Alert.alert('Status Updated', `Order #${order.id} marked as Courier on the way!`);
+        const ok = await updateStatus({ orderId: targetId, status: 'Accepted', deliveryStatus: 'Courier on the way' });
+        if (ok) {
+          Alert.alert('Status Updated', `Order #${order.id} marked as Courier on the way!`);
+          await refetch();
+        }
       } else if (statusStr === 'courier on the way') {
-        await updateStatus({ orderId: order.id, status: 'Accepted', deliveryStatus: 'Reached Customer' });
-        Alert.alert('Status Updated', `Order #${order.id} marked as Reached Customer!`);
+        const ok = await updateStatus({ orderId: targetId, status: 'Accepted', deliveryStatus: 'Reached Customer' });
+        if (ok) {
+          Alert.alert('Status Updated', `Order #${order.id} marked as Reached Customer!`);
+          await refetch();
+        }
       } else if (statusStr === 'reached customer') {
         setSelectedQtyOrder(order);
       }
     } else {
-      if (statusStr === 'ready' || statusStr === 'partially delivered' || statusStr === 'pending delivery') {
-        await updateStatus({ orderId: order.id, status: 'Out for Delivery', deliveryStatus: 'Out for Delivery' });
-        Alert.alert('Status Updated', `Order #${order.id} marked Out for Delivery!`);
-      } else if (statusStr === 'out for delivery') {
-        await TaskService.sendOtp(order.id, 'delivery');
-        setSelectedOtpOrder(order);
+      const targetDelivId = (order as any).deliveryId || (order as any).backendId || order.id;
+      const backendId = (order as any).backendId;
+      const isOutForDelivery = statusStr === 'out for delivery' || statusStr === 'out_for_delivery';
+
+      if (isOutForDelivery) {
+        const ok = await updateStatus({ orderId: targetDelivId, status: 'Delivered', deliveryStatus: 'Delivered', backendId });
+        if (ok) {
+          Alert.alert('Success 🎉', 'Delivery Completed successfully!', [
+            {
+              text: 'OK',
+              onPress: async () => {
+                await refetch();
+              },
+            },
+          ]);
+          await refetch();
+        } else {
+          Alert.alert('Error', 'Failed to complete delivery. Please try again.');
+        }
+      } else {
+        const ok = await updateStatus({ orderId: targetDelivId, status: 'Out for Delivery', deliveryStatus: 'Out for Delivery' });
+        if (ok) {
+          Alert.alert('Status Updated', `Order #${order.id} marked Out for Delivery!`);
+          await refetch();
+        } else {
+          Alert.alert('Error', 'Failed to update delivery status. Please try again.');
+        }
       }
     }
   };
@@ -157,9 +188,10 @@ export const TasksScreen = () => {
       {selectedQtyOrder && (
         <QuantityModal
           visible={!!selectedQtyOrder}
-          orderId={selectedQtyOrder.id}
+          order={selectedQtyOrder}
           onClose={() => setSelectedQtyOrder(null)}
-          onConfirm={handleConfirmQty}
+          onSuccess={() => refetch()}
+          currentUserName={currentUser?.name}
         />
       )}
     </ScreenContainer>

@@ -15,15 +15,21 @@ export const TaskService = {
             const custData = details.customer || {};
 
             const isPickup = (d.type || '').toUpperCase() === 'PICKUP';
-            let statusText = 'Pending Pickup';
-            if (d.status === 'ASSIGNED') {
-              statusText = isPickup ? 'Pending Pickup' : 'Out for Delivery';
-            } else if (d.status === 'ACCEPTED' || d.status === 'ON_THE_WAY') {
+            let statusText = isPickup ? 'Pending Pickup' : 'Assigned';
+            if (d.status === 'DELIVERED' || d.status === 'COMPLETED' || d.status === 'FULLY_DELIVERED' || (orderData.status || '').toLowerCase() === 'delivered') {
+              statusText = 'Delivered';
+            } else if (d.status === 'OUT_FOR_DELIVERY') {
+              statusText = 'Out for Delivery';
+            } else if (d.status === 'ON_THE_WAY') {
               statusText = 'Courier on the way';
-            } else if (d.status === 'REACHED') {
+            } else if (d.status === 'REACHED' || d.status === 'REACHED_CUSTOMER') {
               statusText = 'Reached Customer';
+            } else if (d.status === 'PICKED') {
+              statusText = 'Picked Up';
+            } else if (d.status === 'ASSIGNED') {
+              statusText = isPickup ? 'Pending Pickup' : 'Assigned';
             } else {
-              statusText = d.status || 'Pending Pickup';
+              statusText = isPickup ? 'Pending Pickup' : (orderData.status || 'Assigned');
             }
 
             return {
@@ -36,19 +42,34 @@ export const TaskService = {
               deliveryAddress: orderData.delivery_address || d.delivery_address || 'Delivery at Branch',
               status: statusText,
               deliveryStatus: statusText,
+              taskType: (d.type || '').toUpperCase(),
               pickupCourier: isPickup ? 'All Delivery Staff' : '',
               deliveryCourier: !isPickup ? 'All Delivery Staff' : '',
-              courier: 'All Delivery Staff',
+              courier: isPickup ? 'All Delivery Staff' : 'All Delivery Staff',
               itemCount: orderData.items?.length || 1,
               pickupCommission: 0,
               deliveryCommission: 0,
               pickupDate: orderData.pickup_date || d.created_at || new Date().toISOString(),
               created_at: d.created_at || new Date().toISOString(),
-              items: (orderData.items || []).map((it: any) => ({
-                ...it,
-                name: it.service_name || it.name || 'Laundry Service',
-                quantity: it.quantity || it.qty || 1
-              })),
+              items: (orderData.items || []).map((it: any, idx: number) => {
+                const ord = it.ordered_quantity !== undefined ? it.ordered_quantity : (it.orderedQuantity !== undefined ? it.orderedQuantity : (it.quantity || 1));
+                const picked = it.picked_up_quantity !== undefined ? it.picked_up_quantity : (it.pickedUpQuantity || 0);
+                const pending = it.pickup_pending_quantity !== undefined ? it.pickup_pending_quantity : Math.max(0, ord - picked);
+                return {
+                  ...it,
+                  id: it.id || it.service_id || it.serviceId || String(idx),
+                  service_id: it.service_id || it.serviceId || it.id,
+                  service_name: it.service_name || it.name || 'Laundry Service',
+                  name: it.service_name || it.name || 'Laundry Service',
+                  quantity: ord,
+                  orderedQuantity: ord,
+                  ordered_quantity: ord,
+                  pickedUpQuantity: picked,
+                  picked_up_quantity: picked,
+                  pickupPendingQuantity: pending,
+                  pickup_pending_quantity: pending,
+                };
+              }),
             };
           } catch (e) {
             const isPickup = (d.type || '').toUpperCase() === 'PICKUP';
@@ -93,33 +114,55 @@ export const TaskService = {
     return [];
   },
 
-  updateOrderStatus: async (orderId: string, status: string, deliveryStatus?: string): Promise<boolean> => {
+  updateOrderStatus: async (orderId: string, status: string, deliveryStatus?: string, backendId?: string): Promise<boolean> => {
     let apiStatus = 'ON_THE_WAY';
-    const checkStr = (deliveryStatus || status || '').toLowerCase();
-    if (checkStr.includes('reached')) {
-      apiStatus = 'REACHED';
-    } else if (checkStr.includes('picked')) {
-      apiStatus = 'PICKED';
-    } else if (checkStr.includes('out for delivery')) {
-      apiStatus = 'OUT_FOR_DELIVERY';
-    } else if (checkStr.includes('delivered')) {
+    const statusLower = (status || '').toLowerCase();
+    const delivLower = (deliveryStatus || '').toLowerCase();
+
+    if (statusLower === 'delivered' || statusLower === 'completed' || delivLower === 'delivered') {
       apiStatus = 'DELIVERED';
-    } else if (checkStr.includes('on the way')) {
+    } else if (statusLower.includes('picked') || delivLower.includes('picked')) {
+      apiStatus = 'PICKED';
+    } else if (statusLower.includes('reached') || delivLower.includes('reached')) {
+      apiStatus = 'REACHED';
+    } else if (statusLower.includes('out for delivery') || statusLower === 'out_for_delivery' || delivLower.includes('out for delivery')) {
+      apiStatus = 'OUT_FOR_DELIVERY';
+    } else if (statusLower.includes('on the way') || delivLower.includes('on the way')) {
       apiStatus = 'ON_THE_WAY';
     }
 
+    const endpoint = `/api/v1/deliveries/${orderId}/status`;
+    const payload = { status: apiStatus };
+
+    console.log(`[API REQUEST] Endpoint: ${endpoint} | Method: PATCH | Delivery ID: ${orderId} | Payload:`, JSON.stringify(payload));
+
+    let patchSuccess = false;
     try {
-      await apiClient.patch(`/api/v1/deliveries/${orderId}/status`, { status: apiStatus });
-      return true;
-    } catch (e) {
-      try {
-        await apiClient.put(`/api/v1/orders/${orderId}`, { status, deliveryStatus });
-        return true;
-      } catch (err) {
-        console.warn('TaskService updateOrderStatus error:', err);
-      }
-      return false;
+      const res = await apiClient.patch(endpoint, payload);
+      console.log(`[API RESPONSE SUCCESS] Endpoint: ${endpoint} | Status Code: ${res.status} | Body:`, JSON.stringify(res.data));
+      patchSuccess = true;
+    } catch (e: any) {
+      console.warn(`[API RESPONSE WARNING] Endpoint: ${endpoint} | Status Code: ${e?.response?.status} | Details:`, JSON.stringify(e?.response?.data || e?.message));
     }
+
+    // Mirror Web Delivery Portal OTP BYPASS sync for DELIVERED status
+    let otpSuccess = false;
+    if (apiStatus === 'DELIVERED') {
+      const targetOrderUuid = backendId || orderId;
+      try {
+        console.log(`[API REQUEST] Endpoint: /api/v1/orders/${targetOrderUuid}/verify-otp | Method: POST | Action: delivery BYPASS`);
+        const otpRes = await apiClient.post(`/api/v1/orders/${targetOrderUuid}/verify-otp`, {
+          action: 'delivery',
+          otp: 'BYPASS',
+        });
+        console.log(`[API RESPONSE SUCCESS] Verify OTP BYPASS | Status: ${otpRes.status}`);
+        otpSuccess = true;
+      } catch (err: any) {
+        console.warn(`[API RESPONSE WARNING] Verify OTP BYPASS sync warning:`, err?.response?.data || err?.message);
+      }
+    }
+
+    return patchSuccess || otpSuccess;
   },
 
   sendOtp: async (orderId: string, type: 'pickup' | 'delivery'): Promise<boolean> => {
@@ -128,6 +171,19 @@ export const TaskService = {
       return true;
     } catch (e) {
       console.warn('TaskService sendOtp error:', e);
+      return false;
+    }
+  },
+
+  submitPickupItems: async (orderId: string, items: Array<{ item_id: string; quantity: number }>, staffName?: string): Promise<boolean> => {
+    try {
+      await apiClient.post(`/api/v1/orders/${orderId}/pickup-items`, {
+        items,
+        staff_name: staffName || 'Delivery Staff'
+      });
+      return true;
+    } catch (e) {
+      console.warn('TaskService submitPickupItems error:', e);
       return false;
     }
   },

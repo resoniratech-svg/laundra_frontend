@@ -337,6 +337,194 @@ export const AdminPortal: React.FC = () => {
     };
   };
 
+  const calculatePOSPackageBreakdown = (
+    cust: Customer | undefined,
+    custPackages: any[],
+    cart: { itemId: string; itemName: string; serviceTypeId: string; serviceTypeName: string; variantId: string; variantName: string; price: number; qty: number }[]
+  ) => {
+    const hasActivePkgFromDb = Boolean(cust && (
+      cust.packageStatus === 'ACTIVE' || 
+      cust.packageStatus === 'IN_USE' || 
+      (cust.activePackageName && cust.packageStatus !== 'COMPLETED' && cust.packageStatus !== 'EXPIRED')
+    ));
+    const hasActivePkgFromApi = (custPackages || []).some(cp => {
+      const st = (cp.status || '').toUpperCase();
+      return st === 'ACTIVE' || st === 'IN_USE';
+    });
+    const isPackageCustomer = Boolean(cust && (hasActivePkgFromDb || hasActivePkgFromApi));
+
+    if (!isPackageCustomer || !cart || cart.length === 0) {
+      return {
+        items: (cart || []).map(item => ({
+          cartItem: item,
+          itemName: item.itemName,
+          serviceType: item.serviceTypeName,
+          requestedQty: item.qty || 1,
+          coveredQty: 0,
+          extraQty: item.qty || 1,
+          unitPrice: parseFloat(String(item.price || 0)) || 0,
+          extraSubtotal: (item.qty || 1) * (parseFloat(String(item.price || 0)) || 0)
+        })),
+        totalExtraCharges: (cart || []).reduce((sum, i) => sum + ((i.qty || 1) * (parseFloat(String(i.price || 0)) || 0)), 0),
+        totalCoveredItems: 0,
+        totalExtraItems: (cart || []).reduce((sum, i) => sum + (i.qty || 1), 0)
+      };
+    }
+
+    const activePkg = (custPackages || []).find(cp => ['ACTIVE', 'IN_USE'].includes((cp.status || '').toUpperCase())) 
+                   || (custPackages || [])[0];
+
+    const effCounts = cust ? getEffectiveCounts(cust) : null;
+
+    const serviceQuotas: { [key: string]: number } = {};
+
+    let hasDynamicItems = false;
+    if (activePkg?.service_items && Array.isArray(activePkg.service_items) && activePkg.service_items.length > 0) {
+      activePkg.service_items.forEach((si: any) => {
+        const k = (si.service || '').trim().toLowerCase();
+        if (k) {
+          serviceQuotas[k] = Math.max(0, si.left !== undefined ? si.left : (si.total || 0));
+        }
+      });
+      hasDynamicItems = Object.keys(serviceQuotas).length > 0;
+    }
+
+    if (!hasDynamicItems) {
+      const washLeft = activePkg?.wash_left ?? activePkg?.remainingWashCount ?? cust?.remainingWashCount ?? effCounts?.washLeft ?? null;
+      const ironLeft = activePkg?.iron_left ?? activePkg?.remainingIronCount ?? cust?.remainingIronCount ?? effCounts?.ironLeft ?? null;
+      const dryLeft = activePkg?.dry_left ?? activePkg?.remainingDryCleanCount ?? cust?.remainingDryCleanCount ?? effCounts?.dryLeft ?? null;
+      const steamLeft = activePkg?.steam_left ?? (activePkg as any)?.remainingSteamCount ?? (cust as any)?.remainingSteamCount ?? effCounts?.steamLeft ?? null;
+
+      if (washLeft !== null && washLeft !== undefined) {
+        const val = Math.max(0, Number(washLeft));
+        serviceQuotas['wash & clean'] = val;
+        serviceQuotas['wash & press'] = val;
+        serviceQuotas['wash'] = val;
+        serviceQuotas['laundry'] = val;
+      }
+      if (ironLeft !== null && ironLeft !== undefined) {
+        const val = Math.max(0, Number(ironLeft));
+        serviceQuotas['pressing'] = val;
+        serviceQuotas['ironing'] = val;
+        serviceQuotas['press'] = val;
+        serviceQuotas['iron'] = val;
+      }
+      if (dryLeft !== null && dryLeft !== undefined) {
+        const val = Math.max(0, Number(dryLeft));
+        serviceQuotas['dry cleaning'] = val;
+        serviceQuotas['dry clean'] = val;
+        serviceQuotas['drycleaning'] = val;
+      }
+      if (steamLeft !== null && steamLeft !== undefined) {
+        const val = Math.max(0, Number(steamLeft));
+        serviceQuotas['steam iron'] = val;
+        serviceQuotas['steam'] = val;
+      }
+    }
+
+    let overallRemaining = activePkg
+      ? Math.max(0, (activePkg.current_balance || activePkg.total_quantity || activePkg.package?.total_quantity || activePkg.total_qty || 0) - (activePkg.used_quantity || 0))
+      : (cust ? Math.max(0, (cust.remainingWashCount || 0) + (cust.remainingIronCount || 0) + (cust.remainingDryCleanCount || 0)) : 9999);
+
+    if (Object.keys(serviceQuotas).length > 0) {
+      const sumQuotas = Object.values(serviceQuotas).reduce((a, b) => a + b, 0);
+      if (sumQuotas > 0) overallRemaining = sumQuotas;
+    }
+
+    const helperDeductQuota = (targetKey: string, deductAmount: number) => {
+      if (deductAmount <= 0) return;
+      const val = serviceQuotas[targetKey];
+      if (val !== undefined) {
+        Object.keys(serviceQuotas).forEach(k => {
+          if (
+            (targetKey.includes('press') || targetKey.includes('iron')) && (k.includes('press') || k.includes('iron')) ||
+            (targetKey.includes('dry')) && (k.includes('dry')) ||
+            (targetKey.includes('wash') || targetKey.includes('clean') || targetKey.includes('laundry')) && (k.includes('wash') || k.includes('clean') || k.includes('laundry')) ||
+            (targetKey.includes('steam')) && (k.includes('steam')) ||
+            k === targetKey
+          ) {
+            serviceQuotas[k] = Math.max(0, (serviceQuotas[k] ?? 0) - deductAmount);
+          }
+        });
+      }
+    };
+
+    const itemsBreakdown = cart.map(item => {
+      const itemNameKey = (item.itemName || '').trim().toLowerCase();
+      const serviceTypeKey = (item.serviceTypeName || '').trim().toLowerCase();
+
+      let matchedKey: string | null = null;
+      let availableQuota: number = 0;
+
+      if (serviceQuotas[itemNameKey] !== undefined) {
+        matchedKey = itemNameKey;
+        availableQuota = serviceQuotas[itemNameKey];
+      } else if (serviceQuotas[serviceTypeKey] !== undefined) {
+        matchedKey = serviceTypeKey;
+        availableQuota = serviceQuotas[serviceTypeKey];
+      } else if (Object.keys(serviceQuotas).length > 0) {
+        const exactSub = Object.keys(serviceQuotas).find(k => k && (k.includes(serviceTypeKey) || serviceTypeKey.includes(k)));
+        if (exactSub) {
+          matchedKey = exactSub;
+          availableQuota = serviceQuotas[exactSub];
+        } else {
+          const found = Object.keys(serviceQuotas).find(k => {
+            if (!k) return false;
+            if ((serviceTypeKey.includes('press') || serviceTypeKey.includes('iron')) && (k.includes('press') || k.includes('iron'))) return true;
+            if (serviceTypeKey.includes('dry') && k.includes('dry')) return true;
+            if ((serviceTypeKey.includes('wash') || serviceTypeKey.includes('clean') || serviceTypeKey.includes('laundry')) && 
+                (k.includes('wash') || k.includes('clean') || k.includes('laundry'))) return true;
+            if (serviceTypeKey.includes('steam') && k.includes('steam')) return true;
+            return false;
+          });
+
+          if (found) {
+            matchedKey = found;
+            availableQuota = serviceQuotas[found];
+          } else {
+            availableQuota = 0;
+          }
+        }
+      } else {
+        availableQuota = overallRemaining;
+      }
+
+      const requestedQty = item.qty || 1;
+      const coveredQty = Math.min(requestedQty, availableQuota);
+      const extraQty = Math.max(0, requestedQty - coveredQty);
+      const unitPrice = parseFloat(String(item.price || 0)) || 0;
+      const extraSubtotal = extraQty * unitPrice;
+
+      if (matchedKey) {
+        helperDeductQuota(matchedKey, coveredQty);
+      } else {
+        overallRemaining = Math.max(0, overallRemaining - coveredQty);
+      }
+
+      return {
+        cartItem: item,
+        itemName: item.itemName,
+        serviceType: item.serviceTypeName,
+        requestedQty,
+        coveredQty,
+        extraQty,
+        unitPrice,
+        extraSubtotal
+      };
+    });
+
+    const totalExtraCharges = itemsBreakdown.reduce((sum, it) => sum + it.extraSubtotal, 0);
+    const totalCoveredItems = itemsBreakdown.reduce((sum, it) => sum + it.coveredQty, 0);
+    const totalExtraItems = itemsBreakdown.reduce((sum, it) => sum + it.extraQty, 0);
+
+    return {
+      items: itemsBreakdown,
+      totalExtraCharges,
+      totalCoveredItems,
+      totalExtraItems
+    };
+  };
+
   const handleOpenDeductModal = async (c: Customer) => {
     setDeductCust(c);
     setDeductWash(0);
@@ -615,6 +803,11 @@ export const AdminPortal: React.FC = () => {
   const [qrCust, setQrCust] = useState<Customer | null>(null);
 
   const [systemAnnouncements, setSystemAnnouncements] = useState<any[]>([]);
+  const [companyAnnouncements, setCompanyAnnouncements] = useState<any[]>([]);
+  const [newAnnTitle, setNewAnnTitle] = useState('');
+  const [newAnnContent, setNewAnnContent] = useState('');
+  const [newAnnTarget, setNewAnnTarget] = useState<'ALL' | 'CUSTOMERS' | 'DELIVERY_BOYS'>('ALL');
+  const [annSubmitting, setAnnSubmitting] = useState(false);
 
   // Search & Filter
   const [orderSearch, setOrderSearch] = useState('');
@@ -1183,6 +1376,17 @@ export const AdminPortal: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch system announcements:', err);
+    }
+
+    try {
+      const compAnnRes = await fetch(`${BASE_URL}/api/v1/announcements/company`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (compAnnRes.ok) {
+        setCompanyAnnouncements(await compAnnRes.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch company announcements:', err);
     }
   };
 
@@ -2478,6 +2682,28 @@ export const AdminPortal: React.FC = () => {
       packageNameApplied = selPkg?.package?.name || selPkg?.packageName || (selPkg?.package as any)?.name || posPrepaidPackageApplied?.packageName || 'Prepaid Package';
     }
 
+    // Helper to calculate package breakdown for POS order preservation
+    const selCustForOrder = db.customers.find(c => c.id === posCustId);
+    const hasActivePkgFromDb = Boolean(selCustForOrder && (
+      selCustForOrder.packageStatus === 'ACTIVE' || 
+      selCustForOrder.packageStatus === 'IN_USE' || 
+      (selCustForOrder.activePackageName && selCustForOrder.packageStatus !== 'COMPLETED' && selCustForOrder.packageStatus !== 'EXPIRED')
+    ));
+    const hasActivePkgFromApi = (posCustomerPackages || []).some(cp => {
+      const st = (cp.status || '').toUpperCase();
+      return st === 'ACTIVE' || st === 'IN_USE';
+    });
+    const isPackageCustomerForOrder = Boolean(posCustId && (hasActivePkgFromDb || hasActivePkgFromApi));
+
+    let posPackageCoveredAmount: number | undefined = undefined;
+    let posExtraChargeableAmount: number | undefined = undefined;
+
+    if (isPackageCustomerForOrder && posCart.length > 0) {
+      const breakdown = calculatePOSPackageBreakdown(selCustForOrder, posCustomerPackages, posCart);
+      posExtraChargeableAmount = breakdown.totalExtraCharges;
+      posPackageCoveredAmount = Math.max(0, total - breakdown.totalExtraCharges);
+    }
+
     const newOrder: Order = {
       id: newOrderId,
       backendId: backendOrderId || undefined,
@@ -2499,7 +2725,14 @@ export const AdminPortal: React.FC = () => {
       email: isGuest ? posCustEmail : undefined,
       address: isGuest ? posCustAddress : undefined,
       discount: finalDiscount,
-      special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
+      special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined,
+      ...(posPackageCoveredAmount !== undefined ? {
+        packageCoveredAmount: posPackageCoveredAmount,
+        extraChargeableAmount: posExtraChargeableAmount,
+        package_covered_amount: posPackageCoveredAmount,
+        extra_chargeable_amount: posExtraChargeableAmount,
+        isPackageCustomer: true,
+      } : {})
     };
 
     // Log cash-in transaction
@@ -5434,6 +5667,8 @@ export const AdminPortal: React.FC = () => {
                   'Prepaid Package'
                 );
 
+                const packageBreakdown = calculatePOSPackageBreakdown(selCust, posCustomerPackages, posCart);
+
                 return (
                   <>
                     {posCustId === '' ? (
@@ -5514,16 +5749,77 @@ export const AdminPortal: React.FC = () => {
 
                         {/* Active Package Banner when customer has an ACTIVE prepaid package */}
                         {isPackageCustomer && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f5f3ff', padding: '10px 12px', borderRadius: '6px', border: '1.5px solid #ddd6fe', marginTop: '4px' }}>
-                            <span style={{ fontSize: '1.3rem' }}>🎁</span>
-                            <div>
-                              <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#6d28d9' }}>
-                                {t('Active Prepaid Package')}: {activePkgName}
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: '600' }}>
-                                {t('Package Customer Mode — Payment fields hidden. Order will be created without payment.')}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f5f3ff', padding: '10px 12px', borderRadius: '6px', border: '1.5px solid #ddd6fe' }}>
+                              <span style={{ fontSize: '1.3rem' }}>🎁</span>
+                              <div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#6d28d9' }}>
+                                  {t('Active Prepaid Package')}: {activePkgName}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: packageBreakdown.totalExtraCharges > 0 ? '#b45309' : '#7c3aed', fontWeight: '600' }}>
+                                  {packageBreakdown.totalExtraCharges > 0 
+                                    ? `⚠️ Extra Chargeable Items Detected! Collect QR ${packageBreakdown.totalExtraCharges.toFixed(2)} for extra items.`
+                                    : t('Package Customer Mode — Payment fields hidden. Order will be created without payment.')}
+                                </div>
                               </div>
                             </div>
+
+                            {/* NEW UI SECTION: Extra Chargeable Items / Package Coverage Breakdown */}
+                            {posCart.length > 0 && (
+                              <div style={{ background: '#ffffff', borderRadius: '8px', border: '1.5px solid #ddd6fe', padding: '12px', marginTop: '4px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>📊</span> {t('Extra Chargeable Items')}
+                                  </div>
+                                  {packageBreakdown.totalExtraCharges > 0 && (
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', background: '#fff7ed', color: '#c2410c', padding: '2px 8px', borderRadius: '12px', border: '1px solid #ffedd5' }}>
+                                      Extra Payment Required
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                                  {packageBreakdown.items.map((bd, idx) => (
+                                    <div key={idx} style={{ padding: '8px 10px', borderRadius: '6px', background: bd.extraQty > 0 ? '#fff7ed' : '#f8fafc', border: bd.extraQty > 0 ? '1px solid #fed7aa' : '1px solid #e2e8f0' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                        <strong style={{ fontSize: '0.82rem', color: '#1e293b' }}>{bd.itemName}</strong>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>Order Qty: {bd.requestedQty}</span>
+                                      </div>
+
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', color: '#334155' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: '600' }}>
+                                          <span>✅ Package Covered:</span>
+                                          <strong>{bd.coveredQty} Pcs</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: bd.extraQty > 0 ? '#c2410c' : '#64748b', fontWeight: bd.extraQty > 0 ? '700' : '500' }}>
+                                          <span>💰 Extra:</span>
+                                          <strong>{bd.extraQty} Pcs</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                                          <span>🏷️ Normal Price:</span>
+                                          <span>QR {(Number(bd.unitPrice) || 0).toFixed(2)}</span>
+                                        </div>
+                                        {bd.extraQty > 0 && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#c2410c', fontWeight: '800', marginTop: '2px', paddingTop: '2px', borderTop: '1px dashed #fed7aa' }}>
+                                            <span>Subtotal:</span>
+                                            <span>QR {bd.extraSubtotal.toFixed(2)}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1.5px dashed #ddd6fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#1e293b' }}>
+                                    {t('Total Extra Charges:')}
+                                  </span>
+                                  <span style={{ fontSize: '1.05rem', fontWeight: '900', color: packageBreakdown.totalExtraCharges > 0 ? '#c2410c' : '#16a34a' }}>
+                                    QR {packageBreakdown.totalExtraCharges.toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -5531,27 +5827,24 @@ export const AdminPortal: React.FC = () => {
 
                     {(posCustId !== '' || showGuestFields) && (
                       <>
-                        {!isPackageCustomer ? (
+                        {(!isPackageCustomer || packageBreakdown.totalExtraCharges > 0) ? (
                           <>
                             {/* Coupon input field */}
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                              <input 
-                                type="text" 
-                                placeholder={t('Enter Coupon Code')} 
-                                value={posCouponCode} 
-                                onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
-                                style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
-                              />
-                              <button 
-                                onClick={handleApplyCoupon} 
-                                style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                              >
-                                {t('Apply')}
-                              </button>
-                            </div>
-                            {posCouponApplied && (
-                              <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>
-                                Discount Applied: -QR {posDiscount.toFixed(2)}
+                            {!isPackageCustomer && (
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                <input 
+                                  type="text" 
+                                  placeholder={t('Enter Coupon Code')} 
+                                  value={posCouponCode} 
+                                  onChange={e => { setPosCouponCode(e.target.value); setPosDiscount(0); setPosCouponApplied(false); }} 
+                                  style={{ flex: 1, padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+                                />
+                                <button 
+                                  onClick={handleApplyCoupon} 
+                                  style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                                >
+                                  {t('Apply')}
+                                </button>
                               </div>
                             )}
 
@@ -5560,57 +5853,46 @@ export const AdminPortal: React.FC = () => {
                               
                               {/* Subtotal */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Cart Subtotal:')}</span>
-                                <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
-                                  QR {posCart.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
+                                  {isPackageCustomer ? t('Extra Chargeable Total:') : t('Cart Subtotal:')}
+                                </span>
+                                <span style={{ fontSize: '1rem', fontWeight: '700', color: isPackageCustomer ? '#c2410c' : '#1e293b' }}>
+                                  QR {(isPackageCustomer ? packageBreakdown.totalExtraCharges : posCart.reduce((sum, item) => sum + (item.price * item.qty), 0)).toFixed(2)}
                                 </span>
                               </div>
 
-                              {/* Applied Prepaid Package Banner */}
-                              {posPrepaidPackageApplied && (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f3ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
-                                  <div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#7c3aed' }}>
-                                      📦 {posPrepaidPackageApplied.name || posPrepaidPackageApplied.package_name || 'Prepaid Package'}
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: '#6d28d9' }}>
-                                      Covering {posPrepaidPackageApplied.qtyToRedeem || 0} item(s)
-                                    </div>
-                                  </div>
-                                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#7c3aed' }}>
-                                    -QR {posDiscount.toFixed(2)}
-                                  </span>
+                              {!isPackageCustomer && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Manual Discount (QR):')}</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    value={customPOSDiscount} 
+                                    className="no-spinners"
+                                    placeholder="0.00"
+                                    onChange={e => setCustomPOSDiscount(e.target.value)} 
+                                    style={{ width: '90px', padding: '4px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.9rem', color: '#0f172a', textAlign: 'right' }} 
+                                  />
                                 </div>
                               )}
-
-                              {/* Manual Discount field */}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>{t('Manual Discount (QR):')}</span>
-                                <input 
-                                  type="number" 
-                                  step="0.01" 
-                                  value={customPOSDiscount} 
-                                  className="no-spinners"
-                                  placeholder="0.00"
-                                  onChange={e => setCustomPOSDiscount(e.target.value)} 
-                                  style={{ width: '90px', padding: '4px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: '700', fontSize: '0.9rem', color: '#0f172a', textAlign: 'right' }} 
-                                />
-                              </div>
 
                               <div style={{ height: '1px', background: '#cbd5e1', margin: '2px 0' }} />
 
                               {/* Final POS Total Amount */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>{t('POS Total Amount:')}</span>
+                                <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>
+                                  {isPackageCustomer ? t('Extra Payment Amount:') : t('POS Total Amount:')}
+                                </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#2563eb' }}>QR</span>
+                                  <span style={{ fontSize: '1.1rem', fontWeight: '900', color: isPackageCustomer ? '#c2410c' : '#2563eb' }}>QR</span>
                                   <input 
                                     type="number" 
                                     step="0.01" 
-                                    value={customPOSAmount !== '' ? customPOSAmount : getPOSCartTotal().toFixed(2)} 
+                                    value={isPackageCustomer ? packageBreakdown.totalExtraCharges.toFixed(2) : (customPOSAmount !== '' ? customPOSAmount : getPOSCartTotal().toFixed(2))} 
+                                    readOnly={isPackageCustomer}
                                     className="no-spinners"
                                     onChange={e => setCustomPOSAmount(e.target.value)} 
-                                    style={{ width: '100px', padding: '6px 10px', border: '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '900', fontSize: '1.1rem', color: '#2563eb', textAlign: 'right', background: '#eff6ff' }} 
+                                    style={{ width: '100px', padding: '6px 10px', border: isPackageCustomer ? '1.5px solid #c2410c' : '1.5px solid #2563eb', borderRadius: '6px', fontWeight: '900', fontSize: '1.1rem', color: isPackageCustomer ? '#c2410c' : '#2563eb', textAlign: 'right', background: isPackageCustomer ? '#fff7ed' : '#eff6ff' }} 
                                   />
                                 </div>
                               </div>
@@ -5621,11 +5903,6 @@ export const AdminPortal: React.FC = () => {
                               <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '6px', color: '#334155', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                                 <span style={{ fontWeight: '600' }}>{t('Available Wallet Balance:')}</span>
                                 <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0ea5e9' }}>QR {db.customers.find(c => c.id === posCustId)?.walletBalance?.toFixed(2) || '0.00'}</span>
-                              </div>
-                            )}
-                            {posPayMethod === 'Wallet' && !posCustId && (
-                              <div style={{ padding: '10px 12px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '6px', color: '#b45309', fontSize: '0.85rem', fontWeight: '600', marginTop: '12px', textAlign: 'center' }}>
-                                ⚠️ Please select a registered customer to use Wallet payment
                               </div>
                             )}
 
@@ -5650,12 +5927,12 @@ export const AdminPortal: React.FC = () => {
 
                             <button 
                               onClick={() => {
-                                const posTotal = customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal();
+                                const posTotal = isPackageCustomer ? packageBreakdown.totalExtraCharges : (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal());
                                 if (posCart.length === 0) {
                                   alert('Please add at least one laundry service to the cart before checking out.');
                                   return;
                                 }
-                                if (posTotal <= 0) {
+                                if (posTotal <= 0 && !isPackageCustomer) {
                                   alert('POS Total Amount must be greater than 0 to checkout.');
                                   return;
                                 }
@@ -5665,25 +5942,26 @@ export const AdminPortal: React.FC = () => {
                                 }
                                 handleCheckoutPOS();
                               }} 
-                              disabled={posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0}
+                              disabled={posCart.length === 0}
                               style={{ 
-                                padding: '10px', 
-                                background: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? '#94a3b8' : '#16a34a', 
+                                padding: '12px', 
+                                background: posCart.length === 0 ? '#94a3b8' : (isPackageCustomer ? '#c2410c' : '#16a34a'), 
                                 color: 'white', 
                                 border: 'none', 
                                 borderRadius: '6px', 
-                                fontWeight: '700', 
-                                cursor: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 'not-allowed' : 'pointer',
-                                opacity: (posCart.length === 0 || (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal()) <= 0) ? 0.6 : 1,
+                                fontWeight: '800', 
+                                fontSize: '0.95rem',
+                                cursor: posCart.length === 0 ? 'not-allowed' : 'pointer',
+                                opacity: posCart.length === 0 ? 0.6 : 1,
                                 marginTop: '12px',
                                 width: '100%'
                               }}
                             >
-                              {t('Checkout')}
+                              {isPackageCustomer ? `📦 Checkout (Package + Extra Payment: QR ${packageBreakdown.totalExtraCharges.toFixed(2)})` : t('Checkout')}
                             </button>
                           </>
                         ) : (
-                          /* Package Customer Mode: Payment fields hidden! Direct Checkout button enabled */
+                          /* Package Customer Mode with 0 Extra Charges: Payment fields hidden! Direct Checkout button enabled */
                           <div style={{ marginTop: '14px' }}>
                             <button 
                               onClick={() => {
@@ -5978,34 +6256,194 @@ export const AdminPortal: React.FC = () => {
       )}
 
 
-      {/* 📢 SYSTEM ANNOUNCEMENTS TAB */}
+      {/* 📢 COMPANY & SYSTEM ANNOUNCEMENTS TAB */}
       {activeModule === 'announcements' && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
-          <h3 style={{ margin: '0 0 16px 0' }}>📢 {t('System Announcements')}</h3>
-          <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '24px' }}>
-            {t('Important platform updates, maintenance schedules, and feature releases from the Super Admin.')}
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* Form Card: Create Company Announcement */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
+            <h3 style={{ margin: '0 0 6px 0', color: '#1e3a8a' }}>📢 {t('Company Announcements')}</h3>
+            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '20px' }}>
+              {t('Broadcast announcements to your registered company customers, delivery staff, or all users.')}
+            </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {systemAnnouncements.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                {t('No active system announcements at this time.')}
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newAnnTitle || !newAnnContent) {
+                alert(t('Please enter title and message content.'));
+                return;
+              }
+              setAnnSubmitting(true);
+              try {
+                const res = await fetch(`${BASE_URL}/api/v1/announcements/company`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                    title: newAnnTitle,
+                    content: newAnnContent,
+                    target_audience: newAnnTarget
+                  })
+                });
+                if (res.ok) {
+                  alert(t('Announcement broadcasted successfully!'));
+                  setNewAnnTitle('');
+                  setNewAnnContent('');
+                  fetchBackendData();
+                } else {
+                  const data = await res.json();
+                  alert(data.detail || t('Failed to publish announcement.'));
+                }
+              } catch (err) {
+                console.error('Failed to create announcement:', err);
+              } finally {
+                setAnnSubmitting(false);
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#1e293b' }}>
+                  {t('Target Audience')}
+                </label>
+                <select 
+                  value={newAnnTarget} 
+                  onChange={e => setNewAnnTarget(e.target.value as any)} 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', fontSize: '0.9rem', fontWeight: '600' }}
+                >
+                  <option value="CUSTOMERS">🧺 {t('Company Customers Only')}</option>
+                  <option value="DELIVERY_BOYS">🚚 {t('Company Delivery Staff Only')}</option>
+                  <option value="ALL">👥 {t('Company Customers & Delivery Staff')}</option>
+                </select>
               </div>
-            ) : (
-              systemAnnouncements.map(ann => (
-                <div key={ann.id} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <strong style={{ fontSize: '1rem', color: '#1e3a8a' }}>{ann.title}</strong>
-                    <span style={{ fontSize: '0.75rem', background: '#e2e8f0', padding: '4px 8px', borderRadius: '12px', color: '#475569', fontWeight: 'bold' }}>
-                      {new Date(ann.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.9rem', color: '#334155', margin: 0, lineHeight: '1.5' }}>
-                    {ann.content}
-                  </p>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#1e293b' }}>
+                  {t('Announcement Title')}
+                </label>
+                <input 
+                  type="text" 
+                  required 
+                  value={newAnnTitle} 
+                  onChange={e => setNewAnnTitle(e.target.value)} 
+                  placeholder={t('e.g. Eid Special Discount / Shift Update')} 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#1e293b' }}>
+                  {t('Message Content')}
+                </label>
+                <textarea 
+                  required 
+                  rows={4} 
+                  value={newAnnContent} 
+                  onChange={e => setNewAnnContent(e.target.value)} 
+                  placeholder={t('Write your announcement message details here...')} 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={annSubmitting} 
+                style={{ padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', alignSelf: 'flex-start' }}
+              >
+                {annSubmitting ? t('Broadcasting...') : t('📢 Broadcast Announcement')}
+              </button>
+            </form>
+          </div>
+
+          {/* List Card: Published Company Announcements */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
+            <h4 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>📋 {t('Published Company Announcements')}</h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {companyAnnouncements.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.88rem' }}>
+                  {t('No company announcements published yet.')}
                 </div>
-              ))
-            )}
+              ) : (
+                companyAnnouncements.map(ann => {
+                  const aud = String(ann.target_audience).toUpperCase();
+                  const badgeLabel = aud === 'CUSTOMERS' ? '🧺 Company Customers' : aud === 'DELIVERY_BOYS' ? '🚚 Company Delivery Staff' : '👥 Customers & Delivery Staff';
+                  const badgeBg = aud === 'CUSTOMERS' ? '#e0f2fe' : aud === 'DELIVERY_BOYS' ? '#ffedd5' : '#dcfce7';
+                  const badgeColor = aud === 'CUSTOMERS' ? '#0369a1' : aud === 'DELIVERY_BOYS' ? '#c2410c' : '#15803d';
+
+                  return (
+                    <div key={ann.id} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <strong style={{ fontSize: '1rem', color: '#1e3a8a' }}>{ann.title}</strong>
+                          <span style={{ fontSize: '0.72rem', background: badgeBg, color: badgeColor, padding: '3px 10px', borderRadius: '12px', fontWeight: '800' }}>
+                            {badgeLabel}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            {new Date(ann.created_at).toLocaleDateString()}
+                          </span>
+                          <button 
+                            onClick={async () => {
+                              if (!confirm(t('Delete this announcement?'))) return;
+                              try {
+                                const res = await fetch(`${BASE_URL}/api/v1/announcements/company/${ann.id}`, {
+                                  method: 'DELETE',
+                                  headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                if (res.ok) {
+                                  fetchBackendData();
+                                }
+                              } catch (err) {
+                                console.error('Failed to delete announcement:', err);
+                              }
+                            }} 
+                            style={{ background: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            🗑️ {t('Delete')}
+                          </button>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.88rem', color: '#334155', margin: 0, lineHeight: '1.5' }}>
+                        {ann.content}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* List Card: System Announcements (Super Admin) */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1' }}>
+            <h4 style={{ margin: '0 0 6px 0', color: '#1e293b' }}>📌 {t('Platform System Announcements (Super Admin)')}</h4>
+            <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '16px' }}>
+              {t('Important platform updates, maintenance schedules, and feature releases from the Super Admin.')}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {systemAnnouncements.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.88rem' }}>
+                  {t('No active system announcements at this time.')}
+                </div>
+              ) : (
+                systemAnnouncements.map(ann => (
+                  <div key={ann.id} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '0.95rem', color: '#1e3a8a' }}>{ann.title}</strong>
+                      <span style={{ fontSize: '0.75rem', background: '#e2e8f0', padding: '4px 8px', borderRadius: '12px', color: '#475569', fontWeight: 'bold' }}>
+                        {new Date(ann.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.88rem', color: '#334155', margin: 0, lineHeight: '1.5' }}>
+                      {ann.content}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -6171,25 +6609,26 @@ export const AdminPortal: React.FC = () => {
                   ) : (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                       <textarea 
-                        value={customerTicketReply[t.id] || ''} 
-                        onChange={e => setCustomerTicketReply({...customerTicketReply, [t.id]: e.target.value})}
+                        value={customerTicketReply[tkt.id] || ''} 
+                        onChange={e => setCustomerTicketReply({...customerTicketReply, [tkt.id]: e.target.value})}
                         placeholder="Type your response to the customer..." 
                         style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
                         rows={2} 
                       />
                       <button 
                         onClick={async () => {
-                          const replyText = customerTicketReply[t.id];
+                          const replyText = customerTicketReply[tkt.id];
                           if (!replyText) return alert('Please enter a response.');
                           try {
                             const token = localStorage.getItem('ll_auth_token');
-                            const res = await fetch(`${BASE_URL}/api/v1/admin/customer-support/${t.id}`, {
+                            const res = await fetch(`${BASE_URL}/api/v1/admin/customer-support/${tkt.id}`, {
                               method: 'PATCH',
                               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                               body: JSON.stringify({ status: 'RESPONDED', admin_response: replyText })
                             });
                             if (res.ok) {
                               alert('Response sent to customer!');
+                              setCustomerTicketReply({ ...customerTicketReply, [tkt.id]: '' });
                               fetchBackendData();
                             } else {
                               alert('Failed to send response.');
@@ -6821,7 +7260,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* Scrollable Body */}
-            <div style={{ padding: '24px', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
+            <div style={{ padding: '14px 18px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1 }}>
               
               {(() => {
                 const isPackageDeduction = !!(viewingOrder.appliedPackageId || (viewingOrder.specialInstructions && viewingOrder.specialInstructions.toLowerCase().includes('package deduction')));
@@ -6829,19 +7268,19 @@ export const AdminPortal: React.FC = () => {
                 if (isPackageDeduction) {
                   const itemsList = viewingOrder.items || [];
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {/* Top Summary */}
-                      <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.85rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>💳 {t('Package Deduction Details')}</div>
+                      <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>💳 {t('Package Deduction Details')}</div>
                           <div><strong>{t('Order ID:')}</strong> #{viewingOrder.id}</div>
                           <div><strong>{t('Customer Name:')}</strong> {tName(viewingOrder.customerName)}</div>
                           <div><strong>{t('Placing Date:')}</strong> {viewingOrder.date}</div>
                           <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>Paid</span></div>
                           <div><strong>{t('Order Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>Completed</span></div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>📦 {t('Package Summary')}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>📦 {t('Package Summary')}</div>
                           <div><strong>{t('Package Name:')}</strong> {viewingOrder.packageName || 'Prepaid Package'}</div>
                           <div><strong>{t('Wallet Amount Deducted:')}</strong> QR {(viewingOrder.totalAmount || viewingOrder.total || 0).toFixed(2)}</div>
                           <div><strong>{t('Remarks / Notes:')}</strong> {viewingOrder.specialInstructions || 'N/A'}</div>
@@ -6849,29 +7288,29 @@ export const AdminPortal: React.FC = () => {
                       </div>
 
                       {/* Deducted Services Breakdown */}
-                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                        <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>🧺 {t('Deducted Services Breakdown')}</h4>
+                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '0.85rem' }}>🧺 {t('Deducted Services Breakdown')}</h4>
                         {itemsList.length === 0 ? (
-                          <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem' }}>
+                          <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
                             💰 {t('Wallet Balance Deduction (No specific service items deducted)')}
                           </div>
                         ) : (
                           <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                               <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                                 <tr>
-                                  <th style={{ padding: '10px' }}>{t('Cloth Name')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'center' }}>{t('Deducted Quantity')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
+                                  <th style={{ padding: '8px' }}>{t('Cloth Name')}</th>
+                                  <th style={{ padding: '8px', textAlign: 'center' }}>{t('Deducted Quantity')}</th>
+                                  <th style={{ padding: '8px', textAlign: 'center' }}>{t('Status')}</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {itemsList.map((it: any, idx: number) => (
                                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#1e293b' }}>{it.service_name || it.serviceName || it.name || it.service || `Item ${idx + 1}`}</td>
-                                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>{it.qty || it.quantity || it.orderedQuantity || 1}</td>
-                                    <td style={{ padding: '10px', textAlign: 'center' }}>
-                                      <span style={{ padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.75rem', background: '#dcfce7', color: '#15803d' }}>
+                                    <td style={{ padding: '8px', fontWeight: 'bold', color: '#1e293b' }}>{it.service_name || it.serviceName || it.name || it.service || `Item ${idx + 1}`}</td>
+                                    <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>{it.qty || it.quantity || it.orderedQuantity || 1}</td>
+                                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                                      <span style={{ padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.72rem', background: '#dcfce7', color: '#15803d' }}>
                                         COMPLETED
                                       </span>
                                     </td>
@@ -6883,8 +7322,8 @@ export const AdminPortal: React.FC = () => {
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                        <button onClick={() => setViewingOrder(null)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>{t('Close')}</button>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                        <button onClick={() => setViewingOrder(null)} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>{t('Close')}</button>
                       </div>
                     </div>
                   );
@@ -6893,18 +7332,18 @@ export const AdminPortal: React.FC = () => {
                 return (
                   <>
                     {/* TOP ROW: 2-Column Grid (Order Summary vs QR Portal Status) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       
                       {/* Left: Basic Order Details */}
-                      <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>📋 {t('Order Summary')}</div>
+                      <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: '800', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>📋 {t('Order Summary')}</div>
                         <div><strong>{t('Order ID:')}</strong> #{viewingOrder.id}</div>
                         <div><strong>{t('Customer Name:')}</strong> {tName(viewingOrder.customerName)}</div>
                         <div><strong>{t('Placing Date:')}</strong> {viewingOrder.date}</div>
-                        <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: viewingOrder.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7', color: viewingOrder.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>{viewingOrder.paymentStatus}</span></div>
-                        <div><strong>{t('Timeline Status:')}</strong> <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>{viewingOrder.status}</span></div>
+                        <div><strong>{t('Payment Status:')}</strong> <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 'bold', background: viewingOrder.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7', color: viewingOrder.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>{viewingOrder.paymentStatus}</span></div>
+                        <div><strong>{t('Timeline Status:')}</strong> <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 'bold', background: '#dbeafe', color: '#1e40af' }}>{viewingOrder.status}</span></div>
                         {viewingOrder.pickupNotes && (
-                          <div style={{ color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: '6px', fontWeight: '600', marginTop: '4px', fontSize: '0.8rem' }}>
+                          <div style={{ color: '#b45309', background: '#fef3c7', padding: '6px 8px', borderRadius: '6px', fontWeight: '600', marginTop: '2px', fontSize: '0.75rem' }}>
                             ⚠️ <strong>Pickup Notes:</strong> {viewingOrder.pickupNotes}
                           </div>
                         )}
@@ -6916,12 +7355,12 @@ export const AdminPortal: React.FC = () => {
                           const customerObj = db.customers.find(c => c.id === viewingOrder.customerId || c.name === viewingOrder.customerName);
                           if (!customerObj) return null;
                           return (
-                            <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '800', fontSize: '0.9rem' }}>
+                            <div style={{ background: '#f0fdf4', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '6px', height: '100%', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '800', fontSize: '0.82rem' }}>
                                   <span>📱 {t('QR Customer Portal Active')}</span>
                                 </div>
-                                <div style={{ color: '#15803d', fontSize: '0.8rem' }}>{t('Customer manages orders, invoices, and payments via their unique QR link in browser.')}</div>
+                                <div style={{ color: '#15803d', fontSize: '0.75rem' }}>{t('Customer manages orders, invoices, and payments via their unique QR link in browser.')}</div>
                               </div>
 
                               <button
@@ -6934,7 +7373,7 @@ export const AdminPortal: React.FC = () => {
                                     : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
                                   window.open(waUrl, '_blank');
                                 }}
-                                style={{ padding: '8px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start' }}
+                                style={{ padding: '5px 10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', alignSelf: 'flex-start' }}
                               >
                                 💬 {t('Resend Portal Link via WhatsApp')}
                               </button>
@@ -6946,12 +7385,12 @@ export const AdminPortal: React.FC = () => {
                     </div>
 
                     {/* MIDDLE ROW: 2-Column Grid (Timeline Progress vs Courier Assignment) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
                       
                       {/* Timeline Progress */}
-                      <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: '800', marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>⏱️ {t('Timeline Progress')}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: '800', marginBottom: '6px', color: '#1e293b', fontSize: '0.82rem' }}>⏱️ {t('Timeline Progress')}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {[
                             { label: t('Order Created'), ok: true },
                             { label: t('Accepted'), ok: ['Accepted', 'Pickup Assigned', 'Picked Up', 'Received', 'Sorting', 'Washing', 'Drying', 'Ironing', 'Quality Check', 'Packing', 'Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
@@ -6959,17 +7398,17 @@ export const AdminPortal: React.FC = () => {
                             { label: t('Ready for Collection'), ok: ['Ready', 'Out For Delivery', 'Delivered'].includes(viewingOrder.status) },
                             { label: t('Delivered'), ok: viewingOrder.status === 'Delivered' }
                           ].map((step, idx) => (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem' }}>
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem' }}>
                               <span style={{
-                                width: '18px',
-                                height: '18px',
+                                width: '15px',
+                                height: '15px',
                                 borderRadius: '50%',
                                 background: step.ok ? '#22c55e' : '#cbd5e1',
                                 color: 'white',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '11px',
+                                fontSize: '10px',
                                 fontWeight: 'bold'
                               }}>
                                 {step.ok ? '✓' : '•'}
@@ -6983,66 +7422,80 @@ export const AdminPortal: React.FC = () => {
                       </div>
 
                       {/* Courier Assignment & Commissions */}
-                      <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.9rem' }}>🚚 {t('Assign Couriers')}</div>
+                      <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.82rem' }}>🚚 {t('Assign Couriers')}</div>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Pickup Courier')}</label>
-                            <select 
-                              value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
-                              onChange={e => {
-                                handleAssignPickupCourier(viewingOrder.id, e.target.value);
-                                const updated = db.orders.find(o => o.id === viewingOrder.id);
-                                if (updated) setViewingOrder(updated);
-                              }}
-                              disabled={!!(viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase()))}
-                              style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? '#e2e8f0' : 'white', cursor: (viewingOrder.pickupAccepted || !['created', 'accepted', 'pickup assigned', 'pending pickup'].includes((viewingOrder.status || '').toLowerCase())) ? 'not-allowed' : 'pointer' }}
-                            >
-                              <option value="">Unassigned</option>
-                              <option value="Store">Store</option>
-                              <option value="All Delivery Staff">All Delivery Staff</option>
-                              {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                                <option key={u.id} value={u.name}>{tName(u.name)}</option>
-                              ))}
-                              {viewingOrder.pickupCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.pickupCourier) && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
-                                <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
-                              )}
-                            </select>
+                            <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: '700', marginBottom: '2px' }}>{t('Pickup Courier')}</label>
+                            {(() => {
+                              const items = viewingOrder.items || viewingOrder.services || [];
+                              const isFullyPickedUp = items.length > 0 ? !items.some((it: any) => {
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
+                                return pend > 0;
+                              }) : ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase());
+                              const pickupDisabled = isFullyPickedUp;
+                              return (
+                                <select 
+                                  value={viewingOrder.pickupCourier || (['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes((viewingOrder.status || '').toLowerCase()) ? viewingOrder.courier : '') || ''} 
+                                  onChange={e => {
+                                    handleAssignPickupCourier(viewingOrder.id, e.target.value);
+                                    const updated = db.orders.find(o => o.id === viewingOrder.id);
+                                    if (updated) setViewingOrder(updated);
+                                  }}
+                                  disabled={pickupDisabled}
+                                  style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', background: pickupDisabled ? '#e2e8f0' : 'white', cursor: pickupDisabled ? 'not-allowed' : 'pointer' }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  <option value="Store">Store</option>
+                                  <option value="All Delivery Staff">All Delivery Staff</option>
+                                  {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                                    <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                                  ))}
+                                  {viewingOrder.pickupCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.pickupCourier) && !db.users.some(u => u.name === viewingOrder.pickupCourier) && (
+                                    <option value={viewingOrder.pickupCourier}>{tName(viewingOrder.pickupCourier)}</option>
+                                  )}
+                                </select>
+                              );
+                            })()}
                           </div>
 
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '4px' }}>{t('Delivery Courier')}</label>
-                            <select 
-                              value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
-                              onChange={e => {
-                                handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
-                                const updated = db.orders.find(o => o.id === viewingOrder.id);
-                                if (updated) setViewingOrder(updated);
-                              }}
-                              disabled={(() => {
-                                const items = viewingOrder.items || viewingOrder.services || [];
-                                if (items.length === 0) return (viewingOrder.status || '').toLowerCase() === 'delivered';
-                                const totalDelPending = items.reduce((acc: number, it: any) => {
-                                  const ord = it.orderedQuantity || it.quantity || 1;
-                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                  const del = it.deliveredQuantity || 0;
-                                  return acc + Math.max(0, pck - del);
-                                }, 0);
-                                return totalDelPending === 0 && (viewingOrder.status || '').toLowerCase() === 'delivered';
-                              })()}
-                              style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', background: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? '#e2e8f0' : 'white', cursor: (viewingOrder.deliveryAccepted || (viewingOrder.status || '').toLowerCase() === 'delivered') ? 'not-allowed' : 'pointer' }}
-                            >
-                              <option value="">Unassigned</option>
-                              <option value="Store">Store</option>
-                              <option value="All Delivery Staff">All Delivery Staff</option>
-                              {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
-                                <option key={u.id} value={u.name}>{tName(u.name)}</option>
-                              ))}
-                              {viewingOrder.deliveryCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.deliveryCourier) && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
-                                <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
-                              )}
-                            </select>
+                            <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: '700', marginBottom: '2px' }}>{t('Delivery Courier')}</label>
+                            {(() => {
+                              const items = viewingOrder.items || viewingOrder.services || [];
+                              const isFullyDelivered = items.length > 0 ? items.every((it: any) => {
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+                                const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                return Math.max(0, pck - Number(del)) === 0;
+                              }) : (viewingOrder.status || '').toLowerCase() === 'delivered';
+                              const deliveryDisabled = isFullyDelivered;
+                              return (
+                                <select 
+                                  value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
+                                  onChange={e => {
+                                    handleAssignDeliveryCourier(viewingOrder.id, e.target.value);
+                                    const updated = db.orders.find(o => o.id === viewingOrder.id);
+                                    if (updated) setViewingOrder(updated);
+                                  }}
+                                  disabled={deliveryDisabled}
+                                  style={{ width: '100%', padding: '5px 8px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', background: deliveryDisabled ? '#e2e8f0' : 'white', cursor: deliveryDisabled ? 'not-allowed' : 'pointer' }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  <option value="Store">Store</option>
+                                  <option value="All Delivery Staff">All Delivery Staff</option>
+                                  {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Staff' || u.role === 'Delivery Boy').map(u => (
+                                    <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                                  ))}
+                                  {viewingOrder.deliveryCourier && !['All Delivery Staff', 'Store', '-- Unassigned --', 'Unassigned', ''].includes(viewingOrder.deliveryCourier) && !db.users.some(u => u.name === viewingOrder.deliveryCourier) && (
+                                    <option value={viewingOrder.deliveryCourier}>{tName(viewingOrder.deliveryCourier)}</option>
+                                  )}
+                                </select>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -7057,10 +7510,10 @@ export const AdminPortal: React.FC = () => {
                           const isDeliveryCompleted = (viewingOrder.status || '').toLowerCase() === 'delivered' || !!viewingOrder.deliveryCommissionPaid;
 
                           return (
-                            <div style={{ display: 'flex', gap: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', gap: '8px', background: '#f8fafc', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                               {hasPickupCourier && (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#b45309' }}>📦 {t('Pickup Comm (QR):')}</label>
+                                  <label style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#b45309' }}>📦 {t('Pickup Comm:')}</label>
                                   <input 
                                     type="number" 
                                     placeholder="0.00"
@@ -7072,14 +7525,14 @@ export const AdminPortal: React.FC = () => {
                                       const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
                                       saveDB({ orders: updatedOrders });
                                     }}
-                                    style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
+                                    style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
                                   />
                                 </div>
                               )}
                               
                               {hasDeliveryCourier && (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Comm (QR):</label>
+                                  <label style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#1e40af' }}>🚚 Delivery Comm:</label>
                                   <input 
                                     type="number" 
                                     placeholder="0.00"
@@ -7091,7 +7544,7 @@ export const AdminPortal: React.FC = () => {
                                       const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
                                       saveDB({ orders: updatedOrders });
                                     }}
-                                    style={{ width: '80px', padding: '6px', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
+                                    style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
                                   />
                                 </div>
                               )}
@@ -7103,8 +7556,8 @@ export const AdminPortal: React.FC = () => {
                     </div>
 
                     {/* BOTTOM SECTION: Item-Level Quantity Breakdown */}
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                      <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', fontSize: '0.95rem' }}>📦 {t('Item-Level Quantity & Status Breakdown')}</h4>
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '0.85rem' }}>📦 {t('Item-Level Quantity & Status Breakdown')}</h4>
                       {(() => {
                         const itemsList = viewingOrder.items || [];
                         if (itemsList.length === 0) {
@@ -7129,24 +7582,24 @@ export const AdminPortal: React.FC = () => {
                         });
 
                         return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                                <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '180px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
+                                <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
                                   <tr>
-                                    <th style={{ padding: '10px' }}>{t('Service')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ordered')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Picked Up')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Pickup Pending')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Ready Qty')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivered')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Delivery Pending')}</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
+                                    <th style={{ padding: '6px 8px' }}>{t('Service')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Ordered')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Picked Up')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Pickup Pending')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Ready Qty')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Delivered')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Delivery Pending')}</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>{t('Status')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {itemsList.map((it: any, idx: number) => {
-                                    const itemKey = it.id || it.serviceId || it.service_id || String(idx);
+                                    const itemKey = (it.id && String(it.id).length > 5) ? String(it.id) : `item_idx_${idx}`;
                                     const ord = it.orderedQuantity || it.quantity || 1;
                                     const pck = it.pickedUpQuantity || 0;
                                     const currentReadyVal = readyInputs[itemKey] !== undefined ? readyInputs[itemKey] : (it.readyQuantity ?? pck);
@@ -7154,11 +7607,11 @@ export const AdminPortal: React.FC = () => {
 
                                     return (
                                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>{ord}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{pck}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? Math.max(0, ord - pck)}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        <td style={{ padding: '6px 8px', fontWeight: 'bold' }}>{it.serviceName || it.name || `Service ${idx + 1}`}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>{ord}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center', color: '#2563eb', fontWeight: 'bold' }}>{pck}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center', color: (it.pickupPendingQuantity || 0) > 0 ? '#d97706' : '#16a34a' }}>{it.pickupPendingQuantity ?? Math.max(0, ord - pck)}</td>
+                                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
                                           <input 
                                             type="number"
                                             min={0}
@@ -7173,27 +7626,27 @@ export const AdminPortal: React.FC = () => {
                                               }));
                                             }}
                                             style={{
-                                              width: '55px',
-                                              padding: '4px 6px',
+                                              width: '50px',
+                                              padding: '2px 4px',
                                               border: isInvalidReady ? '1.5px solid #dc2626' : '1.5px solid #2563eb',
                                               borderRadius: '4px',
                                               fontWeight: '800',
                                               textAlign: 'center',
-                                              fontSize: '0.82rem',
+                                              fontSize: '0.78rem',
                                               background: isInvalidReady ? '#fef2f2' : '#eff6ff',
                                               color: isInvalidReady ? '#dc2626' : '#1d4ed8',
                                               boxSizing: 'border-box'
                                             }}
                                           />
                                         </td>
-                                        <td style={{ padding: '10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>{it.deliveredQuantity || 0}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center', color: (it.deliveryPendingQuantity || 0) > 0 ? '#dc2626' : '#16a34a' }}>{it.deliveryPendingQuantity ?? 0}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                                           <span style={{
-                                            padding: '3px 8px',
+                                            padding: '2px 6px',
                                             borderRadius: '4px',
                                             fontWeight: 'bold',
-                                            fontSize: '0.72rem',
+                                            fontSize: '0.7rem',
                                             background: it.itemStatus === 'FULLY_DELIVERED' ? '#dcfce7' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#fef9c3' : it.itemStatus === 'FULLY_PICKED_UP' ? '#e0e7ff' : '#f1f5f9',
                                             color: it.itemStatus === 'FULLY_DELIVERED' ? '#15803d' : it.itemStatus === 'PARTIALLY_DELIVERED' ? '#a16207' : it.itemStatus === 'FULLY_PICKED_UP' ? '#3730a3' : '#475569'
                                           }}>
@@ -7208,7 +7661,7 @@ export const AdminPortal: React.FC = () => {
                             </div>
 
                             {/* Save Ready Quantities Button */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-2px' }}>
                               <button
                                 type="button"
                                 onClick={async () => {
@@ -7217,7 +7670,7 @@ export const AdminPortal: React.FC = () => {
 
                                   for (let idx = 0; idx < itemsList.length; idx++) {
                                     const it = itemsList[idx];
-                                    const key = it.id || it.serviceId || it.service_id || String(idx);
+                                    const key = (it.id && String(it.id).length > 5) ? String(it.id) : `item_idx_${idx}`;
                                     const sName = it.serviceName || it.name || `Service ${idx + 1}`;
                                     const pck = it.pickedUpQuantity || 0;
                                     const val = readyInputs[key] !== undefined ? readyInputs[key] : (it.readyQuantity ?? pck);
@@ -7257,7 +7710,7 @@ export const AdminPortal: React.FC = () => {
 
                                   // Update items with new readyQuantity & deliveryPendingQuantity
                                   const updatedItems = itemsList.map((it: any, idx: number) => {
-                                    const key = it.id || it.serviceId || it.service_id || String(idx);
+                                    const key = (it.id && String(it.id).length > 5) ? String(it.id) : `item_idx_${idx}`;
                                     const pck = it.pickedUpQuantity || 0;
                                     const del = it.deliveredQuantity || 0;
                                     const val = readyInputs[key] !== undefined ? readyInputs[key] : (it.readyQuantity ?? pck);
@@ -7281,17 +7734,17 @@ export const AdminPortal: React.FC = () => {
                                   alert('💾 Ready For Delivery quantities saved successfully! Order can now be updated to Ready status.');
                                 }}
                                 style={{
-                                  padding: '6px 14px',
+                                  padding: '4px 10px',
                                   background: '#2563eb',
                                   color: 'white',
                                   border: 'none',
-                                  borderRadius: '6px',
+                                  borderRadius: '5px',
                                   fontWeight: 'bold',
-                                  fontSize: '0.8rem',
+                                  fontSize: '0.75rem',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '6px',
+                                  gap: '4px',
                                   boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
                                 }}
                               >
@@ -7300,9 +7753,9 @@ export const AdminPortal: React.FC = () => {
                             </div>
 
                             {/* Summaries */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.82rem' }}>
-                              <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                                <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '6px' }}>📦 {t('Pickup Summary:')}</strong>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.78rem' }}>
+                              <div style={{ background: '#eff6ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                                <strong style={{ color: '#1d4ed8', display: 'block', marginBottom: '4px' }}>📦 {t('Pickup Summary:')}</strong>
                                 <div>{t('Total Ordered:')} <strong>{totalOrd}</strong></div>
                                 <div>{t('Total Picked Up:')} <strong style={{ color: '#2563eb' }}>{totalPick}</strong></div>
                                 <div>Pickup Pending: <strong style={{ color: totalPickPend > 0 ? '#d97706' : '#16a34a' }}>{totalPickPend}</strong></div>
@@ -8416,85 +8869,165 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
       {/* Pay Later Collection Modal */}
-      {payLaterModalOrder && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
-            <button onClick={() => setPayLaterModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: '#64748b', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
-            <h3 style={{ marginTop: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '1.5rem' }}>💳</span> Collect Payment
-            </h3>
-            
-            <div style={{ margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#64748b' }}>Order ID:</span>
-                <span style={{ fontWeight: '700', color: '#0f172a' }}>#{payLaterModalOrder.id}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#64748b' }}>Customer:</span>
-                <span style={{ fontWeight: '700', color: '#0f172a' }}>{tName(payLaterModalOrder.customerName)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
-                <span style={{ color: '#0f172a', fontWeight: '800' }}>Due Amount:</span>
-                <span style={{ fontWeight: '800', color: '#ef4444' }}>QR {Number(payLaterModalOrder.totalAmount || payLaterModalOrder.total || 0).toFixed(2)}</span>
-              </div>
-            </div>
+      {payLaterModalOrder && (() => {
+        const orderTotal = Number(payLaterModalOrder.totalAmount || payLaterModalOrder.total || 0);
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Select Payment Method</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {['Cash', 'Card', 'Wallet'].map(m => (
-                  <button 
-                    key={m}
-                    onClick={() => setPayLaterSelectedMethod(m as any)}
-                    style={{ 
-                      flex: 1, padding: '8px 0', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem',
-                      background: payLaterSelectedMethod === m ? '#eff6ff' : '#fff',
-                      color: payLaterSelectedMethod === m ? '#2563eb' : '#475569',
-                      borderColor: payLaterSelectedMethod === m ? '#3b82f6' : '#cbd5e1'
-                    }}
-                  >{m}</button>
-                ))}
-              </div>
-            </div>
+        // Lookup matching customer from db.customers
+        const matchingCust = db.customers.find(c => 
+          c.id === payLaterModalOrder.customerId || 
+          (c.name && payLaterModalOrder.customerName && c.name.trim().toLowerCase() === payLaterModalOrder.customerName.trim().toLowerCase()) ||
+          (c.phone && payLaterModalOrder.phone && c.phone === payLaterModalOrder.phone)
+        );
 
-            <button 
-              onClick={async () => {
-                const updatedOrders = db.orders.map(o => 
-                  o.id === payLaterModalOrder.id 
-                    ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod } 
-                    : o
-                );
-                saveDB({ orders: updatedOrders });
-                
-                // Sync to backend DB so it persists across page reloads
-                const token = localStorage.getItem('ll_auth_token');
-                const targetId = payLaterModalOrder.backendId || payLaterModalOrder.id;
-                if (token && targetId) {
-                  try {
-                    const BASE_URL = getApiBaseUrl();
-                    await fetch(`${BASE_URL}/api/v1/orders/${targetId}`, {
-                      method: 'PUT',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify({ payment_status: 'PAID' })
-                    });
-                  } catch (err) {
-                    console.error('Failed to update payment status on backend:', err);
+        // Determine if this order belongs to a Package Customer
+        const isPackageCust = Boolean(
+          (matchingCust && (matchingCust.customerType === 'Package' || isPackageCustomerActive(matchingCust) || matchingCust.hasPackage || (matchingCust as any).packageStatus === 'ACTIVE')) ||
+          payLaterModalOrder.appliedPackageId ||
+          payLaterModalOrder.packageName ||
+          (payLaterModalOrder as any).isPackageCustomer ||
+          (payLaterModalOrder as any).customerType === 'Package' ||
+          (payLaterModalOrder as any).packageCoveredAmount !== undefined ||
+          (payLaterModalOrder as any).package_covered_amount !== undefined ||
+          (payLaterModalOrder as any).extraChargeableAmount !== undefined ||
+          (payLaterModalOrder as any).extra_chargeable_amount !== undefined
+        );
+
+        // Determine stored package covered amount without recalculating entitlement engine
+        let packageCovered = 0;
+        if (isPackageCust) {
+          if ((payLaterModalOrder as any).packageCoveredAmount !== undefined) {
+            packageCovered = Number((payLaterModalOrder as any).packageCoveredAmount);
+          } else if ((payLaterModalOrder as any).package_covered_amount !== undefined) {
+            packageCovered = Number((payLaterModalOrder as any).package_covered_amount);
+          } else if ((payLaterModalOrder as any).extraChargeableAmount !== undefined) {
+            packageCovered = Math.max(0, orderTotal - Number((payLaterModalOrder as any).extraChargeableAmount));
+          } else if ((payLaterModalOrder as any).extra_chargeable_amount !== undefined) {
+            packageCovered = Math.max(0, orderTotal - Number((payLaterModalOrder as any).extra_chargeable_amount));
+          } else if ((payLaterModalOrder.items || (payLaterModalOrder as any).services) && Array.isArray(payLaterModalOrder.items || (payLaterModalOrder as any).services) && (payLaterModalOrder.items || (payLaterModalOrder as any).services).some((it: any) => it.coveredQty !== undefined || it.packageCoveredAmount !== undefined || it.extraSubtotal !== undefined)) {
+            const rawList = payLaterModalOrder.items || (payLaterModalOrder as any).services;
+            packageCovered = rawList.reduce((sum: number, it: any) => {
+              if (it.packageCoveredAmount !== undefined) return sum + Number(it.packageCoveredAmount);
+              if (it.coveredQty !== undefined) return sum + (Number(it.coveredQty) * Number(it.price || it.unitPrice || 0));
+              if (it.extraSubtotal !== undefined) return sum + ((Number(it.orderedQuantity || it.qty || 1) * Number(it.price || 0)) - Number(it.extraSubtotal));
+              return sum;
+            }, 0);
+          } else if ((payLaterModalOrder as any).packageCovered !== undefined) {
+            packageCovered = Number((payLaterModalOrder as any).packageCovered);
+          } else if (payLaterModalOrder.paymentMethod === 'Package' || (payLaterModalOrder as any).isPackageOrder) {
+            packageCovered = orderTotal;
+          } else {
+            const extraAmt = (payLaterModalOrder as any).extraAmount !== undefined ? Number((payLaterModalOrder as any).extraAmount) : undefined;
+            if (extraAmt !== undefined) {
+              packageCovered = Math.max(0, orderTotal - extraAmt);
+            } else {
+              packageCovered = Math.min(orderTotal, Math.max(0, orderTotal - (payLaterModalOrder.discount || 0)));
+              if (packageCovered === 0 && payLaterModalOrder.packageName) {
+                packageCovered = orderTotal;
+              }
+            }
+          }
+        }
+
+        const amountToCollect = isPackageCust ? Math.max(0, orderTotal - packageCovered) : orderTotal;
+
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
+              <button onClick={() => setPayLaterModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: '#64748b', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
+              <h3 style={{ marginTop: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.5rem' }}>💳</span> Collect Payment
+              </h3>
+              
+              <div style={{ margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#64748b' }}>Order ID:</span>
+                  <span style={{ fontWeight: '700', color: '#0f172a' }}>#{payLaterModalOrder.id}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#64748b' }}>Customer:</span>
+                  <span style={{ fontWeight: '700', color: '#0f172a' }}>{tName(payLaterModalOrder.customerName)}</span>
+                </div>
+
+                {isPackageCust ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#64748b' }}>Order Total:</span>
+                      <span style={{ fontWeight: '700', color: '#0f172a' }}>QR {orderTotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#16a34a', fontWeight: '600' }}>Package Covered:</span>
+                      <span style={{ fontWeight: '700', color: '#16a34a' }}>- QR {packageCovered.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
+                      <span style={{ color: '#0f172a', fontWeight: '800' }}>Amount to Collect:</span>
+                      <span style={{ fontWeight: '800', color: amountToCollect > 0 ? '#ef4444' : '#16a34a' }}>QR {amountToCollect.toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
+                    <span style={{ color: '#0f172a', fontWeight: '800' }}>Due Amount:</span>
+                    <span style={{ fontWeight: '800', color: '#ef4444' }}>QR {orderTotal.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Select Payment Method</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['Cash', 'Card', 'Wallet'].map(m => (
+                    <button 
+                      key={m}
+                      onClick={() => setPayLaterSelectedMethod(m as any)}
+                      style={{ 
+                        flex: 1, padding: '8px 0', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem',
+                        background: payLaterSelectedMethod === m ? '#eff6ff' : '#fff',
+                        color: payLaterSelectedMethod === m ? '#2563eb' : '#475569',
+                        borderColor: payLaterSelectedMethod === m ? '#3b82f6' : '#cbd5e1'
+                      }}
+                    >{m}</button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={async () => {
+                  const updatedOrders = db.orders.map(o => 
+                    o.id === payLaterModalOrder.id 
+                      ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod } 
+                      : o
+                  );
+                  saveDB({ orders: updatedOrders });
+                  
+                  // Sync to backend DB so it persists across page reloads
+                  const token = localStorage.getItem('ll_auth_token');
+                  const targetId = payLaterModalOrder.backendId || payLaterModalOrder.id;
+                  if (token && targetId) {
+                    try {
+                      const BASE_URL = getApiBaseUrl();
+                      await fetch(`${BASE_URL}/api/v1/orders/${targetId}`, {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ payment_status: 'PAID' })
+                      });
+                    } catch (err) {
+                      console.error('Failed to update payment status on backend:', err);
+                    }
                   }
-                }
 
-                setPayLaterModalOrder(null);
-                alert(`Order #${payLaterModalOrder.id} successfully marked as Paid via ${payLaterSelectedMethod}!`);
-              }}
-              style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer' }}
-            >
-              Mark as Paid
-            </button>
+                  setPayLaterModalOrder(null);
+                  alert(`Order #${payLaterModalOrder.id} successfully marked as Paid via ${payLaterSelectedMethod}!`);
+                }}
+                style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer' }}
+              >
+                Mark as Paid
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* WALLET HISTORY MODAL */}
       {viewingWalletHistoryCust && (

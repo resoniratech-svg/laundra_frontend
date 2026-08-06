@@ -541,27 +541,30 @@ export const DeliveryPortal: React.FC = () => {
     logAudit(`Updated Pickup status of order #${order.id} to: ${nextStatus} (${deliveryStatusText})`);
   };
 
-  // Complete Pickup with weight/notes -> Direct completion without OTP
   const submitPickupCompletion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pickupDetailsOrder) return;
-
     const rawItemList = pickupDetailsOrder.items || pickupDetailsOrder.services || [];
 
-    // Validate received quantities before submitting
     for (let idx = 0; idx < rawItemList.length; idx++) {
       const it = rawItemList[idx];
-      const key = it.id || it.serviceId || it.service_id || String(idx);
+      const key = it.order_item_id || it.id;
+      if (!key) {
+        alert(`Order item "${it.name || 'Service'}" is missing an OrderItem UUID.`);
+        return;
+      }
       const sName = it.serviceName || it.name || `Item ${idx + 1}`;
       const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-      const rec = pickupItemQuantities[key] !== undefined ? pickupItemQuantities[key] : ord;
+      const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+      const pending = it.pickupPendingQuantity ?? it.pickup_pending_quantity ?? Math.max(0, ord - picked);
+      const rec = pickupItemQuantities[key] !== undefined ? pickupItemQuantities[key] : pending;
 
       if (rec < 0) {
         alert(`Received quantity for "${sName}" cannot be negative.`);
         return;
       }
-      if (rec > ord) {
-        alert(`Received quantity for "${sName}" (${rec} Pcs) cannot exceed Ordered Quantity (${ord} Pcs).`);
+      if (rec > pending) {
+        alert(`Received quantity for "${sName}" (${rec} Pcs) cannot exceed Pending Quantity (${pending} Pcs).`);
         return;
       }
     }
@@ -570,18 +573,17 @@ export const DeliveryPortal: React.FC = () => {
     const targetId = pickupDetailsOrder.backendId || pickupDetailsOrder.id;
 
     try {
-      const rawItemList = pickupDetailsOrder.items || pickupDetailsOrder.services || [];
-      const payloadItems = Object.entries(pickupItemQuantities)
-        .filter(([_, qty]) => Number(qty) > 0)
-        .map(([key, qty]) => {
-          const found = rawItemList.find((it: any, idx: number) => {
-            const k = it.id || it.serviceId || it.service_id || String(idx);
-            return k === key;
-          });
-          const realId = found ? (found.id || found.serviceId || found.service_id) : key;
-          return { item_id: realId, quantity: Number(qty) };
-        })
-        .filter(item => item.item_id && typeof item.item_id === 'string' && item.item_id.length > 5);
+      const payloadItems = rawItemList.map((it: any) => {
+        const itemUuid = it.order_item_id || it.id;
+        if (!itemUuid) {
+          throw new Error(`Order item "${it.name || 'Service'}" is missing an OrderItem UUID.`);
+        }
+        const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+        const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
+        const pending = it.pickupPendingQuantity ?? it.pickup_pending_quantity ?? Math.max(0, ord - picked);
+        const qty = pickupItemQuantities[itemUuid] !== undefined ? pickupItemQuantities[itemUuid] : pending;
+        return { item_id: itemUuid, quantity: Number(qty) };
+      }).filter((item: any) => item.item_id && Number(item.quantity) > 0);
 
       if (payloadItems.length > 0 && targetId) {
         const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}/pickup-items`, {
@@ -597,7 +599,9 @@ export const DeliveryPortal: React.FC = () => {
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ detail: res.statusText }));
-          console.warn("Item pickup endpoint warning:", errData.detail);
+          console.error("Item pickup endpoint error:", errData.detail);
+          alert(`Failed to save pickup items: ${errData.detail || 'Unknown error'}`);
+          return;
         }
       }
 
@@ -625,7 +629,7 @@ export const DeliveryPortal: React.FC = () => {
       const updatedOrders = db.orders.map(o => {
         if (o.id === pickupDetailsOrder.id) {
           const updatedItems = (o.items || o.services || []).map((it: any, idx: number) => {
-            const key = it.id || it.serviceId || it.service_id || String(idx);
+            const key = (it.id && String(it.id).length > 5 && it.id !== it.serviceId && it.id !== it.service_id) ? String(it.id) : `item_idx_${idx}`;
             const qtyEntered = pickupItemQuantities[key];
             const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
             const currentPicked = it.pickedUpQuantity || it.picked_up_quantity || 0;
@@ -872,7 +876,11 @@ export const DeliveryPortal: React.FC = () => {
                 phone: custData.phone || 'N/A',
                 address: d.type === 'PICKUP' ? (orderData.pickup_address || 'N/A') : (orderData.delivery_address || 'N/A'),
                 services: orderData.items?.map((it: any) => ({
+                  ...it,
+                  id: it.order_item_id || it.id,
+                  order_item_id: it.order_item_id || it.id,
                   serviceId: it.service_id,
+                  service_id: it.service_id,
                   name: it.service_name || it.name || 'Laundry Service',
                   qty: it.quantity,
                   price: it.unit_price
@@ -888,6 +896,10 @@ export const DeliveryPortal: React.FC = () => {
                 deliveryCommission: 0,
                 items: orderData.items?.map((it: any) => ({
                   ...it,
+                  id: it.order_item_id || it.id,
+                  order_item_id: it.order_item_id || it.id,
+                  serviceId: it.service_id,
+                  service_id: it.service_id,
                   name: it.service_name || it.name || 'Laundry Service',
                   quantity: it.quantity,
                   orderedQuantity: it.ordered_quantity !== undefined ? it.ordered_quantity : (it.orderedQuantity || it.quantity || 1),
@@ -931,14 +943,20 @@ export const DeliveryPortal: React.FC = () => {
     const currentName = currentUser.name.trim().toLowerCase();
 
     // If explicit taskType from backend API, ensure type is PICKUP
-    if ((o as any).taskType && (o as any).taskType !== 'PICKUP') return false;
+    const tType = ((o as any).taskType || (o as any).type || '').toUpperCase();
+    if (tType && tType !== 'PICKUP') return false;
+    if (o.deliveryCourier && !o.pickupCourier && tType !== 'PICKUP') return false;
 
-    const pickupCourier = (o.pickupCourier || o.courier || '').trim().toLowerCase();
-    
-    // Store assignments must NOT be visible to Delivery Boys
+    // Tasks directly fetched from backend API for logged-in user
+    if ((o as any).taskType === 'PICKUP' && ((o as any).deliveryId || (o as any).backendId)) {
+      const st = (o.status || o.deliveryStatus || '').toLowerCase();
+      const validStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer', 'partially picked up', 'partially_picked_up', 'assigned'];
+      return validStatuses.includes(st);
+    }
+
+    const pickupCourier = (o.pickupCourier || (tType === 'PICKUP' ? o.courier : '') || '').trim().toLowerCase();
     if (pickupCourier === 'store') return false;
 
-    // Assigned specifically to me OR assigned to All Delivery Staff (or unassigned/all)
     const isAssignedToMe = pickupCourier === currentName || 
                            pickupCourier === 'all delivery staff' || 
                            pickupCourier === 'all_delivery_staff' ||
@@ -948,20 +966,7 @@ export const DeliveryPortal: React.FC = () => {
     if (!isAssignedToMe) return false;
 
     const st = (o.status || '').toLowerCase();
-    const validStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer', 'partially picked up', 'partially_picked_up'];
-    
-    // Check if pickup has remaining pending items
-    const items = o.items || o.services || [];
-    if (items.length > 0) {
-      const hasPickupPending = items.some((it: any) => {
-        const ord = it.orderedQuantity || it.quantity || 1;
-        const pck = it.pickedUpQuantity || 0;
-        const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
-        return pend > 0;
-      });
-      if (!hasPickupPending && st !== 'created' && st !== 'accepted') return false;
-    }
-
+    const validStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer', 'partially picked up', 'partially_picked_up', 'assigned'];
     return validStatuses.includes(st);
   };
 
@@ -971,14 +976,20 @@ export const DeliveryPortal: React.FC = () => {
     const currentName = currentUser.name.trim().toLowerCase();
 
     // If explicit taskType from backend API, ensure type is DELIVERY
-    if ((o as any).taskType && (o as any).taskType !== 'DELIVERY') return false;
+    const tType = ((o as any).taskType || (o as any).type || '').toUpperCase();
+    if (tType && tType !== 'DELIVERY') return false;
+    if (o.pickupCourier && !o.deliveryCourier && tType !== 'DELIVERY') return false;
 
-    const deliveryCourier = (o.deliveryCourier || o.courier || '').trim().toLowerCase();
-    
-    // Store assignments must NOT be visible to Delivery Boys
+    // Tasks directly fetched from backend API for logged-in user
+    if ((o as any).taskType === 'DELIVERY' && ((o as any).deliveryId || (o as any).backendId)) {
+      const delStatus = (o.deliveryStatus || o.status || '').toLowerCase();
+      if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed') return false;
+      return true;
+    }
+
+    const deliveryCourier = (o.deliveryCourier || (tType === 'DELIVERY' ? o.courier : '') || '').trim().toLowerCase();
     if (deliveryCourier === 'store') return false;
 
-    // Assigned specifically to me OR assigned to All Delivery Staff
     const isAssignedToMe = deliveryCourier === currentName || 
                            deliveryCourier === 'all delivery staff' || 
                            deliveryCourier === 'all_delivery_staff' ||
@@ -990,15 +1001,7 @@ export const DeliveryPortal: React.FC = () => {
     const delStatus = (o.deliveryStatus || o.status || '').toLowerCase();
     if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed') return false;
 
-    // Delivery task exists ONLY while there is an active delivery batch (Ready Qty > 0)
-    const items = o.items || o.services || [];
-    if (items.length === 0) return true;
-    const totalReadyQty = items.reduce((sum: number, it: any) => {
-      const rdy = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : 0);
-      return sum + rdy;
-    }, 0);
-
-    return totalReadyQty > 0;
+    return true;
   };
 
   const assignedOrders: Order[] = (() => {
@@ -1007,31 +1010,36 @@ export const DeliveryPortal: React.FC = () => {
     (db.orders || []).forEach(o => {
       const key = o.backendId || o.id;
       if (key) map.set(key, o);
-      // Also index by the other id so apiTasks can find it
       if (o.backendId && o.id && o.backendId !== o.id) {
         map.set(o.id, o);
       }
     });
 
     apiTasks.forEach(t => {
-      // Try to find existing entry by backendId first, then by id (order number)
       const existingByBackend = t.backendId ? map.get(t.backendId) : undefined;
       const existingById = t.id ? map.get(t.id) : undefined;
       const existing = existingByBackend || existingById;
       const primaryKey = t.backendId || t.id;
 
       if (existing && primaryKey) {
-        // Remove old key entries to avoid duplicates
         if (existing.id && map.get(existing.id) === existing) map.delete(existing.id);
         if (existing.backendId && map.get(existing.backendId) === existing) map.delete(existing.backendId);
-        // Merge and store under primary key
-        map.set(primaryKey, { ...existing, ...t });
+        
+        // Ensure real API task fields override stale mock data completely
+        const merged: Order = {
+          ...existing,
+          ...t,
+          courier: currentUser?.name || t.courier || t.deliveryCourier || t.pickupCourier,
+          pickupCourier: t.taskType === 'PICKUP' ? (t.pickupCourier || currentUser?.name) : null,
+          deliveryCourier: t.taskType === 'DELIVERY' ? (t.deliveryCourier || currentUser?.name) : null,
+          isDeleted: false,
+        };
+        map.set(primaryKey, merged);
       } else if (primaryKey) {
         map.set(primaryKey, t);
       }
     });
 
-    // De-duplicate: ensure each unique order (by backendId) appears only once
     const seen = new Set<string>();
     const result: Order[] = [];
     Array.from(map.values()).forEach(o => {
@@ -1080,7 +1088,7 @@ export const DeliveryPortal: React.FC = () => {
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', letterSpacing: '0.75px', color: '#0369a1', textTransform: 'uppercase' }}>
-              {db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundra'} Go
+              {db.companies.find(c => c.id === db.activeCompanyId)?.name || currentUser?.companyName || 'Iron'}
             </h1>
             <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', fontWeight: '700' }}>Web-Based Delivery Operations Portal</p>
           </div>
@@ -1088,32 +1096,6 @@ export const DeliveryPortal: React.FC = () => {
         
         {currentUser && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '6px 12px', borderRadius: '30px', border: '1px solid #e2e8f0' }}>
-              {currentUser.profilePhoto && !sidebarImgError ? (
-                <img 
-                  src={currentUser.profilePhoto} 
-                  alt="profile" 
-                  onError={() => setSidebarImgError(true)} 
-                  style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
-                />
-              ) : (
-                <div style={{ 
-                  width: '28px', 
-                  height: '28px', 
-                  borderRadius: '50%', 
-                  background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', 
-                  color: 'white', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  fontWeight: 'bold',
-                  fontSize: '0.8rem'
-                }}>
-                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'D'}
-                </div>
-              )}
-              <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#1e293b', textTransform: 'capitalize' }}>{currentUser.name}</span>
-            </div>
             <button onClick={handleLogout} style={{ border: '1.5px solid #fca5a5', background: '#fef2f2', color: '#ef4444', padding: '8px 16px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>🚪</span> Sign Out
             </button>
@@ -1337,7 +1319,6 @@ export const DeliveryPortal: React.FC = () => {
               )}
               <div>
                 <div style={{ color: '#1e293b', fontWeight: '800', fontSize: '1rem', textTransform: 'capitalize' }}>{currentUser.name}</div>
-                <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '12px', fontWeight: '800', marginTop: '2px', display: 'inline-block' }}>Active Duty</span>
               </div>
             </div>
 
@@ -1472,16 +1453,6 @@ export const DeliveryPortal: React.FC = () => {
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
                       Ready for your shifts today? • {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', cursor: 'pointer' }}>🔔</div>
-                    {currentUser.profilePhoto && !sidebarImgError ? (
-                      <img src={currentUser.profilePhoto} alt="profile" onError={() => setSidebarImgError(true)} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem' }}>
-                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'D'}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -1653,8 +1624,8 @@ export const DeliveryPortal: React.FC = () => {
                             {o.deliveryStatus === 'Reached Customer' && (
                               <button onClick={() => {
                                 const initialQtyMap: Record<string, number> = {};
-                                (o.items || o.services || []).forEach((it: any, idx: number) => {
-                                  const key = it.id || it.serviceId || it.service_id || String(idx);
+                                (o.items || o.services || []).forEach((it: any) => {
+                                  const key = it.order_item_id || it.id;
                                   const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
                                   const picked = it.pickedUpQuantity || it.picked_up_quantity || it.pickedUpQty || it.pickedUp || 0;
                                   const pending = it.pickupPendingQuantity ?? it.pickup_pending_quantity ?? Math.max(0, ord - picked);
@@ -1926,11 +1897,18 @@ export const DeliveryPortal: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Helpdesk Support</h2>
                   
-                  <div style={{ background: '#eff6ff', padding: '20px', borderRadius: '12px', border: '1px solid #bfdbfe', fontSize: '0.85rem' }}>
-                    <strong>🏢 Company Admin Desk Contacts</strong>
-                    <div style={{ marginTop: '6px' }}>📞 Phone Line: +974 5555 0100</div>
-                    <div>✉️ Email Support: admin@laundrahq.com</div>
-                  </div>
+                  {(() => {
+                    const companyAdmin = (db.users || []).find((u: any) => u.role === 'ADMIN') || {};
+                    const adminEmail = companyAdmin.email || 'kanikarapub@gmail.com';
+                    const adminPhone = companyAdmin.phone || companyAdmin.mobile || '9638527411';
+                    return (
+                      <div style={{ background: '#eff6ff', padding: '20px', borderRadius: '12px', border: '1px solid #bfdbfe', fontSize: '0.85rem' }}>
+                        <strong>🏢 Company Admin Desk Contacts</strong>
+                        <div style={{ marginTop: '6px' }}>📞 Phone Line: {adminPhone}</div>
+                        <div>✉️ Email Support: {adminEmail}</div>
+                      </div>
+                    );
+                  })()}
 
                   <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                     <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Support Ticket History</h3>
@@ -2038,7 +2016,7 @@ export const DeliveryPortal: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '6px' }}>Received Services & Quantities:</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {(pickupDetailsOrder.items && pickupDetailsOrder.items.length > 0 ? pickupDetailsOrder.items : (pickupDetailsOrder.services || [])).map((it: any, idx: number) => {
-                    const itemKey = it.id || it.serviceId || it.service_id || String(idx);
+                    const itemKey = it.order_item_id || it.id;
                     const sName = it.serviceName || it.name || `Service ${idx + 1}`;
                     const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
                     const picked = it.pickedUpQuantity || it.picked_up_quantity || it.pickedUpQty || it.pickedUp || 0;

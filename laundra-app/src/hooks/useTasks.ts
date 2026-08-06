@@ -11,8 +11,8 @@ export const useTasks = () => {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status, deliveryStatus }: { orderId: string; status: string; deliveryStatus?: string }) =>
-      TaskService.updateOrderStatus(orderId, status, deliveryStatus),
+    mutationFn: ({ orderId, status, deliveryStatus, backendId }: { orderId: string; status: string; deliveryStatus?: string; backendId?: string }) =>
+      TaskService.updateOrderStatus(orderId, status, deliveryStatus, backendId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

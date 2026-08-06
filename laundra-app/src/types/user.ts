@@ -10,6 +10,7 @@ export interface User {
   address?: string;
   status?: 'Active' | 'Pending' | 'Suspended';
   companyId?: string;
+  companyName?: string;
   profilePhoto?: string;
   vehicleType?: string;
   vehicleNumber?: string;

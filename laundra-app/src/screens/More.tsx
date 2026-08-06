@@ -27,7 +27,6 @@ export const MoreScreen = () => {
     { id: 'DutyLeaves', title: '📅 Duty & Leave', desc: 'Clock In/Out attendance & leave requests' },
     { id: 'Helpdesk', title: '💬 Helpdesk Support', desc: 'Raise support tickets & contact admin' },
     { id: 'Announcements', title: '📢 Announcements', desc: 'Platform announcements & company notices' },
-    { id: 'Profile', title: '👤 Driver Profile', desc: 'Vehicle details, license & account settings' },
   ];
 
   return (
@@ -41,9 +40,6 @@ export const MoreScreen = () => {
           <View style={styles.profileText}>
             <Text style={styles.name}>{currentUser?.name || 'Driver'}</Text>
             <Text style={styles.email}>{currentUser?.email}</Text>
-            <View style={styles.dutyPill}>
-              <Text style={styles.dutyText}>🟢 Active Duty</Text>
-            </View>
           </View>
         </View>
 

@@ -20,7 +20,7 @@ export const EarningService = {
 
     myOrders.forEach(o => {
       if (o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === cleanName || o.pickupCourier === 'All Delivery Staff')) {
-        const amt = o.pickupCommission || 10;
+        const amt = o.pickupCommission !== undefined ? o.pickupCommission : 0;
         const isPaid = !!o.pickupCommissionPaid;
         lifetimeEarnings += amt;
         if (isPaid) paidEarnings += amt; else pendingEarnings += amt;
@@ -36,7 +36,7 @@ export const EarningService = {
       }
 
       if (o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === cleanName || o.deliveryCourier === 'All Delivery Staff')) {
-        const amt = o.deliveryCommission || 15;
+        const amt = o.deliveryCommission !== undefined ? o.deliveryCommission : 0;
         const isPaid = !!o.deliveryCommissionPaid;
         lifetimeEarnings += amt;
         if (isPaid) paidEarnings += amt; else pendingEarnings += amt;

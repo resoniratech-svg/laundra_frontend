@@ -31,4 +31,19 @@ export const HelpdeskService = {
       return false;
     }
   },
+
+  fetchAdminContact: async (): Promise<{ email: string; phone: string }> => {
+    try {
+      const res = await apiClient.get('/api/v1/mobile-staff/company-admin');
+      if (res.data) {
+        return {
+          email: res.data.email || 'kanikarapub@gmail.com',
+          phone: res.data.phone || '9638527411',
+        };
+      }
+    } catch (e) {
+      console.warn('HelpdeskService fetchAdminContact error:', e);
+    }
+    return { email: 'kanikarapub@gmail.com', phone: '9638527411' };
+  },
 };

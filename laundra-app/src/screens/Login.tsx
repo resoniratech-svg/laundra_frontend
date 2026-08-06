@@ -50,7 +50,6 @@ export const LoginScreen = () => {
               <Text style={styles.logoIcon}>🚚</Text>
             </View>
             <Text style={styles.appName}>{STRINGS.APP_NAME}</Text>
-            <Text style={styles.subtitle}>Web-Based Operations Mobile Platform</Text>
           </View>
 
           <View style={[styles.card, shadow.card]}>
