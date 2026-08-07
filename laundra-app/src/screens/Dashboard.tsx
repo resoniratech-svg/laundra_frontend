@@ -51,8 +51,8 @@ export const DashboardScreen = () => {
 
   const pendingPickups = pickupOrders.length;
   const pendingDeliveries = deliveryOrders.length;
-  const completedDrops = data?.completedDrops || 0;
-  const totalCommission = data?.totalCommission || 0;
+  const completedDrops = Number(data?.completedDrops ?? 0) || 0;
+  const totalCommission = Number(data?.totalCommission ?? 0) || 0;
   const announcements = data?.announcements || [];
 
   const userName = currentUser?.name || 'laundry';
@@ -144,7 +144,7 @@ export const DashboardScreen = () => {
 
             <View style={styles.cardBodySingle}>
               <Text style={[styles.cardNumberText, { color: '#a16207' }]}>
-                QR {totalCommission.toFixed(2)}
+                QR {(Number(totalCommission) || 0).toFixed(2)}
               </Text>
             </View>
             <Text style={[styles.cardSubtitle, { color: '#ca8a04', marginTop: 4 }]}>Commission Earned Today</Text>

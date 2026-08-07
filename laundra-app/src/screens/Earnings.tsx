@@ -54,7 +54,7 @@ export const EarningsScreen = () => {
               Amount Pending{'\n'}(Unpaid)
             </Text>
             <Text style={[styles.cardAmount, { color: '#f97316' }]}>
-              QR {pendingAmount.toFixed(2)}
+              QR {(Number(pendingAmount) || 0).toFixed(2)}
             </Text>
             <Text style={styles.cardSubtitle}>
               Awaiting payout{'\n'}from Admin
@@ -67,7 +67,7 @@ export const EarningsScreen = () => {
               Successfully Paid
             </Text>
             <Text style={[styles.cardAmount, { color: '#10b981' }]}>
-              QR {paidAmount.toFixed(2)}
+              QR {(Number(paidAmount) || 0).toFixed(2)}
             </Text>
             <Text style={styles.cardSubtitle}>
               Total payouts{'\n'}received
@@ -81,7 +81,7 @@ export const EarningsScreen = () => {
             <Text style={{ fontSize: 18, marginRight: 8 }}>📑</Text>
             <Text style={styles.historyTitle}>Earnings & Payout History</Text>
           </View>
-          <Text style={styles.lifetimeText}>Total Lifetime: QR {lifetimeAmount.toFixed(2)}</Text>
+          <Text style={styles.lifetimeText}>Total Lifetime: QR {(Number(lifetimeAmount) || 0).toFixed(2)}</Text>
 
           {trips.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -104,7 +104,7 @@ export const EarningsScreen = () => {
                     <Text style={styles.txType}>{item.type} • {item.customerName}</Text>
                   </View>
                   <View style={styles.txRight}>
-                    <Text style={styles.txAmount}>+QR {item.amount.toFixed(2)}</Text>
+                    <Text style={styles.txAmount}>+QR {(Number(item.amount) || 0).toFixed(2)}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: item.status === 'Paid' ? '#dcfce7' : '#ffedd5' }]}>
                       <Text style={[styles.statusText, { color: item.status === 'Paid' ? '#15803d' : '#c2410c' }]}>
                         {item.status}

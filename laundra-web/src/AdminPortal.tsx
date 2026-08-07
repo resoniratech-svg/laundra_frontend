@@ -152,6 +152,7 @@ export const AdminPortal: React.FC = () => {
 
   // Platform Tickets
   const [platformTickets, setPlatformTickets] = useState<any[]>([]);
+  const [backendDeliveries, setBackendDeliveries] = useState<any[]>([]);
   
   // Customer Tickets (Admin View)
   const [adminCustomerTickets, setAdminCustomerTickets] = useState<any[]>([]);
@@ -375,116 +376,63 @@ export const AdminPortal: React.FC = () => {
                    || (custPackages || [])[0];
 
     const effCounts = cust ? getEffectiveCounts(cust) : null;
+    const rawSvcItems = activePkg?.service_items || activePkg?.serviceItems || activePkg?.package?.service_items || activePkg?.package?.eligible_services || [];
+    
+    const washLeft = activePkg?.wash_left ?? activePkg?.remainingWashCount ?? cust?.remainingWashCount ?? effCounts?.washLeft ?? 0;
+    const ironLeft = activePkg?.iron_left ?? activePkg?.remainingIronCount ?? cust?.remainingIronCount ?? effCounts?.ironLeft ?? 0;
+    const dryLeft = activePkg?.dry_left ?? activePkg?.remainingDryCleanCount ?? cust?.remainingDryCleanCount ?? effCounts?.dryLeft ?? 0;
+    const steamLeft = activePkg?.steam_left ?? (activePkg as any)?.remainingSteamCount ?? (cust as any)?.remainingSteamCount ?? effCounts?.steamLeft ?? 0;
 
-    const serviceQuotas: { [key: string]: number } = {};
+    const categoryQuotas = {
+      pressing: Math.max(0, Number(ironLeft || 0)),
+      wash: Math.max(0, Number(washLeft || 0)),
+      dry: Math.max(0, Number(dryLeft || 0)),
+      steam: Math.max(0, Number(steamLeft || 0)),
+    };
 
-    let hasDynamicItems = false;
-    if (activePkg?.service_items && Array.isArray(activePkg.service_items) && activePkg.service_items.length > 0) {
-      activePkg.service_items.forEach((si: any) => {
-        const k = (si.service || '').trim().toLowerCase();
-        if (k) {
-          serviceQuotas[k] = Math.max(0, si.left !== undefined ? si.left : (si.total || 0));
+    const itemQuotas: { [key: string]: number } = {};
+    if (Array.isArray(rawSvcItems) && rawSvcItems.length > 0) {
+      rawSvcItems.forEach((si: any) => {
+        const itemKey = (si.service || si.name || si.service_name || '').trim().toLowerCase();
+        const catKey = (si.category || si.service_category || si.serviceType || '').trim().toLowerCase();
+        const qtyLeft = Math.max(0, si.left !== undefined ? si.left : (si.total || 0));
+
+        if (itemKey) itemQuotas[itemKey] = qtyLeft;
+        if (catKey) {
+          if (catKey.includes('press') || catKey.includes('iron')) categoryQuotas.pressing = Math.max(categoryQuotas.pressing, qtyLeft);
+          if (catKey.includes('wash') || catKey.includes('clean') || catKey.includes('laundry')) categoryQuotas.wash = Math.max(categoryQuotas.wash, qtyLeft);
+          if (catKey.includes('dry')) categoryQuotas.dry = Math.max(categoryQuotas.dry, qtyLeft);
+          if (catKey.includes('steam')) categoryQuotas.steam = Math.max(categoryQuotas.steam, qtyLeft);
         }
       });
-      hasDynamicItems = Object.keys(serviceQuotas).length > 0;
-    }
-
-    if (!hasDynamicItems) {
-      const washLeft = activePkg?.wash_left ?? activePkg?.remainingWashCount ?? cust?.remainingWashCount ?? effCounts?.washLeft ?? null;
-      const ironLeft = activePkg?.iron_left ?? activePkg?.remainingIronCount ?? cust?.remainingIronCount ?? effCounts?.ironLeft ?? null;
-      const dryLeft = activePkg?.dry_left ?? activePkg?.remainingDryCleanCount ?? cust?.remainingDryCleanCount ?? effCounts?.dryLeft ?? null;
-      const steamLeft = activePkg?.steam_left ?? (activePkg as any)?.remainingSteamCount ?? (cust as any)?.remainingSteamCount ?? effCounts?.steamLeft ?? null;
-
-      if (washLeft !== null && washLeft !== undefined) {
-        const val = Math.max(0, Number(washLeft));
-        serviceQuotas['wash & clean'] = val;
-        serviceQuotas['wash & press'] = val;
-        serviceQuotas['wash'] = val;
-        serviceQuotas['laundry'] = val;
-      }
-      if (ironLeft !== null && ironLeft !== undefined) {
-        const val = Math.max(0, Number(ironLeft));
-        serviceQuotas['pressing'] = val;
-        serviceQuotas['ironing'] = val;
-        serviceQuotas['press'] = val;
-        serviceQuotas['iron'] = val;
-      }
-      if (dryLeft !== null && dryLeft !== undefined) {
-        const val = Math.max(0, Number(dryLeft));
-        serviceQuotas['dry cleaning'] = val;
-        serviceQuotas['dry clean'] = val;
-        serviceQuotas['drycleaning'] = val;
-      }
-      if (steamLeft !== null && steamLeft !== undefined) {
-        const val = Math.max(0, Number(steamLeft));
-        serviceQuotas['steam iron'] = val;
-        serviceQuotas['steam'] = val;
-      }
     }
 
     let overallRemaining = activePkg
       ? Math.max(0, (activePkg.current_balance || activePkg.total_quantity || activePkg.package?.total_quantity || activePkg.total_qty || 0) - (activePkg.used_quantity || 0))
       : (cust ? Math.max(0, (cust.remainingWashCount || 0) + (cust.remainingIronCount || 0) + (cust.remainingDryCleanCount || 0)) : 9999);
 
-    if (Object.keys(serviceQuotas).length > 0) {
-      const sumQuotas = Object.values(serviceQuotas).reduce((a, b) => a + b, 0);
-      if (sumQuotas > 0) overallRemaining = sumQuotas;
-    }
-
-    const helperDeductQuota = (targetKey: string, deductAmount: number) => {
-      if (deductAmount <= 0) return;
-      const val = serviceQuotas[targetKey];
-      if (val !== undefined) {
-        Object.keys(serviceQuotas).forEach(k => {
-          if (
-            (targetKey.includes('press') || targetKey.includes('iron')) && (k.includes('press') || k.includes('iron')) ||
-            (targetKey.includes('dry')) && (k.includes('dry')) ||
-            (targetKey.includes('wash') || targetKey.includes('clean') || targetKey.includes('laundry')) && (k.includes('wash') || k.includes('clean') || k.includes('laundry')) ||
-            (targetKey.includes('steam')) && (k.includes('steam')) ||
-            k === targetKey
-          ) {
-            serviceQuotas[k] = Math.max(0, (serviceQuotas[k] ?? 0) - deductAmount);
-          }
-        });
-      }
-    };
-
     const itemsBreakdown = cart.map(item => {
       const itemNameKey = (item.itemName || '').trim().toLowerCase();
       const serviceTypeKey = (item.serviceTypeName || '').trim().toLowerCase();
 
-      let matchedKey: string | null = null;
-      let availableQuota: number = 0;
+      let availableQuota = 0;
+      let matchedQuotaKey: string | null = null;
 
-      if (serviceQuotas[itemNameKey] !== undefined) {
-        matchedKey = itemNameKey;
-        availableQuota = serviceQuotas[itemNameKey];
-      } else if (serviceQuotas[serviceTypeKey] !== undefined) {
-        matchedKey = serviceTypeKey;
-        availableQuota = serviceQuotas[serviceTypeKey];
-      } else if (Object.keys(serviceQuotas).length > 0) {
-        const exactSub = Object.keys(serviceQuotas).find(k => k && (k.includes(serviceTypeKey) || serviceTypeKey.includes(k)));
-        if (exactSub) {
-          matchedKey = exactSub;
-          availableQuota = serviceQuotas[exactSub];
-        } else {
-          const found = Object.keys(serviceQuotas).find(k => {
-            if (!k) return false;
-            if ((serviceTypeKey.includes('press') || serviceTypeKey.includes('iron')) && (k.includes('press') || k.includes('iron'))) return true;
-            if (serviceTypeKey.includes('dry') && k.includes('dry')) return true;
-            if ((serviceTypeKey.includes('wash') || serviceTypeKey.includes('clean') || serviceTypeKey.includes('laundry')) && 
-                (k.includes('wash') || k.includes('clean') || k.includes('laundry'))) return true;
-            if (serviceTypeKey.includes('steam') && k.includes('steam')) return true;
-            return false;
-          });
-
-          if (found) {
-            matchedKey = found;
-            availableQuota = serviceQuotas[found];
-          } else {
-            availableQuota = 0;
-          }
-        }
+      if (itemQuotas[itemNameKey] !== undefined && itemQuotas[itemNameKey] > 0) {
+        matchedQuotaKey = itemNameKey;
+        availableQuota = itemQuotas[itemNameKey];
+      } else if (serviceTypeKey.includes('press') || serviceTypeKey.includes('iron')) {
+        availableQuota = categoryQuotas.pressing;
+        matchedQuotaKey = 'pressing';
+      } else if (serviceTypeKey.includes('wash') || serviceTypeKey.includes('clean') || serviceTypeKey.includes('laundry')) {
+        availableQuota = categoryQuotas.wash;
+        matchedQuotaKey = 'wash';
+      } else if (serviceTypeKey.includes('dry')) {
+        availableQuota = categoryQuotas.dry;
+        matchedQuotaKey = 'dry';
+      } else if (serviceTypeKey.includes('steam')) {
+        availableQuota = categoryQuotas.steam;
+        matchedQuotaKey = 'steam';
       } else {
         availableQuota = overallRemaining;
       }
@@ -495,8 +443,19 @@ export const AdminPortal: React.FC = () => {
       const unitPrice = parseFloat(String(item.price || 0)) || 0;
       const extraSubtotal = extraQty * unitPrice;
 
-      if (matchedKey) {
-        helperDeductQuota(matchedKey, coveredQty);
+      if (matchedQuotaKey) {
+        if (itemQuotas[matchedQuotaKey] !== undefined) {
+          itemQuotas[matchedQuotaKey] = Math.max(0, itemQuotas[matchedQuotaKey] - coveredQty);
+        }
+        if (matchedQuotaKey === 'pressing' || matchedQuotaKey.includes('press') || matchedQuotaKey.includes('iron')) {
+          categoryQuotas.pressing = Math.max(0, categoryQuotas.pressing - coveredQty);
+        } else if (matchedQuotaKey === 'wash' || matchedQuotaKey.includes('wash') || matchedQuotaKey.includes('clean')) {
+          categoryQuotas.wash = Math.max(0, categoryQuotas.wash - coveredQty);
+        } else if (matchedQuotaKey === 'dry' || matchedQuotaKey.includes('dry')) {
+          categoryQuotas.dry = Math.max(0, categoryQuotas.dry - coveredQty);
+        } else if (matchedQuotaKey === 'steam' || matchedQuotaKey.includes('steam')) {
+          categoryQuotas.steam = Math.max(0, categoryQuotas.steam - coveredQty);
+        }
       } else {
         overallRemaining = Math.max(0, overallRemaining - coveredQty);
       }
@@ -1349,6 +1308,18 @@ export const AdminPortal: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch customer support tickets:', err);
+    }
+
+    try {
+      const delivRes = await fetch(`${BASE_URL}/api/v1/deliveries`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (delivRes.ok) {
+        const delivData = await delivRes.json();
+        setBackendDeliveries(delivData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend deliveries for admin:', err);
     }
 
     try {
@@ -2312,7 +2283,7 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
-  const syncDeliveryToBackend = async (orderId: string, courierName: string, deliveryType: 'PICKUP' | 'DELIVERY') => {
+  const syncDeliveryToBackend = async (orderId: string, courierName: string, deliveryType: 'PICKUP' | 'DELIVERY', customCommission?: number) => {
     const targetOrder = db.orders.find(o => o.id === orderId);
     const targetId = targetOrder?.backendId || orderId;
     const adminToken = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || token || '';
@@ -2326,6 +2297,9 @@ export const AdminPortal: React.FC = () => {
       }
     }
 
+    const pickComm = deliveryType === 'PICKUP' ? (customCommission !== undefined ? customCommission : (targetOrder?.pickupCommission ?? 0)) : (targetOrder?.pickupCommission ?? 0);
+    const delivComm = deliveryType === 'DELIVERY' ? (customCommission !== undefined ? customCommission : (targetOrder?.deliveryCommission ?? 0)) : (targetOrder?.deliveryCommission ?? 0);
+
     try {
       await fetch(`${BASE_URL}/api/v1/deliveries`, {
         method: 'POST',
@@ -2336,7 +2310,9 @@ export const AdminPortal: React.FC = () => {
         body: JSON.stringify({
           order_id: targetId,
           delivery_boy_id: driverId,
-          type: deliveryType
+          type: deliveryType,
+          pickup_commission: pickComm,
+          delivery_commission: delivComm
         })
       });
     } catch (err) {
@@ -4364,19 +4340,105 @@ export const AdminPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {db.users.filter(u => u.role === 'delivery' || u.role === 'Delivery Boy' || u.role === 'Delivery Staff').map(u => {
-                  const unpaidPickupTasks = db.orders.filter(o => 
-                    (o.pickupCourier === u.name || o.courier === u.name) && 
-                    ['received', 'washing', 'ironing', 'ready', 'out for delivery', 'delivered'].includes(String(o.status || '').toLowerCase()) &&
-                    !o.pickupCommissionPaid
-                  );
-                  const unpaidDeliveryTasks = db.orders.filter(o => 
-                    (o.deliveryCourier === u.name || o.courier === u.name) && 
-                    ['delivered'].includes(String(o.status || '').toLowerCase()) &&
-                    !o.deliveryCommissionPaid
-                  );
-                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + (o.pickupCommission ?? 0), 0);
-                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission ?? 0), 0);
+                {db.users.filter(u => (u.role || '').toLowerCase().includes('delivery')).map(u => {
+                  const staffName = (u.name || '').trim().toLowerCase();
+                  const staffId = String(u.id);
+
+                  const pickupDoneStatuses = [
+                    'received', 'sorting', 'washing', 'drying', 'ironing', 'quality check',
+                    'packing', 'ready', 'out for delivery', 'out_for_delivery', 'delivered',
+                    'partially_picked_up', 'partially picked up', 'picked_up', 'picked up',
+                    'fully_picked_up', 'fully picked up', 'accepted', 'completed'
+                  ];
+
+                  const deliveryDoneStatuses = [
+                    'delivered', 'completed', 'fully_delivered', 'fully delivered',
+                    'partially_delivered', 'partially delivered'
+                  ];
+
+                  const unpaidPickupTasks: { id: string; orderId: string; customerName: string; amount: number; delivId?: string }[] = [];
+                  const unpaidDeliveryTasks: { id: string; orderId: string; customerName: string; amount: number; delivId?: string }[] = [];
+                  const processedKeys = new Set<string>();
+
+                  // 1. Primary Source: backendDeliveries (distinct delivery task records deliv-1, deliv-2)
+                  (backendDeliveries || []).forEach(d => {
+                    const boyUser = db.users.find(usr => String(usr.id).toLowerCase() === String(d.delivery_boy_id).toLowerCase());
+                    const isBoyMatch = (d.delivery_boy_id && String(d.delivery_boy_id).toLowerCase() === staffId.toLowerCase()) ||
+                                       (boyUser && boyUser.name.trim().toLowerCase() === staffName) ||
+                                       (d.courier_name && String(d.courier_name).trim().toLowerCase() === staffName);
+                    
+                    if (!isBoyMatch) return;
+
+                    const dStatus = (d.status || '').toUpperCase();
+                    const isDone = ['PICKED', 'DELIVERED', 'COMPLETED', 'PARTIALLY_PICKED_UP', 'PARTIALLY_DELIVERED', 'RECEIVED'].includes(dStatus);
+                    if (!isDone) return;
+
+                    const targetOrder = db.orders.find(ord => ord.id === d.order_id || ord.backendId === d.order_id);
+                    const orderDisplayId = targetOrder ? targetOrder.id : (d.order_number || String(d.order_id || d.id).slice(0, 8));
+                    const custName = targetOrder ? targetOrder.customerName : (d.customer_name || 'Customer');
+
+                    const dKey = `backend-deliv-${d.id}`;
+                    if (d.type === 'PICKUP' && d.pickup_commission && Number(d.pickup_commission) > 0 && !d.pickup_commission_paid && !processedKeys.has(dKey)) {
+                      processedKeys.add(dKey);
+                      unpaidPickupTasks.push({
+                        id: dKey,
+                        orderId: orderDisplayId,
+                        customerName: custName,
+                        amount: Number(d.pickup_commission),
+                        delivId: d.id
+                      });
+                    }
+                    if (d.type === 'DELIVERY' && d.delivery_commission && Number(d.delivery_commission) > 0 && !d.delivery_commission_paid && !processedKeys.has(dKey)) {
+                      processedKeys.add(dKey);
+                      unpaidDeliveryTasks.push({
+                        id: dKey,
+                        orderId: orderDisplayId,
+                        customerName: custName,
+                        amount: Number(d.delivery_commission),
+                        delivId: d.id
+                      });
+                    }
+                  });
+
+                  // 2. Secondary Source: db.orders (for local orders not present in backendDeliveries)
+                  (db.orders || []).forEach(o => {
+                    if (o.isDeleted || (o.status || '').toLowerCase() === 'cancelled') return;
+                    const st = (o.status || '').toLowerCase();
+                    const delSt = (o.deliveryStatus || '').toLowerCase();
+
+                    const isPickupStaff = (o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === staffName || o.pickupCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
+                    const isDeliveryStaff = (o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === staffName || o.deliveryCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
+
+                    const isPickupDone = pickupDoneStatuses.includes(st) || pickupDoneStatuses.includes(delSt) || !!o.pickupCommissionPaid;
+                    const isDeliveryDone = deliveryDoneStatuses.includes(st) || deliveryDoneStatuses.includes(delSt) || !!o.deliveryCommissionPaid;
+
+                    const alreadyProcessedInBackend = Array.from(processedKeys).some(k => k.includes(o.id) || (o.backendId && k.includes(o.backendId)));
+
+                    const pickKey = `local-pickup-${o.id}`;
+                    if (!alreadyProcessedInBackend && isPickupStaff && isPickupDone && !o.pickupCommissionPaid && Number(o.pickupCommission) > 0 && !processedKeys.has(pickKey)) {
+                      processedKeys.add(pickKey);
+                      unpaidPickupTasks.push({
+                        id: pickKey,
+                        orderId: o.id,
+                        customerName: o.customerName || 'Customer',
+                        amount: Number(o.pickupCommission)
+                      });
+                    }
+
+                    const delivKey = `local-delivery-${o.id}`;
+                    if (!alreadyProcessedInBackend && isDeliveryStaff && isDeliveryDone && !o.deliveryCommissionPaid && Number(o.deliveryCommission) > 0 && !processedKeys.has(delivKey)) {
+                      processedKeys.add(delivKey);
+                      unpaidDeliveryTasks.push({
+                        id: delivKey,
+                        orderId: o.id,
+                        customerName: o.customerName || 'Customer',
+                        amount: Number(o.deliveryCommission)
+                      });
+                    }
+                  });
+
+                  const unpaidPickupAmount = unpaidPickupTasks.reduce((sum, o) => sum + o.amount, 0);
+                  const unpaidDeliveryAmount = unpaidDeliveryTasks.reduce((sum, o) => sum + o.amount, 0);
                   const unpaidAmount = unpaidPickupAmount + unpaidDeliveryAmount;
                   const totalUnpaidTasksCount = unpaidPickupTasks.length + unpaidDeliveryTasks.length;
                   
@@ -4388,28 +4450,24 @@ export const AdminPortal: React.FC = () => {
                         {totalUnpaidTasksCount > 0 && (
                           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {unpaidPickupTasks.map(tkt => {
-                              const d = new Date(tkt.date);
-                              const dateStr = isNaN(d.getTime()) ? (tkt.date ? String(tkt.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
                                 <div key={`pickup-${tkt.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3c7', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                                    <span style={{ fontWeight: '700', color: '#b45309' }}>#{tkt.id} - {t('Pickup')}</span>
+                                    <span style={{ fontWeight: '700', color: '#b45309' }}>#{tkt.orderId} - {t('Pickup')}</span>
                                     <span style={{ fontSize: '0.7rem' }}>{tName(tkt.customerName)}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {(tkt.pickupCommission ?? 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#b45309' }}>QR {tkt.amount.toFixed(2)}</span>
                                 </div>
                               );
                             })}
                             {unpaidDeliveryTasks.map(tkt => {
-                              const d = new Date(tkt.date);
-                              const dateStr = isNaN(d.getTime()) ? (tkt.date ? String(tkt.date).split(' ')[0] : '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                               return (
                                 <div key={`delivery-${tkt.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                                    <span style={{ fontWeight: '700', color: '#1e40af' }}>#{tkt.id} - {t('Deliver')}</span>
+                                    <span style={{ fontWeight: '700', color: '#1e40af' }}>#{tkt.orderId} - {t('Deliver')}</span>
                                     <span style={{ fontSize: '0.7rem' }}>{tName(tkt.customerName)}</span>
                                   </div>
-                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {(tkt.deliveryCommission ?? 0).toFixed(2)}</span>
+                                  <span style={{ fontWeight: '800', color: '#1e40af' }}>QR {tkt.amount.toFixed(2)}</span>
                                 </div>
                               );
                             })}
@@ -4439,19 +4497,36 @@ export const AdminPortal: React.FC = () => {
                             if (window.confirm(`Mark QR ${unpaidAmount.toFixed(2)} as Paid via ${method} for ${u.name}?`)) {
                               const updatedOrders = db.orders.map(o => {
                                 let newOrder = { ...o };
-                                if ((o.pickupCourier === u.name || o.courier === u.name) && !o.pickupCommissionPaid) {
+                                const isPickupStaff = o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === staffName || o.pickupCourier.includes('All Delivery'));
+                                const isDeliveryStaff = o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === staffName || o.deliveryCourier.includes('All Delivery'));
+
+                                if (isPickupStaff && !o.pickupCommissionPaid) {
                                   newOrder.pickupCommissionPaid = true;
                                   newOrder.pickupPaymentMethod = method;
                                   newOrder.pickupPaymentDate = new Date().toISOString();
                                 }
-                                if ((o.deliveryCourier === u.name || o.courier === u.name) && !o.deliveryCommissionPaid) {
+                                if (isDeliveryStaff && !o.deliveryCommissionPaid) {
                                   newOrder.deliveryCommissionPaid = true;
                                   newOrder.deliveryPaymentMethod = method;
                                   newOrder.deliveryPaymentDate = new Date().toISOString();
                                 }
                                 return newOrder;
                               });
-                              saveDB({ orders: updatedOrders });
+
+                              const newExpense = {
+                                id: Date.now(),
+                                title: `Commission Payout - ${u.name}`,
+                                category: 'Commission Payout',
+                                amount: unpaidAmount,
+                                date: new Date().toISOString().split('T')[0],
+                                method: method,
+                                notes: `Payout for ${totalUnpaidTasksCount} completed delivery/pickup tasks`
+                              };
+
+                              saveDB({ 
+                                orders: updatedOrders,
+                                expenses: [newExpense, ...(db.expenses || [])] 
+                              });
                               alert(`Successfully marked QR ${unpaidAmount.toFixed(2)} as paid to ${u.name} via ${method}!`);
                             }
                           }}
@@ -4719,6 +4794,11 @@ export const AdminPortal: React.FC = () => {
                   .reverse()
                   .filter(o => !o.isDeleted)
                   .filter(o => {
+                    const ordNum = String(o.id || o.order_number || o.backendId || '');
+                    const notes = String(o.specialInstructions || o.special_instructions || o.notes || '');
+                    return !ordNum.startsWith('ORD-PKG-') && !notes.includes('Purchased Prepaid Package');
+                  })
+                  .filter(o => {
                     const term = orderSearch.toLowerCase();
                     if (!term) return true;
                     
@@ -4896,6 +4976,7 @@ export const AdminPortal: React.FC = () => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
                                           saveDB({ orders: updatedOrders });
+                                          syncDeliveryToBackend(o.id, o.pickupCourier || 'All Delivery Staff', 'PICKUP', val);
                                         }}
                                         style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
                                       />
@@ -4914,6 +4995,7 @@ export const AdminPortal: React.FC = () => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
                                           saveDB({ orders: updatedOrders });
+                                          syncDeliveryToBackend(o.id, o.deliveryCourier || o.courier || 'All Delivery Staff', 'DELIVERY', val);
                                         }}
                                         style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
                                       />

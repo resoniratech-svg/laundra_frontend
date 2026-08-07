@@ -17,7 +17,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({ trip }) => {
         <Text style={styles.subText}>{trip.type} • {trip.customerName}</Text>
       </View>
       <View style={styles.right}>
-        <Text style={styles.amount}>+QR {trip.amount.toFixed(2)}</Text>
+        <Text style={styles.amount}>+QR {(Number(trip.amount) || 0).toFixed(2)}</Text>
         <Badge label={trip.status} />
       </View>
     </View>

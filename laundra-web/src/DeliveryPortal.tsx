@@ -548,11 +548,7 @@ export const DeliveryPortal: React.FC = () => {
 
     for (let idx = 0; idx < rawItemList.length; idx++) {
       const it = rawItemList[idx];
-      const key = it.order_item_id || it.id;
-      if (!key) {
-        alert(`Order item "${it.name || 'Service'}" is missing an OrderItem UUID.`);
-        return;
-      }
+      const key = it.order_item_id || it.id || it.service_id || it.serviceId || `item-${idx + 1}`;
       const sName = it.serviceName || it.name || `Item ${idx + 1}`;
       const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
       const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
@@ -573,11 +569,8 @@ export const DeliveryPortal: React.FC = () => {
     const targetId = pickupDetailsOrder.backendId || pickupDetailsOrder.id;
 
     try {
-      const payloadItems = rawItemList.map((it: any) => {
-        const itemUuid = it.order_item_id || it.id;
-        if (!itemUuid) {
-          throw new Error(`Order item "${it.name || 'Service'}" is missing an OrderItem UUID.`);
-        }
+      const payloadItems = rawItemList.map((it: any, idx: number) => {
+        const itemUuid = it.order_item_id || it.id || it.service_id || it.serviceId || `item-${idx + 1}`;
         const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
         const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
         const pending = it.pickupPendingQuantity ?? it.pickup_pending_quantity ?? Math.max(0, ord - picked);
@@ -892,8 +885,14 @@ export const DeliveryPortal: React.FC = () => {
                 deliveryCourier: d.type === 'DELIVERY' ? currentUser.name : null,
                 courier: currentUser.name,
                 taskType: d.type,
-                pickupCommission: 0,
-                deliveryCommission: 0,
+                pickupCommission: d.pickup_commission !== undefined && d.pickup_commission !== null && Number(d.pickup_commission) > 0 
+                  ? Number(d.pickup_commission) 
+                  : (orderData.pickup_commission ? Number(orderData.pickup_commission) : 0),
+                deliveryCommission: d.delivery_commission !== undefined && d.delivery_commission !== null && Number(d.delivery_commission) > 0 
+                  ? Number(d.delivery_commission) 
+                  : (orderData.delivery_commission ? Number(orderData.delivery_commission) : 0),
+                pickupCommissionPaid: d.pickup_commission_paid ?? orderData.pickup_commission_paid ?? false,
+                deliveryCommissionPaid: d.delivery_commission_paid ?? orderData.delivery_commission_paid ?? false,
                 items: orderData.items?.map((it: any) => ({
                   ...it,
                   id: it.order_item_id || it.id,
@@ -920,8 +919,7 @@ export const DeliveryPortal: React.FC = () => {
         const resolved = (await Promise.all(taskPromises)).filter(Boolean) as Order[];
         const uniqueTasksMap = new Map<string, Order>();
         resolved.forEach(task => {
-          const tType = (task as any).taskType || (task.pickupCourier ? 'PICKUP' : 'DELIVERY');
-          const key = `${task.backendId || task.id}_${tType}`;
+          const key = (task as any).deliveryId || task.backendId || task.id;
           uniqueTasksMap.set(key, task);
         });
         setApiTasks(Array.from(uniqueTasksMap.values()));
@@ -999,8 +997,6 @@ export const DeliveryPortal: React.FC = () => {
     if (!isAssignedToMe) return false;
 
     const delStatus = (o.deliveryStatus || o.status || '').toLowerCase();
-    if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed') return false;
-
     return true;
   };
 
@@ -1008,44 +1004,60 @@ export const DeliveryPortal: React.FC = () => {
     const map = new Map<string, Order>();
 
     (db.orders || []).forEach(o => {
-      const key = o.backendId || o.id;
-      if (key) map.set(key, o);
-      if (o.backendId && o.id && o.backendId !== o.id) {
-        map.set(o.id, o);
+      if (o.id) map.set(o.id, o);
+      if (o.backendId && o.backendId !== o.id) {
+        map.set(o.backendId, o);
       }
     });
 
     apiTasks.forEach(t => {
-      const existingByBackend = t.backendId ? map.get(t.backendId) : undefined;
-      const existingById = t.id ? map.get(t.id) : undefined;
-      const existing = existingByBackend || existingById;
-      const primaryKey = t.backendId || t.id;
+      const orderKey = t.backendId || (t as any).order_id || (t as any).orderId || t.id;
+      const existing = (t.backendId ? map.get(t.backendId) : undefined) ||
+                       (t.id ? map.get(t.id) : undefined) ||
+                       ((t as any).order_id ? map.get((t as any).order_id) : undefined) ||
+                       ((t as any).orderId ? map.get((t as any).orderId) : undefined);
 
-      if (existing && primaryKey) {
-        if (existing.id && map.get(existing.id) === existing) map.delete(existing.id);
-        if (existing.backendId && map.get(existing.backendId) === existing) map.delete(existing.backendId);
-        
-        // Ensure real API task fields override stale mock data completely
+      if (existing) {
+        if (existing.id) map.delete(existing.id);
+        if (existing.backendId) map.delete(existing.backendId);
+
         const merged: Order = {
           ...existing,
           ...t,
-          courier: currentUser?.name || t.courier || t.deliveryCourier || t.pickupCourier,
-          pickupCourier: t.taskType === 'PICKUP' ? (t.pickupCourier || currentUser?.name) : null,
-          deliveryCourier: t.taskType === 'DELIVERY' ? (t.deliveryCourier || currentUser?.name) : null,
+          id: existing.id || t.id,
+          backendId: t.backendId || existing.backendId || (t as any).order_id || (t as any).orderId,
+          pickupCommission: (t.pickupCommission !== undefined && t.pickupCommission !== null && Number(t.pickupCommission) > 0)
+            ? Number(t.pickupCommission)
+            : (existing.pickupCommission !== undefined ? Number(existing.pickupCommission) : 0),
+          deliveryCommission: (t.deliveryCommission !== undefined && t.deliveryCommission !== null && Number(t.deliveryCommission) > 0)
+            ? Number(t.deliveryCommission)
+            : (existing.deliveryCommission !== undefined ? Number(existing.deliveryCommission) : 0),
+          pickupCommissionPaid: t.pickupCommissionPaid ?? existing.pickupCommissionPaid ?? false,
+          deliveryCommissionPaid: t.deliveryCommissionPaid ?? existing.deliveryCommissionPaid ?? false,
+          courier: currentUser?.name || t.courier || t.deliveryCourier || t.pickupCourier || existing.pickupCourier || existing.deliveryCourier,
+          pickupCourier: t.taskType === 'PICKUP'
+            ? (t.pickupCourier || existing.pickupCourier || currentUser?.name)
+            : (existing.pickupCourier || t.pickupCourier || null),
+          deliveryCourier: t.taskType === 'DELIVERY'
+            ? (t.deliveryCourier || existing.deliveryCourier || currentUser?.name)
+            : (existing.deliveryCourier || t.deliveryCourier || null),
           isDeleted: false,
         };
-        map.set(primaryKey, merged);
-      } else if (primaryKey) {
-        map.set(primaryKey, t);
+
+        const targetKey = merged.backendId || merged.id || orderKey;
+        if (targetKey) map.set(targetKey, merged);
+      } else {
+        const targetKey = t.backendId || t.id || orderKey;
+        if (targetKey) map.set(targetKey, t);
       }
     });
 
-    const seen = new Set<string>();
     const result: Order[] = [];
+    const seen = new Set<string>();
     Array.from(map.values()).forEach(o => {
-      const dedupKey = o.backendId || o.id;
-      if (dedupKey && !seen.has(dedupKey)) {
-        seen.add(dedupKey);
+      const uniqueId = o.backendId || o.id;
+      if (uniqueId && !seen.has(uniqueId)) {
+        seen.add(uniqueId);
         result.push(o);
       }
     });
@@ -1071,11 +1083,76 @@ export const DeliveryPortal: React.FC = () => {
   const totalPendingTasksCount = pendingPickupsCount + pendingDeliveriesCount;
 
   // Actual commission earnings calculation (total of completed pickups and deliveries)
-  const completedPickupTasks = assignedOrders.filter(o => isMyPickupOrder(o) && (!pickupStatuses.includes(o.status.toLowerCase()) || !!o.pickupCommissionPaid));
-  const completedDeliveryTasks = assignedOrders.filter(o => isMyDeliveryOrder(o) && (o.status.toLowerCase() === 'delivered' || !!o.deliveryCommissionPaid));
-  const actualPickupEarnings = completedPickupTasks.reduce((sum, o) => sum + (o.pickupCommission || 0), 0);
-  const actualDeliveryEarnings = completedDeliveryTasks.reduce((sum, o) => sum + (o.deliveryCommission || 0), 0);
-  const totalCommissionEarnings = actualPickupEarnings + actualDeliveryEarnings;
+  const getMyCompletedEarnings = () => {
+    const completedList: { amount: number }[] = [];
+    const processedKeys = new Set<string>();
+
+    const isStaffPickupMatch = (o: Order) => {
+      const currentName = currentUser?.name?.trim()?.toLowerCase() || '';
+      const pickupCourier = (o.pickupCourier || (o as any).courier || '').trim().toLowerCase();
+      if (!pickupCourier || pickupCourier === 'store') return false;
+      return (
+        pickupCourier === currentName ||
+        pickupCourier.includes('all delivery') ||
+        pickupCourier.includes('all_delivery')
+      );
+    };
+
+    const isStaffDeliveryMatch = (o: Order) => {
+      const currentName = currentUser?.name?.trim()?.toLowerCase() || '';
+      const deliveryCourier = (o.deliveryCourier || (o as any).courier || '').trim().toLowerCase();
+      if (!deliveryCourier || deliveryCourier === 'store') return false;
+      return (
+        deliveryCourier === currentName ||
+        deliveryCourier.includes('all delivery') ||
+        deliveryCourier.includes('all_delivery')
+      );
+    };
+
+    const pickupDoneStatuses = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'out_for_delivery', 'delivered', 'partially_picked_up', 'partially picked up', 'picked_up', 'picked up', 'fully_picked_up', 'fully picked up', 'accepted', 'completed'];
+    const deliveryDoneStatuses = ['delivered', 'completed', 'fully_delivered', 'fully delivered', 'partially_delivered', 'partially delivered'];
+
+    const allTargetTasks = [...apiTasks, ...assignedOrders];
+
+    allTargetTasks.forEach(o => {
+      if (o.isDeleted || (o.status || '').toLowerCase() === 'cancelled') return;
+
+      const st = (o.status || '').toLowerCase();
+      const delSt = (o.deliveryStatus || '').toLowerCase();
+      const isMyPickup = isStaffPickupMatch(o);
+      const isMyDelivery = isStaffDeliveryMatch(o);
+
+      const isPickupDone = pickupDoneStatuses.includes(st) || pickupDoneStatuses.includes(delSt) || !!o.pickupCommissionPaid;
+      const isDeliveryDone = deliveryDoneStatuses.includes(st) || deliveryDoneStatuses.includes(delSt) || !!o.deliveryCommissionPaid;
+
+      const taskType = ((o as any).taskType || (o as any).type || '').toUpperCase();
+      const canBePickup = !taskType || taskType === 'PICKUP';
+      const canBeDelivery = !taskType || taskType === 'DELIVERY';
+
+      const delId = (o as any).deliveryId || (o as any).task_id || (o as any).delivery_id || (o as any).id;
+      const orderIdStr = o.id || o.backendId;
+
+      const isLocalFallback = !(o as any).deliveryId && !(o as any).task_id && !(o as any).delivery_id;
+      const alreadyCoveredByApi = isLocalFallback && Array.from(processedKeys).some(k => k.startsWith(`${orderIdStr}_`));
+      if (alreadyCoveredByApi) return;
+
+      const pickupKey = `${orderIdStr}_pickup_${delId}_${o.pickupCommission}`;
+      if (canBePickup && o.pickupCommission && Number(o.pickupCommission) > 0 && isMyPickup && isPickupDone && !processedKeys.has(pickupKey)) {
+        processedKeys.add(pickupKey);
+        completedList.push({ amount: Number(o.pickupCommission) });
+      }
+
+      const deliveryKey = `${orderIdStr}_delivery_${delId}_${o.deliveryCommission}`;
+      if (canBeDelivery && o.deliveryCommission && Number(o.deliveryCommission) > 0 && isMyDelivery && isDeliveryDone && !processedKeys.has(deliveryKey)) {
+        processedKeys.add(deliveryKey);
+        completedList.push({ amount: Number(o.deliveryCommission) });
+      }
+    });
+
+    return completedList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  };
+
+  const totalCommissionEarnings = getMyCompletedEarnings();
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: '"Outfit", sans-serif' }}>
@@ -1603,7 +1680,15 @@ export const DeliveryPortal: React.FC = () => {
                               <div>👤 <strong>Client Name:</strong> {o.customerName}</div>
                               <div>📞 <strong>Client Phone:</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
                               <div>📍 <strong>Address:</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Pickup at Branch'}</div>
-                              <div>🧺 <strong>Services:</strong> {o.services?.map(s => `${s.name} x${s.qty}`).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
+                              <div>🧺 <strong>Services:</strong> {(o.items || o.services || []).map((s: any) => {
+                                const sName = s.serviceName || s.name || 'Service';
+                                const ord = s.orderedQuantity || s.ordered_quantity || s.qty || s.quantity || 1;
+                                const picked = s.pickedUpQuantity || s.picked_up_quantity || s.pickedUpQty || s.pickedUp || 0;
+                                const pending = s.pickupPendingQuantity ?? s.pickup_pending_quantity ?? Math.max(0, ord - picked);
+                                const isPartial = (o.status || '').toLowerCase().includes('partially') || (o.deliveryStatus || '').toLowerCase().includes('partially') || picked > 0;
+                                const displayQty = isPartial ? pending : ord;
+                                return `${sName} x${displayQty}`;
+                              }).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
                               <div>📅 <strong>Pickup Time:</strong> {o.date} (10:00 AM - 1:00 PM)</div>
                               <div>📝 <strong>Instructions:</strong> Handle with care, separate whites.</div>
                               <div style={{ marginTop: '6px', background: '#fef3c7', color: '#b45309', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Pickup Commission: QR {(o.pickupCommission || 0).toFixed(2)}</div>
@@ -1700,39 +1785,100 @@ export const DeliveryPortal: React.FC = () => {
                 <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>My Earnings Ledger</h2>
                 
                 {(() => {
-                  const completed: { id: string; date: string; type: 'Pickup' | 'Delivery'; customerName: string; amount: number; paid: boolean; method?: string }[] = [];
-                  assignedOrders.forEach(o => {
-                    const isMyPickup = isMyPickupOrder(o);
-                    const isMyDelivery = isMyDeliveryOrder(o);
-                    const isPickupDone = !pickupStatuses.includes((o.status || '').toLowerCase()) || !!o.pickupCommissionPaid;
-                    const isDeliveryDone = (o.status || '').toLowerCase() === 'delivered' || !!o.deliveryCommissionPaid;
+                  const pickupCompletedStatuses = [
+                    'received', 'sorting', 'washing', 'drying', 'ironing', 'quality check',
+                    'packing', 'ready', 'out for delivery', 'out_for_delivery', 'delivered',
+                    'partially_picked_up', 'partially picked up', 'picked_up', 'picked up',
+                    'fully_picked_up', 'fully picked up', 'accepted', 'completed'
+                  ];
 
-                    if (o.pickupCommission && o.pickupCommission > 0 && isMyPickup && isPickupDone) {
+                  const deliveryCompletedStatuses = [
+                    'delivered', 'completed', 'fully_delivered', 'fully delivered',
+                    'partially_delivered', 'partially delivered'
+                  ];
+
+                  const isStaffPickupMatch = (o: Order) => {
+                    const currentName = currentUser?.name?.trim()?.toLowerCase() || '';
+                    const pickupCourier = (o.pickupCourier || (o as any).courier || '').trim().toLowerCase();
+                    if (!pickupCourier || pickupCourier === 'store') return false;
+                    return (
+                      pickupCourier === currentName ||
+                      pickupCourier.includes('all delivery') ||
+                      pickupCourier.includes('all_delivery')
+                    );
+                  };
+
+                  const isStaffDeliveryMatch = (o: Order) => {
+                    const currentName = currentUser?.name?.trim()?.toLowerCase() || '';
+                    const deliveryCourier = (o.deliveryCourier || (o as any).courier || '').trim().toLowerCase();
+                    if (!deliveryCourier || deliveryCourier === 'store') return false;
+                    return (
+                      deliveryCourier === currentName ||
+                      deliveryCourier.includes('all delivery') ||
+                      deliveryCourier.includes('all_delivery')
+                    );
+                  };
+
+                  const completed: { id: string; date: string; type: 'Pickup' | 'Delivery'; customerName: string; amount: number; paid: boolean; method?: string }[] = [];
+                  const processedKeys = new Set<string>();
+
+                  const allTargetTasks = [...apiTasks, ...assignedOrders];
+
+                  allTargetTasks.forEach(o => {
+                    if (o.isDeleted || (o.status || '').toLowerCase() === 'cancelled') return;
+
+                    const st = (o.status || '').toLowerCase();
+                    const delSt = (o.deliveryStatus || '').toLowerCase();
+                    const isMyPickup = isStaffPickupMatch(o);
+                    const isMyDelivery = isStaffDeliveryMatch(o);
+
+                    const isPickupDone = pickupCompletedStatuses.includes(st) || pickupCompletedStatuses.includes(delSt) || !!o.pickupCommissionPaid;
+                    const isDeliveryDone = deliveryCompletedStatuses.includes(st) || deliveryCompletedStatuses.includes(delSt) || !!o.deliveryCommissionPaid;
+
+                    const taskType = ((o as any).taskType || (o as any).type || '').toUpperCase();
+                    const canBePickup = !taskType || taskType === 'PICKUP';
+                    const canBeDelivery = !taskType || taskType === 'DELIVERY';
+
+                    const delId = (o as any).deliveryId || (o as any).task_id || (o as any).delivery_id || (o as any).id;
+                    const orderIdStr = o.id || o.backendId;
+
+                    // If this is a local order fallback without deliveryId, skip if apiTasks already processed this order ID
+                    const isLocalFallback = !(o as any).deliveryId && !(o as any).task_id && !(o as any).delivery_id;
+                    const alreadyCoveredByApi = isLocalFallback && Array.from(processedKeys).some(k => k.startsWith(`${orderIdStr}_`));
+                    if (alreadyCoveredByApi) return;
+
+                    const pickupKey = `${orderIdStr}_pickup_${delId}_${o.pickupCommission}`;
+                    if (canBePickup && o.pickupCommission && Number(o.pickupCommission) > 0 && isMyPickup && isPickupDone && !processedKeys.has(pickupKey)) {
+                      processedKeys.add(pickupKey);
                       completed.push({
-                        id: `${o.id}-pickup`,
-                        date: o.pickupPaymentDate || o.date,
+                        id: pickupKey,
+                        date: o.pickupPaymentDate || o.pickupDate || (o.created_at ? o.created_at.split('T')[0] : o.date),
                         type: 'Pickup',
-                        customerName: o.customerName,
-                        amount: o.pickupCommission,
+                        customerName: o.customerName || 'Customer',
+                        amount: Number(o.pickupCommission),
                         paid: !!o.pickupCommissionPaid,
                         method: o.pickupPaymentMethod
                       });
                     }
-                    if (o.deliveryCommission && o.deliveryCommission > 0 && isMyDelivery && isDeliveryDone) {
+
+                    const deliveryKey = `${orderIdStr}_delivery_${delId}_${o.deliveryCommission}`;
+                    if (canBeDelivery && o.deliveryCommission && Number(o.deliveryCommission) > 0 && isMyDelivery && isDeliveryDone && !processedKeys.has(deliveryKey)) {
+                      processedKeys.add(deliveryKey);
                       completed.push({
-                        id: `${o.id}-delivery`,
-                        date: o.deliveryPaymentDate || o.date,
+                        id: deliveryKey,
+                        date: o.deliveryPaymentDate || o.deliveredDate || (o.created_at ? o.created_at.split('T')[0] : o.date),
                         type: 'Delivery',
-                        customerName: o.customerName,
-                        amount: o.deliveryCommission,
+                        customerName: o.customerName || 'Customer',
+                        amount: Number(o.deliveryCommission),
                         paid: !!o.deliveryCommissionPaid,
                         method: o.deliveryPaymentMethod
                       });
                     }
                   });
-                  const totalEarned = completed.reduce((sum, item) => sum + item.amount, 0);
+
                   const paid = completed.filter(item => item.paid).reduce((sum, item) => sum + item.amount, 0);
-                  const pending = totalEarned - paid;
+                  const pending = completed.filter(item => !item.paid).reduce((sum, item) => sum + item.amount, 0);
+                  const totalEarned = pending + paid;
 
                   return (
                     <>

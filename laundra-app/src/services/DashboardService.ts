@@ -1,15 +1,16 @@
 import { TaskService } from './TaskService';
 import { AnnouncementService } from './AnnouncementService';
+import { EarningService } from './EarningService';
 import { Order } from '../types/order';
 
 export const DashboardService = {
   getDashboardData: async (driverName: string) => {
     const orders: Order[] = await TaskService.fetchOrders();
     const announcements = await AnnouncementService.fetchAnnouncements();
+    const earningsSummary = EarningService.calculateEarnings(orders, driverName);
 
     const cleanName = driverName.trim().toLowerCase();
     const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
-    const deliveryStatuses = ['ready', 'out for delivery', 'partially delivered'];
 
     const myOrders = orders.filter(o => {
       if (o.isDeleted) return false;
@@ -26,9 +27,7 @@ export const DashboardService = {
     }).length;
     const completedDrops = myOrders.filter(o => (o.status || '').toLowerCase() === 'delivered').length;
 
-    const totalCommission = myOrders.reduce((sum, o) => {
-      return sum + (o.pickupCommission || 0) + (o.deliveryCommission || 0);
-    }, 0);
+    const totalCommission = Number(earningsSummary.lifetimeEarnings ?? earningsSummary.pendingEarnings ?? 0) || 0;
 
     return {
       pendingPickups,

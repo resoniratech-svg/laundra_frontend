@@ -114,7 +114,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         {/* Commission Tag */}
         <View style={[styles.commissionTag, isPickup ? styles.pickupCommissionBg : styles.deliveryCommissionBg]}>
           <Text style={[styles.commissionText, isPickup ? styles.pickupCommissionText : styles.deliveryCommissionText]}>
-            💰 {isPickup ? 'Pickup' : 'Delivery'} Commission: QR {commissionAmt.toFixed(2)}
+            💰 {isPickup ? 'Pickup' : 'Delivery'} Commission: QR {(Number(commissionAmt) || 0).toFixed(2)}
           </Text>
         </View>
       </View>
