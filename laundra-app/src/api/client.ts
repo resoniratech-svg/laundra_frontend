@@ -16,31 +16,13 @@ const getBaseUrl = (): string => {
     return `${protocol}//${host}:8000`;
   }
 
-  // 3. Expo Go / Physical Device
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any)?.manifest?.debuggerHost ||
-    (Constants as any)?.manifest2?.extra?.expoGo?.developer?.tool;
-
-  if (hostUri) {
-    const hostIp = hostUri.split(':')[0];
-
-    if (
-      hostIp &&
-      hostIp !== 'localhost' &&
-      hostIp !== '127.0.0.1'
-    ) {
-      return `http://${hostIp}:8000`;
-    }
-  }
-
-  // 4. Android Emulator
+  // 3. Standalone Android / Physical Device Fallback (Local Wi-Fi IP)
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8000';
+    return 'http://192.168.1.8:8000';
   }
 
-  // 5. iOS Simulator / Desktop
-  return 'http://localhost:8000';
+  // 4. iOS Simulator / Desktop
+  return 'http://192.168.1.8:8000';
 };
 
 export const API_BASE_URL = getBaseUrl();
