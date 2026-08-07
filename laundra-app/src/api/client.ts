@@ -18,11 +18,11 @@ const getBaseUrl = (): string => {
 
   // 3. Standalone Android / Physical Device Production Backend HTTPS
   if (Platform.OS === 'android') {
-    return 'https://laundra-test-laundry-backend-test.cocjl5.easypanel.host';
+    return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
   }
 
   // 4. iOS Simulator / Desktop Production Backend HTTPS
-  return 'https://laundra-test-laundry-backend-test.cocjl5.easypanel.host';
+  return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
 };
 
 export const API_BASE_URL = getBaseUrl();
