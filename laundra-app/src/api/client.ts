@@ -16,13 +16,13 @@ const getBaseUrl = (): string => {
     return `${protocol}//${host}:8000`;
   }
 
-  // 3. Standalone Android / Physical Device Tunnel HTTPS
+  // 3. Standalone Android / Physical Device Production Backend HTTPS
   if (Platform.OS === 'android') {
-    return 'https://all-drinks-care.loca.lt';
+    return 'https://laundra-test-laundry-backend-test.cocjl5.easypanel.host';
   }
 
-  // 4. iOS Simulator / Desktop Tunnel HTTPS
-  return 'https://all-drinks-care.loca.lt';
+  // 4. iOS Simulator / Desktop Production Backend HTTPS
+  return 'https://laundra-test-laundry-backend-test.cocjl5.easypanel.host';
 };
 
 export const API_BASE_URL = getBaseUrl();

@@ -9,9 +9,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://all-drinks-care.loca.lt"
+        "EXPO_PUBLIC_API_URL": "https://laundra-test-laundry-backend-test.cocjl5.easypanel.host"
       }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://laundra-test-laundry-backend-test.cocjl5.easypanel.host"
+      }
+    }
   }
 }
