@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "customer-app",
-    "slug": "customer-app",
+    "name": "Laundra Delivery",
+    "slug": "laundra-delivery-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.laundra.deliveryapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
