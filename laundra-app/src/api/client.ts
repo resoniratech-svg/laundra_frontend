@@ -16,13 +16,13 @@ const getBaseUrl = (): string => {
     return `${protocol}//${host}:8000`;
   }
 
-  // 3. Standalone Android / Physical Device Fallback (Local Wi-Fi IP)
+  // 3. Standalone Android / Physical Device Tunnel HTTPS
   if (Platform.OS === 'android') {
-    return 'http://192.168.1.8:8000';
+    return 'https://fresh-shrimps-follow.loca.lt';
   }
 
-  // 4. iOS Simulator / Desktop
-  return 'http://192.168.1.8:8000';
+  // 4. iOS Simulator / Desktop Tunnel HTTPS
+  return 'https://fresh-shrimps-follow.loca.lt';
 };
 
 export const API_BASE_URL = getBaseUrl();
