@@ -18,11 +18,11 @@ const getBaseUrl = (): string => {
 
   // 3. Standalone Android / Physical Device Tunnel HTTPS
   if (Platform.OS === 'android') {
-    return 'https://fresh-shrimps-follow.loca.lt';
+    return 'https://all-drinks-care.loca.lt';
   }
 
   // 4. iOS Simulator / Desktop Tunnel HTTPS
-  return 'https://fresh-shrimps-follow.loca.lt';
+  return 'https://all-drinks-care.loca.lt';
 };
 
 export const API_BASE_URL = getBaseUrl();

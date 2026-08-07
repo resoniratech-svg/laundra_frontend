@@ -9,7 +9,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fresh-shrimps-follow.loca.lt"
+        "EXPO_PUBLIC_API_URL": "https://all-drinks-care.loca.lt"
       }
     },
     "production": {}
