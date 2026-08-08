@@ -4,9 +4,12 @@ import { ScreenContainer } from '../components/ScreenContainer';
 import { HelpdeskService, Ticket } from '../services/HelpdeskService';
 import { useNavigation } from '@react-navigation/native';
 import { radius } from '../theme/radius';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 export const HelpdeskScreen = () => {
   const navigation = useNavigation();
+  const language = useAuthStore((state) => state.language);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,7 +79,7 @@ export const HelpdeskScreen = () => {
         <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Helpdesk Support</Text>
+        <Text style={styles.headerTitle}>{tApp('Helpdesk Support', language)}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -86,7 +89,7 @@ export const HelpdeskScreen = () => {
             <View style={styles.adminAvatar}>
               <Text style={{ fontSize: 18 }}>👤</Text>
             </View>
-            <Text style={styles.adminTitle}>Company Admin{'\n'}Contact</Text>
+            <Text style={styles.adminTitle}>{tApp('Company Admin Contact', language)}</Text>
           </View>
 
           <TouchableOpacity style={styles.contactRowItem} onPress={handleCallAdmin} activeOpacity={0.7}>
@@ -104,7 +107,7 @@ export const HelpdeskScreen = () => {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 18, marginRight: 8 }}>📑</Text>
-            <Text style={styles.cardHeaderTitle}>Support Ticket History</Text>
+            <Text style={styles.cardHeaderTitle}>{tApp('Support Ticket History', language)}</Text>
           </View>
 
           {tickets.length === 0 ? (
@@ -130,14 +133,14 @@ export const HelpdeskScreen = () => {
                     <Text style={styles.ticketDescText} numberOfLines={2}>{t.description}</Text>
                     {t.admin_response && (
                       <View style={styles.replyBox}>
-                        <Text style={styles.replyTitle}>🛡️ Response:</Text>
+                        <Text style={styles.replyTitle}>🛡️ {tApp('Response:', language)}</Text>
                         <Text style={styles.replyText}>{t.admin_response}</Text>
                       </View>
                     )}
                   </View>
                   <View style={[styles.badge, { backgroundColor: badgeBg }]}>
                     <Text style={[styles.badgeText, { color: badgeTextColor }]}>
-                      {st === 'PENDING' ? 'Pending' : st === 'OPEN' ? 'Open' : 'Closed'}
+                      {tApp(st === 'RESPONDED' || st === 'CLOSED' ? 'Closed' : st === 'OPEN' ? 'Open' : 'Pending', language)}
                     </Text>
                   </View>
                 </View>
@@ -148,13 +151,13 @@ export const HelpdeskScreen = () => {
 
         {/* Card 3: Raise Support Ticket */}
         <View style={styles.card}>
-          <Text style={[styles.cardHeaderTitle, { marginBottom: 14 }]}>Raise Support Ticket</Text>
+          <Text style={[styles.cardHeaderTitle, { marginBottom: 14 }]}>{tApp('Raise Support Ticket', language)}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Subject</Text>
+            <Text style={styles.fieldLabel}>{tApp('Subject', language)}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Issue title"
+              placeholder={tApp('Issue title', language)}
               placeholderTextColor="#94a3b8"
               value={subject}
               onChangeText={setSubject}
@@ -162,10 +165,10 @@ export const HelpdeskScreen = () => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Description</Text>
+            <Text style={styles.fieldLabel}>{tApp('Description', language)}</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
-              placeholder="Describe your issue..."
+              placeholder={tApp('Describe your issue...', language)}
               placeholderTextColor="#94a3b8"
               value={description}
               onChangeText={setDescription}
@@ -176,7 +179,7 @@ export const HelpdeskScreen = () => {
           </View>
 
           <TouchableOpacity style={styles.raiseBtn} onPress={handleSubmitTicket} activeOpacity={0.85} disabled={loading}>
-            <Text style={styles.raiseBtnText}>{loading ? 'Submitting...' : 'Raise Ticket'}</Text>
+            <Text style={styles.raiseBtnText}>{loading ? 'Submitting...' : tApp('Raise Ticket', language)}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -396,4 +399,3 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 });
-

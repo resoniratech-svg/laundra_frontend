@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 interface EmptyStateProps {
   icon?: string;
@@ -9,11 +11,13 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ icon = '📦', title, message }) => {
+  const language = useAuthStore((state) => state.language);
+
   return (
     <View style={styles.container}>
       <Text style={styles.icon}>{icon}</Text>
-      <Text style={styles.title}>{title}</Text>
-      {message && <Text style={styles.message}>{message}</Text>}
+      <Text style={styles.title}>{tApp(title, language)}</Text>
+      {message && <Text style={styles.message}>{tApp(message, language)}</Text>}
     </View>
   );
 };

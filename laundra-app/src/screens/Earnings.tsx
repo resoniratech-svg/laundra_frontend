@@ -4,6 +4,8 @@ import { ScreenContainer } from '../components/ScreenContainer';
 import { useEarnings } from '../hooks/useEarnings';
 import { useNavigation } from '@react-navigation/native';
 import { radius } from '../theme/radius';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 const WalletIllustration = () => (
   <View style={walletStyles.circleContainer}>
@@ -23,6 +25,7 @@ const WalletIllustration = () => (
 export const EarningsScreen = () => {
   const navigation = useNavigation();
   const earnings = useEarnings();
+  const language = useAuthStore((state) => state.language);
 
   const pendingAmount = earnings.pendingEarnings || 0;
   const paidAmount = earnings.paidEarnings || 0;
@@ -42,7 +45,7 @@ export const EarningsScreen = () => {
         <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Earnings</Text>
+        <Text style={styles.headerTitle}>{tApp('My Earnings', language)}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -51,26 +54,26 @@ export const EarningsScreen = () => {
           {/* Card 1: Amount Pending (Unpaid) */}
           <View style={styles.earningCard}>
             <Text style={styles.cardHeaderTitle}>
-              Amount Pending{'\n'}(Unpaid)
+              {tApp('Amount Pending (Unpaid)', language)}
             </Text>
             <Text style={[styles.cardAmount, { color: '#f97316' }]}>
               QR {(Number(pendingAmount) || 0).toFixed(2)}
             </Text>
             <Text style={styles.cardSubtitle}>
-              Awaiting payout{'\n'}from Admin
+              {tApp('Awaiting payout from Admin', language)}
             </Text>
           </View>
 
           {/* Card 2: Successfully Paid */}
           <View style={styles.earningCard}>
             <Text style={styles.cardHeaderTitle}>
-              Successfully Paid
+              {tApp('Successfully Paid', language)}
             </Text>
             <Text style={[styles.cardAmount, { color: '#10b981' }]}>
               QR {(Number(paidAmount) || 0).toFixed(2)}
             </Text>
             <Text style={styles.cardSubtitle}>
-              Total payouts{'\n'}received
+              {tApp('Total payouts received', language)}
             </Text>
           </View>
         </View>
@@ -79,9 +82,9 @@ export const EarningsScreen = () => {
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}>
             <Text style={{ fontSize: 18, marginRight: 8 }}>📑</Text>
-            <Text style={styles.historyTitle}>Earnings & Payout History</Text>
+            <Text style={styles.historyTitle}>{tApp('Earnings & Payout History', language)}</Text>
           </View>
-          <Text style={styles.lifetimeText}>Total Lifetime: QR {(Number(lifetimeAmount) || 0).toFixed(2)}</Text>
+          <Text style={styles.lifetimeText}>{tApp('Total Lifetime:', language)} QR {(Number(lifetimeAmount) || 0).toFixed(2)}</Text>
 
           {trips.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -100,14 +103,14 @@ export const EarningsScreen = () => {
                 <View style={styles.transactionCard}>
                   <View style={styles.txLeft}>
                     <Text style={styles.txDate}>{item.date ? new Date(item.date).toLocaleDateString() : 'Today'}</Text>
-                    <Text style={styles.txTaskId}>Task #{item.orderId}</Text>
-                    <Text style={styles.txType}>{item.type} • {item.customerName}</Text>
+                    <Text style={styles.txTaskId}>{tApp('Task #', language)}{item.orderId}</Text>
+                    <Text style={styles.txType}>{tApp(item.type, language)} • {item.customerName}</Text>
                   </View>
                   <View style={styles.txRight}>
                     <Text style={styles.txAmount}>+QR {(Number(item.amount) || 0).toFixed(2)}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: item.status === 'Paid' ? '#dcfce7' : '#ffedd5' }]}>
                       <Text style={[styles.statusText, { color: item.status === 'Paid' ? '#15803d' : '#c2410c' }]}>
-                        {item.status}
+                        {tApp(item.status, language)}
                       </Text>
                     </View>
                   </View>
@@ -342,4 +345,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

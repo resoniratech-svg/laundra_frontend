@@ -10,10 +10,12 @@ import { shadow } from '../theme/shadow';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MoreStackParamList } from '../navigation/MoreStack';
+import { tApp } from '../utils/i18n';
 
 export const MoreScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
   const logoutUser = useAuthStore((state) => state.logoutUser);
+  const language = useAuthStore((state) => state.language);
   const navigation = useNavigation<NativeStackNavigationProp<MoreStackParamList>>();
 
   const handleLogout = () => {
@@ -24,14 +26,14 @@ export const MoreScreen = () => {
   };
 
   const menuItems = [
-    { id: 'DutyLeaves', title: '📅 Duty & Leave', desc: 'Clock In/Out attendance & leave requests' },
-    { id: 'Helpdesk', title: '💬 Helpdesk Support', desc: 'Raise support tickets & contact admin' },
-    { id: 'Announcements', title: '📢 Announcements', desc: 'Platform announcements & company notices' },
+    { id: 'DutyLeaves', title: `📅 ${tApp('Duty & Leave', language)}`, desc: tApp('Clock In/Out attendance & leave requests', language) },
+    { id: 'Helpdesk', title: `💬 ${tApp('Helpdesk Support', language)}`, desc: tApp('Raise support tickets & contact admin', language) },
+    { id: 'Announcements', title: `📢 ${tApp('Announcements', language)}`, desc: tApp('Platform announcements & company notices', language) },
   ];
 
   return (
     <ScreenContainer>
-      <Header title="More Operations" subtitle="Operations hub & driver settings" />
+      <Header title={tApp('More Operations', language)} subtitle={tApp('Operations hub & driver settings', language)} />
       <ScrollView contentContainerStyle={styles.content}>
         
         {/* Driver Profile Header Card */}
@@ -62,7 +64,7 @@ export const MoreScreen = () => {
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>🚪 Logout Session</Text>
+          <Text style={styles.logoutText}>🚪 {tApp('Logout Session', language)}</Text>
         </TouchableOpacity>
 
       </ScrollView>

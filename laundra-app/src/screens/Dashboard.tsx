@@ -14,10 +14,12 @@ import { formatDate } from '../utils/formatDate';
 
 import { useTasks } from '../hooks/useTasks';
 import { isMyPickupOrder, isMyDeliveryOrder } from '../utils/helpers';
-import { Order } from '../types/order';
+import { tApp } from '../utils/i18n';
 
 export const DashboardScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
+  const language = useAuthStore((state) => state.language);
+  const setLanguage = useAuthStore((state) => state.setLanguage);
   const { data, isLoading, error, refetch, isRefetching } = useDashboard();
   const { data: orders = [], refetch: refetchTasks } = useTasks();
   const { notifications, refetchNotifications } = useNotifications();
@@ -56,7 +58,7 @@ export const DashboardScreen = () => {
   const announcements = data?.announcements || [];
 
   const userName = currentUser?.name || 'laundry';
-  const companyName = currentUser?.companyName || 'Iron';
+  const companyName = currentUser?.companyName || (currentUser as any)?.company_name || (currentUser as any)?.company?.name || data?.companyName || 'Laundry Operations';
 
   return (
     <ScreenContainer style={styles.container}>
@@ -69,10 +71,26 @@ export const DashboardScreen = () => {
         <View style={styles.headerRow}>
           <View style={styles.headerCenter}>
             <Text style={styles.companyTitle}>{companyName}</Text>
-            <Text style={styles.welcomeTextSmall}>Welcome, {userName}!</Text>
-            <Text style={styles.subText}>Ready for your shifts today?</Text>
+            <Text style={styles.welcomeTextSmall}>{language === 'ar' ? `مرحباً، ${userName}!` : `Welcome, ${userName}!`}</Text>
+            <Text style={styles.subText}>{tApp('Ready for your shifts today?', language)}</Text>
             <Text style={styles.dateText}>{formatDate(new Date().toISOString())}</Text>
           </View>
+          <TouchableOpacity 
+            onPress={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+            style={{
+              backgroundColor: '#eff6ff',
+              borderColor: '#2563eb',
+              borderWidth: 1.5,
+              borderRadius: 20,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              alignSelf: 'center'
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '800', color: '#1d4ed8' }}>
+              🌐 {language === 'en' ? 'العربية (AR)' : 'English (EN)'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Vertical Stack Statistic Cards */}
@@ -82,17 +100,17 @@ export const DashboardScreen = () => {
             <View style={styles.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 22 }}>🧺</Text>
-                <Text style={[styles.cardTitle, { color: '#0369a1' }]}>Pickups Today</Text>
+                <Text style={[styles.cardTitle, { color: '#0369a1' }]}>{tApp('Pickups Today', language)}</Text>
               </View>
             </View>
 
             <View style={styles.cardBody}>
               <Text style={[styles.cardNumber, { color: '#0369a1' }]}>{pendingPickups}</Text>
               <View style={[styles.pillBadge, { backgroundColor: '#e0f2fe' }]}>
-                <Text style={[styles.pillText, { color: '#0284c7' }]}>Pending: {pendingPickups}</Text>
+                <Text style={[styles.pillText, { color: '#0284c7' }]}>{tApp('Pending', language)}: {pendingPickups}</Text>
               </View>
             </View>
-            <Text style={[styles.cardSubtitle, { color: '#0284c7' }]}>Assigned Queue</Text>
+            <Text style={[styles.cardSubtitle, { color: '#0284c7' }]}>{tApp('Assigned Queue', language)}</Text>
           </View>
 
           {/* Card 2: Deliveries Today (Orange) */}
@@ -100,17 +118,17 @@ export const DashboardScreen = () => {
             <View style={styles.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 22 }}>🚚</Text>
-                <Text style={[styles.cardTitle, { color: '#c2410c' }]}>Deliveries Today</Text>
+                <Text style={[styles.cardTitle, { color: '#c2410c' }]}>{tApp('Deliveries Today', language)}</Text>
               </View>
             </View>
 
             <View style={styles.cardBody}>
               <Text style={[styles.cardNumber, { color: '#c2410c' }]}>{pendingDeliveries}</Text>
               <View style={[styles.pillBadge, { backgroundColor: '#ffedd5' }]}>
-                <Text style={[styles.pillText, { color: '#ea580c' }]}>Pending: {pendingDeliveries}</Text>
+                <Text style={[styles.pillText, { color: '#ea580c' }]}>{tApp('Pending', language)}: {pendingDeliveries}</Text>
               </View>
             </View>
-            <Text style={[styles.cardSubtitle, { color: '#ea580c' }]}>Ready Drops</Text>
+            <Text style={[styles.cardSubtitle, { color: '#ea580c' }]}>{tApp('Ready Drops', language)}</Text>
           </View>
 
           {/* Card 3: Drops Completed (Green) */}
@@ -120,17 +138,17 @@ export const DashboardScreen = () => {
                 <View style={styles.checkBg}>
                   <Text style={{ fontSize: 14, color: '#ffffff' }}>✓</Text>
                 </View>
-                <Text style={[styles.cardTitle, { color: '#15803d' }]}>Drops Completed</Text>
+                <Text style={[styles.cardTitle, { color: '#15803d' }]}>{tApp('Drops Completed', language)}</Text>
               </View>
             </View>
 
             <View style={styles.cardBody}>
               <Text style={[styles.cardNumber, { color: '#15803d' }]}>{completedDrops}</Text>
               <View style={[styles.pillBadge, { backgroundColor: '#dcfce7' }]}>
-                <Text style={[styles.pillText, { color: '#16a34a' }]}>Completed</Text>
+                <Text style={[styles.pillText, { color: '#16a34a' }]}>{tApp('Completed', language)}</Text>
               </View>
             </View>
-            <Text style={[styles.cardSubtitle, { color: '#16a34a' }]}>Deliveries Done</Text>
+            <Text style={[styles.cardSubtitle, { color: '#16a34a' }]}>{tApp('Deliveries Done', language)}</Text>
           </View>
 
           {/* Card 4: Total Earnings (Yellow) */}
@@ -138,7 +156,7 @@ export const DashboardScreen = () => {
             <View style={styles.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 22 }}>💵</Text>
-                <Text style={[styles.cardTitle, { color: '#a16207' }]}>Total Earnings</Text>
+                <Text style={[styles.cardTitle, { color: '#a16207' }]}>{tApp('Total Earnings', language)}</Text>
               </View>
             </View>
 
@@ -147,7 +165,7 @@ export const DashboardScreen = () => {
                 QR {(Number(totalCommission) || 0).toFixed(2)}
               </Text>
             </View>
-            <Text style={[styles.cardSubtitle, { color: '#ca8a04', marginTop: 4 }]}>Commission Earned Today</Text>
+            <Text style={[styles.cardSubtitle, { color: '#ca8a04', marginTop: 4 }]}>{tApp('Commission Earned Today', language)}</Text>
           </View>
         </View>
 
@@ -155,10 +173,10 @@ export const DashboardScreen = () => {
         <View style={[styles.sectionCard, shadow.card]}>
           <View style={styles.sectionTitleRow}>
             <Text style={{ fontSize: 18 }}>🔔</Text>
-            <Text style={styles.sectionTitle}>Live Notifications</Text>
+            <Text style={styles.sectionTitle}>{tApp('Live Notifications', language)}</Text>
           </View>
           {notifications.length === 0 ? (
-            <Text style={styles.emptyStateText}>No new notifications</Text>
+            <Text style={styles.emptyStateText}>{tApp('No new notifications', language)}</Text>
           ) : (
             notifications.slice(0, 3).map((item) => (
               <View key={item.id} style={styles.notificationRow}>
@@ -172,10 +190,10 @@ export const DashboardScreen = () => {
         <View style={[styles.sectionCard, shadow.card]}>
           <View style={styles.sectionTitleRow}>
             <Text style={{ fontSize: 18 }}>📢</Text>
-            <Text style={styles.sectionTitle}>Company Announcements</Text>
+            <Text style={styles.sectionTitle}>{tApp('Company Announcements', language)}</Text>
           </View>
           {announcements.length === 0 ? (
-            <Text style={styles.emptyStateText}>No active announcements</Text>
+            <Text style={styles.emptyStateText}>{tApp('No active announcements', language)}</Text>
           ) : (
             announcements.slice(0, 2).map((item) => (
               <View key={item.id} style={styles.announcementRow}>

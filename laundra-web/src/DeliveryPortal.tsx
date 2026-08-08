@@ -48,6 +48,180 @@ export const DeliveryPortal: React.FC = () => {
     return (localStorage.getItem('ll_active_delivery_tab') as any) || 'dashboard';
   });
 
+  // Bilingual Support State (English / Arabic)
+  const [deliveryLang, setDeliveryLang] = useState<'en' | 'ar'>(() => {
+    return (localStorage.getItem('ll_delivery_lang') as 'en' | 'ar') || 'en';
+  });
+
+  useEffect(() => {
+    document.documentElement.dir = 'ltr';
+  }, [deliveryLang]);
+
+  const deliveryArDict: Record<string, string> = {
+    'Welcome': 'مرحباً',
+    'Ready for your shifts today?': 'هل أنت مستعد لورديتك اليوم؟',
+    'Pickups Today': 'طلبات الاستلام اليوم',
+    'Deliveries Today': 'طلبات التوصيل اليوم',
+    'Drops Completed': 'التسليمات المكتملة',
+    'Total Earnings': 'إجمالي الأرباح',
+    'Pending': 'قيد الانتظار',
+    'Completed': 'مكتمل',
+    'Commission': 'العمولة',
+    'Assigned Pickups Queue': 'قائمة طلبات الاستلام الموكلة',
+    'Ready Drops Assigned': 'طلبات التسليم الجاهزة الموكلة',
+    'Successful Deliveries Done': 'عمليات التوصيل الناجحة',
+    'Commission Earned Today': 'العمولة المكتسبة اليوم',
+    'Live Notifications Feed': 'شريط الإشعارات المباشرة',
+    'Active Company Announcements': 'إعلانات الشركة النشطة',
+    'Active Tasks': 'المهام النشطة',
+    'Pending Pickups & Deliveries': 'الاستلام والتوصيل المعلق',
+    'Go to Tasks': 'الانتقال إلى المهام',
+    'Amount Pending (Unpaid)': 'المبلغ المعلق (غير مدفوع)',
+    'Successfully Paid': 'المبالغ المدفوعة',
+    'Awaiting payout from Admin': 'في انتظار الصرف من الإدارة',
+    'Total payouts received': 'إجمالي المبالغ المستلمة',
+    'Earnings & Payout History': 'سجل الأرباح والدفعات',
+    'Total Lifetime': 'الإجمالي الكلي',
+    'Task Date': 'تاريخ المهمة',
+    'Details': 'التفاصيل',
+    'Task Type': 'نوع المهمة',
+    'Payout Status': 'حالة الدفع',
+    'Dashboard': 'لوحة التحكم',
+    'Assigned Tasks': 'المهام الموكلة',
+    'My Earnings': 'أرباحي',
+    'Duty & Leaves': 'الدوام والإجازات',
+    'Helpdesk Support': 'الدعم الفني',
+    'Announcements': 'الإعلانات',
+    'Sign Out': 'تسجيل الخروج',
+    'Pickup': 'استلام',
+    'Delivery': 'توصيل',
+    'Paid via Cash': 'تم الدفع نقداً',
+    'Paid via Card': 'تم الدفع بالبطاقة',
+    'Paid via Check': 'تم الدفع بالشيك',
+    'Web-Based Delivery Operations Portal': 'بوابة عمليات التوصيل عبر الويب',
+    'Logged in to': 'تم تسجيل الدخول في',
+    'Just now': 'الآن',
+    'No announcements active right now.': 'لا توجد إعلانات نشطة حالياً.',
+    'No live notifications right now.': 'لا توجد إشعارات مباشرة حالياً.',
+
+    // Duty & Leaves Tab
+    'Duty & Attendance log': 'سجل الدوام والحضور',
+    'Clock Logs History': 'سجل الدخول والخروج',
+    'No attendance registered today.': 'لم يتم تسجيل حضور اليوم.',
+    'Clock In': 'تسجيل دخول',
+    'Clock Out': 'تسجيل خروج',
+    'Apply for Leave': 'طلب إجازة',
+    'Start Date': 'تاريخ البداية',
+    'End Date': 'تاريخ النهاية',
+    'Reason': 'السبب',
+    'Reason for leave': 'سبب الإجازة',
+    'Submit Request': 'إرسال الطلب',
+    'Leave History Status': 'حالة سجل الإجازات',
+    'No requests submitted.': 'لم يتم تقديم طلبات.',
+    'to': 'إلى',
+
+    // Helpdesk Support Tab
+    'Company Admin Desk Contacts': 'بيانات اتصال إدارة الشركة',
+    'Phone Line:': 'الهاتف:',
+    'Email Support:': 'البريد الإلكتروني:',
+    'Support Ticket History': 'سجل تذاكر الدعم',
+    'No active helpdesk tickets.': 'لا توجد تذاكر دعم نشطة.',
+    'Ticket ID:': 'رقم التذكرة:',
+    'My Message:': 'رسالتي:',
+    'Admin Reply:': 'رد الإدارة:',
+    'RESPONDED': 'تم الرد',
+    'Raise Support Ticket': 'إنشاء تذكرة دعم',
+    'Subject': 'الموضوع',
+    'Issue title': 'عنوان التذكرة',
+    'Message Description': 'تفاصيل الرسالة',
+    'Please detail the issue...': 'يرجى كتابة تفاصيل المشكلة...',
+
+    // System Announcements Tab
+    'System Announcements': 'إعلانات النظام',
+    'Important platform updates and operational changes from the management.': 'تحديثات وتغييرات تشغيلية هامة من الإدارة.',
+    'No active system announcements at this time.': 'لا توجد إعلانات نظام نشطة حالياً.',
+    'Platform Broadcaster': 'مذيع المنصة',
+
+    // Assigned Tasks Tab
+    'Assigned Delivery Tasks': 'مهام التوصيل الموكلة',
+    'Pickups': 'الاستلامات',
+    'Deliveries': 'التسليمات',
+    'No pending pickup assignments.': 'لا توجد مهام استلام معلقة.',
+    'No pending delivery assignments.': 'لا توجد مهام توصيل معلقة.',
+    'Client Name:': 'اسم العميل:',
+    'Client Phone:': 'هاتف العميل:',
+    'Address:': 'العنوان:',
+    'Services:': 'الخدمات:',
+    'Pickup Time:': 'وقت الاستلام:',
+    'Delivery Time:': 'وقت التوصيل:',
+    'Method:': 'طريقة الدفع:',
+    'Instructions:': 'التعليمات:',
+    'Pickup Commission:': 'عمولة الاستلام:',
+    'Delivery Commission:': 'عمولة التوصيل:',
+    'Contact Client': 'الاتصال بالعميل',
+    'Mark On the Way': 'الانطلاق إلى العميل',
+    'Mark Reached Location': 'وصول موقع العميل',
+    'Complete Pickup Details': 'إكمال تفاصيل الاستلام',
+    'Mark Out For Delivery': 'خروج للتوصيل',
+    'Complete Delivery': 'إكمال التوصيل',
+    'Given for Delivery:': 'مسلّمة للتوصيل:',
+    'Services & Delivery Quantities:': 'الخدمات وكميات التوصيل:',
+
+    // Service Names & Instructions
+    'Order #': 'الطلب #',
+    'Pending Pickup': 'قيد الاستلام',
+    'pending pickup': 'قيد الاستلام',
+    'Out for Delivery': 'خروج للتوصيل',
+    'out for delivery': 'خروج للتوصيل',
+    'Assigned': 'موكلة',
+    'assigned': 'موكلة',
+    'Ready': 'جاهز',
+    'Abaya': 'عباية',
+    'Cap': 'قبعة',
+    'Children Dress': 'فستان أطفال',
+    'Apron': 'مئزر (مريلة)',
+    'Children Fancy Dress': 'فستان أطفال فاخر',
+    'Children Jacket': 'جاكيت أطفال',
+    'Shirt': 'قميص',
+    'Pants': 'بنطال',
+    'T-Shirt': 'تيشيرت',
+    'Dress': 'فستان',
+    'Jacket': 'جاكيت',
+    'Suit': 'بدلة',
+    'Blanket': 'بطانية',
+    'Bed Sheet': 'ملاءة سرير',
+    'Towel': 'منشفة',
+    'Curtain': 'ستارة',
+    'Coat': 'معطف',
+    'Pcs': 'قطع',
+    'Laundry Service': 'خدمة الغسيل',
+    'Standard Laundry Load': 'غسيل سلة قياسي',
+    'Handle with care, separate whites.': 'يرجى التعامل بحذر وفصل الملابس البيضاء.',
+    'Deliver order directly to customer upon arrival.': 'تسليم الطلب مباشرة للعميل عند الوصول.',
+
+    // My Earnings Tab
+    'My Earnings Ledger': 'سجل أرباحي',
+    'Total Lifetime:': 'الإجمالي الكلي:',
+    'No completed tasks yet.': 'لا توجد مهام مكتملة حتى الآن.',
+    'Paid via': 'تم الدفع عن طريق'
+  };
+
+  const tDeliv = (key: string): string => {
+    if (!key) return '';
+    if (deliveryLang === 'ar') {
+      if (deliveryArDict[key]) return deliveryArDict[key];
+
+      let translated = String(key);
+      Object.keys(deliveryArDict).forEach((k) => {
+        if (deliveryArDict[k] && translated.includes(k)) {
+          translated = translated.split(k).join(deliveryArDict[k]);
+        }
+      });
+      return translated;
+    }
+    return key;
+  };
+
   useEffect(() => {
     localStorage.setItem('ll_active_delivery_tab', activeTab);
   }, [activeTab]);
@@ -1167,14 +1341,14 @@ export const DeliveryPortal: React.FC = () => {
             <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', letterSpacing: '0.75px', color: '#0369a1', textTransform: 'uppercase' }}>
               {db.companies.find(c => c.id === db.activeCompanyId)?.name || currentUser?.companyName || 'Iron'}
             </h1>
-            <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', fontWeight: '700' }}>Web-Based Delivery Operations Portal</p>
+            <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', fontWeight: '700' }}>{tDeliv('Web-Based Delivery Operations Portal')}</p>
           </div>
         </div>
         
         {currentUser && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <button onClick={handleLogout} style={{ border: '1.5px solid #fca5a5', background: '#fef2f2', color: '#ef4444', padding: '8px 16px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>🚪</span> Sign Out
+              <span>🚪</span> {tDeliv('Sign Out')}
             </button>
           </div>
         )}
@@ -1406,12 +1580,12 @@ export const DeliveryPortal: React.FC = () => {
                  const unreadSupport = db.notifications.filter(n => n.unread && n.text.includes('🎫')).length;
 
                  return [
-                   { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
-                   { id: 'tasks', label: '📋 Assigned Tasks', icon: '📋' },
-                   { id: 'earnings', label: '💵 My Earnings', icon: '💵' },
-                   { id: 'attendance', label: '📅 Duty & Leaves', icon: '📅' },
-                   { id: 'support', label: '🎫 Helpdesk Support', icon: '🎫' },
-                   { id: 'announcements', label: '📢 Announcements', icon: '📢' }
+                   { id: 'dashboard', label: `📊 ${tDeliv('Dashboard')}`, icon: '📊' },
+                   { id: 'tasks', label: `📋 ${tDeliv('Assigned Tasks')}`, icon: '📋' },
+                   { id: 'earnings', label: `💵 ${tDeliv('My Earnings')}`, icon: '💵' },
+                   { id: 'attendance', label: `📅 ${tDeliv('Duty & Leaves')}`, icon: '📅' },
+                   { id: 'support', label: `🎫 ${tDeliv('Helpdesk Support')}`, icon: '🎫' },
+                   { id: 'announcements', label: `📢 ${tDeliv('Announcements')}`, icon: '📢' }
                  ].map(tab => (
                    <button
                      key={tab.id}
@@ -1526,11 +1700,37 @@ export const DeliveryPortal: React.FC = () => {
                 {/* Modern Preview Welcome Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '20px 24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15,23,42,0.03)' }}>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '900', color: '#1e3a8a' }}>Welcome, {currentUser.name}!</h2>
+                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '900', color: '#1e3a8a' }}>{tDeliv('Welcome')}, {currentUser.name}!</h2>
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
-                      Ready for your shifts today? • {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {tDeliv('Ready for your shifts today?')} • {new Date().toLocaleDateString(deliveryLang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
                   </div>
+                  <button
+                    onClick={() => {
+                      const nextLang = deliveryLang === 'en' ? 'ar' : 'en';
+                      setDeliveryLang(nextLang);
+                      localStorage.setItem('ll_delivery_lang', nextLang);
+                      document.documentElement.dir = 'ltr';
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 18px',
+                      borderRadius: '30px',
+                      border: '2px solid #2563eb',
+                      background: '#eff6ff',
+                      color: '#1d4ed8',
+                      fontWeight: '800',
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(37,99,235,0.15)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span>🌐</span>
+                    <span>{deliveryLang === 'en' ? 'العربية (Arabic)' : 'English (الإنجليزية)'}</span>
+                  </button>
                 </div>
 
                 {/* Metrics Cards Grid Matching Preview Design */}
@@ -1541,14 +1741,14 @@ export const DeliveryPortal: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '1.6rem' }}>🧺</span>
-                        <span style={{ fontWeight: '800', color: '#0369a1', fontSize: '0.9rem' }}>Pickups Today</span>
+                        <span style={{ fontWeight: '800', color: '#0369a1', fontSize: '0.9rem' }}>{tDeliv('Pickups Today')}</span>
                       </div>
-                      <span style={{ background: '#0284c7', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>Pending: {pendingPickupsCount}</span>
+                      <span style={{ background: '#0284c7', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>{tDeliv('Pending')}: {pendingPickupsCount}</span>
                     </div>
                     <div style={{ fontSize: '2.4rem', fontWeight: '900', color: '#0f172a', margin: '12px 0 2px 0' }}>
                       {pendingPickupsCount}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#0284c7', fontWeight: '700' }}>Assigned Pickups Queue</div>
+                    <div style={{ fontSize: '0.78rem', color: '#0284c7', fontWeight: '700' }}>{tDeliv('Assigned Pickups Queue')}</div>
                   </div>
 
                   {/* Deliveries Today Card */}
@@ -1556,14 +1756,14 @@ export const DeliveryPortal: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '1.6rem' }}>🚚</span>
-                        <span style={{ fontWeight: '800', color: '#c2410c', fontSize: '0.9rem' }}>Deliveries Today</span>
+                        <span style={{ fontWeight: '800', color: '#c2410c', fontSize: '0.9rem' }}>{tDeliv('Deliveries Today')}</span>
                       </div>
-                      <span style={{ background: '#ea580c', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>Pending: {pendingDeliveriesCount}</span>
+                      <span style={{ background: '#ea580c', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>{tDeliv('Pending')}: {pendingDeliveriesCount}</span>
                     </div>
                     <div style={{ fontSize: '2.4rem', fontWeight: '900', color: '#0f172a', margin: '12px 0 2px 0' }}>
                       {pendingDeliveriesCount}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#c2410c', fontWeight: '700' }}>Ready Drops Assigned</div>
+                    <div style={{ fontSize: '0.78rem', color: '#c2410c', fontWeight: '700' }}>{tDeliv('Ready Drops Assigned')}</div>
                   </div>
 
                   {/* Drops Completed Card */}
@@ -1571,14 +1771,14 @@ export const DeliveryPortal: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '1.6rem' }}>✅</span>
-                        <span style={{ fontWeight: '800', color: '#15803d', fontSize: '0.9rem' }}>Drops Completed</span>
+                        <span style={{ fontWeight: '800', color: '#15803d', fontSize: '0.9rem' }}>{tDeliv('Drops Completed')}</span>
                       </div>
-                      <span style={{ background: '#16a34a', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>Completed</span>
+                      <span style={{ background: '#16a34a', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>{tDeliv('Completed')}</span>
                     </div>
                     <div style={{ fontSize: '2.4rem', fontWeight: '900', color: '#15803d', margin: '12px 0 2px 0' }}>
                       {assignedOrders.filter(o => o.status === 'Delivered').length}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: '700' }}>Successful Deliveries Done</div>
+                    <div style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: '700' }}>{tDeliv('Successful Deliveries Done')}</div>
                   </div>
 
                   {/* Total Earnings Card */}
@@ -1586,14 +1786,14 @@ export const DeliveryPortal: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '1.6rem' }}>💵</span>
-                        <span style={{ fontWeight: '800', color: '#a16207', fontSize: '0.9rem' }}>Total Earnings</span>
+                        <span style={{ fontWeight: '800', color: '#a16207', fontSize: '0.9rem' }}>{tDeliv('Total Earnings')}</span>
                       </div>
-                      <span style={{ background: '#ca8a04', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>Commission</span>
+                      <span style={{ background: '#ca8a04', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '800' }}>{tDeliv('Commission')}</span>
                     </div>
                     <div style={{ fontSize: '2.2rem', fontWeight: '900', color: '#a16207', margin: '12px 0 2px 0' }}>
                       QR {totalCommissionEarnings.toFixed(2)}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#a16207', fontWeight: '700' }}>Commission Earned Today</div>
+                    <div style={{ fontSize: '0.78rem', color: '#a16207', fontWeight: '700' }}>{tDeliv('Commission Earned Today')}</div>
                   </div>
 
                 </div>
@@ -1603,12 +1803,12 @@ export const DeliveryPortal: React.FC = () => {
                   
                   {/* Notifications Feed */}
                   <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>🔔 Live Notifications Feed</h3>
+                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>🔔 {tDeliv('Live Notifications Feed')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
                       {db.notifications.map(n => (
                         <div key={n.id} style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '0.85rem', color: '#334155', fontWeight: '600' }}>{n.text}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{n.time}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{n.time === 'Just now' ? tDeliv('Just now') : n.time}</span>
                         </div>
                       ))}
                     </div>
@@ -1616,10 +1816,10 @@ export const DeliveryPortal: React.FC = () => {
 
                   {/* Announcements Feed */}
                   <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>📢 Active Company Announcements</h3>
+                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>📢 {tDeliv('Active Company Announcements')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
                       {systemAnnouncements.length === 0 ? (
-                        <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', padding: '20px 0' }}>No active announcements for staff.</div>
+                        <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', padding: '20px 0' }}>{tDeliv('No announcements active right now.')}</div>
                       ) : (
                         systemAnnouncements.map(a => (
                           <div key={a.id} style={{ background: '#faf5ff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ddd6fe', fontSize: '0.82rem' }}>
@@ -1641,12 +1841,12 @@ export const DeliveryPortal: React.FC = () => {
             {activeTab === 'tasks' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div className="delivery-portal-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Assigned Delivery Tasks</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('Assigned Delivery Tasks')}</h2>
                   
                   {/* Task type selectors */}
                   <div style={{ display: 'flex', background: '#e2e8f0', padding: '4px', borderRadius: '8px' }}>
                     <button onClick={() => setTasksSubTab('pickups')} style={{ padding: '8px 20px', border: 'none', borderRadius: '6px', background: tasksSubTab === 'pickups' ? 'white' : 'transparent', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      🧺 Pickups
+                      🧺 {tDeliv('Pickups')}
                       {pendingPickupsCount > 0 && (
                         <span style={{ background: '#2563eb', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '0.7rem', fontWeight: '800' }}>
                           {pendingPickupsCount}
@@ -1654,7 +1854,7 @@ export const DeliveryPortal: React.FC = () => {
                       )}
                     </button>
                     <button onClick={() => setTasksSubTab('deliveries')} style={{ padding: '8px 20px', border: 'none', borderRadius: '6px', background: tasksSubTab === 'deliveries' ? 'white' : 'transparent', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      🚚 Deliveries
+                      🚚 {tDeliv('Deliveries')}
                       {pendingDeliveriesCount > 0 && (
                         <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '0.7rem', fontWeight: '800' }}>
                           {pendingDeliveriesCount}
@@ -1667,44 +1867,44 @@ export const DeliveryPortal: React.FC = () => {
                 <div className="delivery-portal-task-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
                   {tasksSubTab === 'pickups' ? (
                     assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length === 0 ? (
-                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>No pending pickup assignments.</div>
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>{tDeliv('No pending pickup assignments.')}</div>
                     ) : (
                       assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).map(o => (
                         <div key={o.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                              <strong style={{ color: '#1e3a8a', fontSize: '1rem' }}>Order #{o.id}</strong>
-                              <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold' }}>{o.deliveryStatus || o.status}</span>
+                              <strong style={{ color: '#1e3a8a', fontSize: '1rem' }}>{tDeliv('Order #')}{o.id}</strong>
+                              <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold' }}>{tDeliv(o.deliveryStatus || o.status || '')}</span>
                             </div>
                             <div style={{ fontSize: '0.85rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '6px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '12px' }}>
-                              <div>👤 <strong>Client Name:</strong> {o.customerName}</div>
-                              <div>📞 <strong>Client Phone:</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
-                              <div>📍 <strong>Address:</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Pickup at Branch'}</div>
-                              <div>🧺 <strong>Services:</strong> {(o.items || o.services || []).map((s: any) => {
+                              <div>👤 <strong>{tDeliv('Client Name:')}</strong> {o.customerName}</div>
+                              <div>📞 <strong>{tDeliv('Client Phone:')}</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
+                              <div>📍 <strong>{tDeliv('Address:')}</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Pickup at Branch'}</div>
+                              <div>🧺 <strong>{tDeliv('Services:')}</strong> {(o.items || o.services || []).map((s: any) => {
                                 const sName = s.serviceName || s.name || 'Service';
                                 const ord = s.orderedQuantity || s.ordered_quantity || s.qty || s.quantity || 1;
                                 const picked = s.pickedUpQuantity || s.picked_up_quantity || s.pickedUpQty || s.pickedUp || 0;
                                 const pending = s.pickupPendingQuantity ?? s.pickup_pending_quantity ?? Math.max(0, ord - picked);
                                 const isPartial = (o.status || '').toLowerCase().includes('partially') || (o.deliveryStatus || '').toLowerCase().includes('partially') || picked > 0;
                                 const displayQty = isPartial ? pending : ord;
-                                return `${sName} x${displayQty}`;
-                              }).join(', ') || o.weightItems || 'Standard Laundry Load'}</div>
-                              <div>📅 <strong>Pickup Time:</strong> {o.date} (10:00 AM - 1:00 PM)</div>
-                              <div>📝 <strong>Instructions:</strong> Handle with care, separate whites.</div>
-                              <div style={{ marginTop: '6px', background: '#fef3c7', color: '#b45309', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Pickup Commission: QR {(o.pickupCommission || 0).toFixed(2)}</div>
+                                return `${tDeliv(sName)} x${displayQty}`;
+                              }).join(', ') || tDeliv(o.weightItems || 'Standard Laundry Load')}</div>
+                              <div>📅 <strong>{tDeliv('Pickup Time:')}</strong> {o.date} (10:00 AM - 1:00 PM)</div>
+                              <div>📝 <strong>{tDeliv('Instructions:')}</strong> {tDeliv('Handle with care, separate whites.')}</div>
+                              <div style={{ marginTop: '6px', background: '#fef3c7', color: '#b45309', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 {tDeliv('Pickup Commission:')} QR {(o.pickupCommission || 0).toFixed(2)}</div>
                             </div>
                           </div>
 
                           <div>
                             <div style={{ marginBottom: '12px' }}>
-                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>📞 Contact Client</button>
+                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
                             </div>
                             
                             {(o.deliveryStatus === 'Pending Pickup' || (o.status as string) === 'Pickup Assigned') && (
-                              <button onClick={() => updatePickupStatus(o, 'Accepted', 'Courier on the way')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚀 Mark On the Way</button>
+                              <button onClick={() => updatePickupStatus(o, 'Accepted', 'Courier on the way')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚀 {tDeliv('Mark On the Way')}</button>
                             )}
                             {o.deliveryStatus === 'Courier on the way' && (
-                              <button onClick={() => updatePickupStatus(o, 'Accepted', 'Reached Customer')} style={{ width: '100%', padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>📍 Mark Reached Location</button>
+                              <button onClick={() => updatePickupStatus(o, 'Accepted', 'Reached Customer')} style={{ width: '100%', padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>📍 {tDeliv('Mark Reached Location')}</button>
                             )}
                             {o.deliveryStatus === 'Reached Customer' && (
                               <button onClick={() => {
@@ -1718,7 +1918,7 @@ export const DeliveryPortal: React.FC = () => {
                                 });
                                 setPickupItemQuantities(initialQtyMap);
                                 setPickupDetailsOrder(o);
-                              }} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🧺 Complete Pickup Details</button>
+                              }} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🧺 {tDeliv('Complete Pickup Details')}</button>
                             )}
                           </div>
                         </div>
@@ -1726,22 +1926,22 @@ export const DeliveryPortal: React.FC = () => {
                     )
                   ) : (
                     assignedOrders.filter(isDeliveryOrderActive).length === 0 ? (
-                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>No pending delivery assignments.</div>
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b', padding: '60px 0' }}>{tDeliv('No pending delivery assignments.')}</div>
                     ) : (
                       assignedOrders.filter(isDeliveryOrderActive).map(o => (
                         <div key={o.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                           <div>
                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                              <strong style={{ color: '#1e3a8a', fontSize: '1rem' }}>Order #{o.id}</strong>
+                              <strong style={{ color: '#1e3a8a', fontSize: '1rem' }}>{tDeliv('Order #')}{o.id}</strong>
                               <span style={{ fontSize: '0.75rem', background: '#faf5ff', color: '#7c3aed', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold' }}>
-                                {['out for delivery', 'out_for_delivery'].includes((o.status || '').toLowerCase()) ? 'Out for Delivery' : ((o.status || '').toLowerCase() === 'assigned' ? 'Assigned' : 'Ready')}
+                                {tDeliv(['out for delivery', 'out_for_delivery'].includes((o.status || '').toLowerCase()) ? 'Out for Delivery' : ((o.status || '').toLowerCase() === 'assigned' ? 'Assigned' : 'Ready'))}
                               </span>
                             </div>
                             <div style={{ fontSize: '0.85rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '6px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '12px' }}>
-                              <div>👤 <strong>Client Name:</strong> {o.customerName}</div>
-                              <div>📞 <strong>Client Phone:</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
-                              <div>📍 <strong>Address:</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Delivery Address'}</div>
-                              <div>🧺 <strong>Services & Delivery Quantities:</strong></div>
+                              <div>👤 <strong>{tDeliv('Client Name:')}</strong> {o.customerName}</div>
+                              <div>📞 <strong>{tDeliv('Client Phone:')}</strong> {o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</div>
+                              <div>📍 <strong>{tDeliv('Address:')}</strong> {o.address || db.customers.find(c => c.id === o.customerId)?.address || 'Delivery Address'}</div>
+                              <div>🧺 <strong>{tDeliv('Services & Delivery Quantities:')}</strong></div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '2px' }}>
                                 {(o.items || o.services || []).map((it: any, idx: number) => {
                                   const readyQty = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : 0);
@@ -1749,26 +1949,26 @@ export const DeliveryPortal: React.FC = () => {
 
                                   return (
                                     <div key={idx} style={{ fontSize: '0.8rem', color: '#1e293b' }}>
-                                      • <strong>{it.serviceName || it.name}</strong>: Given for Delivery: <strong style={{ color: '#15803d' }}>{displayQty} Pcs</strong>
+                                      • <strong>{tDeliv(it.serviceName || it.name)}</strong>: {tDeliv('Given for Delivery:')} <strong style={{ color: '#15803d' }}>{displayQty} {tDeliv('Pcs')}</strong>
                                     </div>
                                   );
                                 })}
                               </div>
-                              <div>📅 <strong>Delivery Time:</strong> {o.date} (3:00 PM - 6:00 PM)</div>
-                              <div>💳 <strong>Method:</strong> {o.paymentMethod || 'CASH'} ({o.paymentStatus || 'Paid'})</div>
-                              <div>📝 <strong>Instructions:</strong> Deliver order directly to customer upon arrival.</div>
-                              <div style={{ marginTop: '6px', background: '#eff6ff', color: '#1e40af', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 Delivery Commission: QR {(o.deliveryCommission || 0).toFixed(2)}</div>
+                              <div>📅 <strong>{tDeliv('Delivery Time:')}</strong> {o.date} (3:00 PM - 6:00 PM)</div>
+                              <div>💳 <strong>{tDeliv('Method:')}</strong> {o.paymentMethod || 'CASH'} ({tDeliv(o.paymentStatus || 'Paid')})</div>
+                              <div>📝 <strong>{tDeliv('Instructions:')}</strong> {tDeliv('Deliver order directly to customer upon arrival.')}</div>
+                              <div style={{ marginTop: '6px', background: '#eff6ff', color: '#1e40af', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 {tDeliv('Delivery Commission:')} QR {(o.deliveryCommission || 0).toFixed(2)}</div>
                             </div>
                           </div>
 
                           <div>
                             <div style={{ marginBottom: '12px' }}>
-                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 Contact Client</button>
+                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
                             </div>
                             {!['out for delivery', 'out_for_delivery'].includes((o.status || '').toLowerCase()) ? (
-                              <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 Mark Out For Delivery</button>
+                              <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 {tDeliv('Mark Out For Delivery')}</button>
                             ) : (
-                              <button onClick={() => triggerDeliveryOtpRequest(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>✅ Complete Delivery</button>
+                              <button onClick={() => triggerDeliveryOtpRequest(o)} style={{ width: '100%', padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>✅ {tDeliv('Complete Delivery')}</button>
                             )}
                           </div>
                         </div>
@@ -1782,7 +1982,7 @@ export const DeliveryPortal: React.FC = () => {
             {/* TAB 3: EARNINGS */}
             {activeTab === 'earnings' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>My Earnings Ledger</h2>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('My Earnings Ledger')}</h2>
                 
                 {(() => {
                   const pickupCompletedStatuses = [
@@ -1885,41 +2085,41 @@ export const DeliveryPortal: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', width: '100%', maxWidth: '800px' }}>
                         
                         <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>Amount Pending (Unpaid)</div>
+                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>{tDeliv('Amount Pending (Unpaid)')}</div>
                           <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#f59e0b', margin: '10px 0' }}>
                             QR {pending.toFixed(2)}
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Awaiting payout from Admin</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{tDeliv('Awaiting payout from Admin')}</div>
                         </div>
 
                         <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>Successfully Paid</div>
+                          <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>{tDeliv('Successfully Paid')}</div>
                           <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#16a34a', margin: '10px 0' }}>
                             QR {paid.toFixed(2)}
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Total payouts received</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{tDeliv('Total payouts received')}</div>
                         </div>
 
                       </div>
 
                       <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', maxWidth: '800px', marginTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>🧾 Earnings & Payout History</h3>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Total Lifetime: QR {totalEarned.toFixed(2)}</div>
+                          <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>🧾 {tDeliv('Earnings & Payout History')}</h3>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{tDeliv('Total Lifetime:')} QR {totalEarned.toFixed(2)}</div>
                         </div>
 
                         {completed.length === 0 ? (
-                          <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.9rem' }}>No completed tasks yet.</div>
+                          <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.9rem' }}>{tDeliv('No completed tasks yet.')}</div>
                         ) : (
                           <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                               <thead>
                                 <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#64748b' }}>
-                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Task Date</th>
-                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Details</th>
-                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>Task Type</th>
-                                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>Commission</th>
-                                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>Payout Status</th>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{tDeliv('Task Date')}</th>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{tDeliv('Details')}</th>
+                                  <th style={{ textAlign: 'left', padding: '12px', fontWeight: '700' }}>{tDeliv('Task Type')}</th>
+                                  <th style={{ textAlign: 'right', padding: '12px', fontWeight: '700' }}>{tDeliv('Commission')}</th>
+                                  <th style={{ textAlign: 'center', padding: '12px', fontWeight: '700' }}>{tDeliv('Payout Status')}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1935,7 +2135,7 @@ export const DeliveryPortal: React.FC = () => {
                                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.customerName}</div>
                                       </td>
                                       <td style={{ padding: '12px', fontWeight: '700', color: item.type === 'Pickup' ? '#d97706' : '#2563eb' }}>
-                                        {item.type}
+                                        {tDeliv(item.type)}
                                       </td>
                                       <td style={{ padding: '12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
                                         QR {item.amount.toFixed(2)}
@@ -1943,11 +2143,11 @@ export const DeliveryPortal: React.FC = () => {
                                       <td style={{ padding: '12px', textAlign: 'center' }}>
                                         {item.paid ? (
                                           <div style={{ display: 'inline-block', background: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800' }}>
-                                            Paid via {item.method || 'Cash'}
+                                            {tDeliv('Paid via')} {item.method || 'Cash'}
                                           </div>
                                         ) : (
                                           <div style={{ display: 'inline-block', background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '800' }}>
-                                            Pending
+                                            {tDeliv('Pending')}
                                           </div>
                                         )}
                                       </td>
@@ -1970,17 +2170,17 @@ export const DeliveryPortal: React.FC = () => {
               <div className="delivery-portal-two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Duty & Attendance log</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('Duty & Attendance log')}</h2>
                   
                   <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Clock Logs History</h3>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>{tDeliv('Clock Logs History')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', maxHeight: '200px', overflowY: 'auto' }}>
                       {attendanceLogs.length === 0 ? (
-                        <div style={{ color: '#64748b', padding: '10px 0' }}>No attendance registered today.</div>
+                        <div style={{ color: '#64748b', padding: '10px 0' }}>{tDeliv('No attendance registered today.')}</div>
                       ) : (
                         attendanceLogs.map((log, idx) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 'bold', color: log.type === 'Clock In' ? '#16a34a' : '#ef4444' }}>{log.type}</span>
+                            <span style={{ fontWeight: 'bold', color: log.type === 'Clock In' ? '#16a34a' : '#ef4444' }}>{tDeliv(log.type)}</span>
                             <span style={{ color: '#64748b' }}>{log.time}</span>
                             <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.gps.slice(0, 15)}...</span>
                           </div>
@@ -1991,38 +2191,38 @@ export const DeliveryPortal: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Apply for Leave</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('Apply for Leave')}</h2>
                   
                   <form onSubmit={handleApplyLeave} style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div className="delivery-portal-two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Start Date</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>{tDeliv('Start Date')}</label>
                         <input type="date" required value={leaveStartDate} onChange={e => setLeaveStartDate(e.target.value)} style={{ width: '100%', padding: '8px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
                       </div>
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>End Date</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>{tDeliv('End Date')}</label>
                         <input type="date" required value={leaveEndDate} onChange={e => setLeaveEndDate(e.target.value)} style={{ width: '100%', padding: '8px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
                       </div>
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Reason</label>
-                      <input type="text" required value={leaveReason} onChange={e => setLeaveReason(e.target.value)} placeholder="Reason for leave" style={{ width: '100%', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>{tDeliv('Reason')}</label>
+                      <input type="text" required value={leaveReason} onChange={e => setLeaveReason(e.target.value)} placeholder={tDeliv('Reason for leave')} style={{ width: '100%', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                     </div>
 
-                    <button type="submit" style={{ padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>Submit Request</button>
+                    <button type="submit" style={{ padding: '10px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>{tDeliv('Submit Request')}</button>
                   </form>
 
                   <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Leave History Status</h3>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>{tDeliv('Leave History Status')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
                       {db.leaveRequests.filter(lr => lr.deliveryBoyName === db.currentDeliveryBoy).length === 0 ? (
-                        <div style={{ color: '#64748b' }}>No requests submitted.</div>
+                        <div style={{ color: '#64748b' }}>{tDeliv('No requests submitted.')}</div>
                       ) : (
                         db.leaveRequests.filter(lr => lr.deliveryBoyName === db.currentDeliveryBoy).map((lh, idx) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
-                            <span>{lh.startDate} to {lh.endDate} ({lh.reason})</span>
-                            <span style={{ fontWeight: 'bold', color: lh.status === 'Approved' ? '#16a34a' : lh.status === 'Rejected' ? '#ef4444' : '#d97706' }}>{lh.status}</span>
+                            <span>{lh.startDate} {tDeliv('to')} {lh.endDate} ({lh.reason})</span>
+                            <span style={{ fontWeight: 'bold', color: lh.status === 'Approved' ? '#16a34a' : lh.status === 'Rejected' ? '#ef4444' : '#d97706' }}>{tDeliv(lh.status)}</span>
                           </div>
                         ))
                       )}
@@ -2041,7 +2241,7 @@ export const DeliveryPortal: React.FC = () => {
               <div className="delivery-portal-two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Helpdesk Support</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('Helpdesk Support')}</h2>
                   
                   {(() => {
                     const companyAdmin = (db.users || []).find((u: any) => u.role === 'ADMIN') || {};
@@ -2049,18 +2249,18 @@ export const DeliveryPortal: React.FC = () => {
                     const adminPhone = companyAdmin.phone || companyAdmin.mobile || '9638527411';
                     return (
                       <div style={{ background: '#eff6ff', padding: '20px', borderRadius: '12px', border: '1px solid #bfdbfe', fontSize: '0.85rem' }}>
-                        <strong>🏢 Company Admin Desk Contacts</strong>
-                        <div style={{ marginTop: '6px' }}>📞 Phone Line: {adminPhone}</div>
-                        <div>✉️ Email Support: {adminEmail}</div>
+                        <strong>🏢 {tDeliv('Company Admin Desk Contacts')}</strong>
+                        <div style={{ marginTop: '6px' }}>📞 {tDeliv('Phone Line:')} {adminPhone}</div>
+                        <div>✉️ {tDeliv('Email Support:')} {adminEmail}</div>
                       </div>
                     );
                   })()}
 
                   <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Support Ticket History</h3>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>{tDeliv('Support Ticket History')}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {supportTickets.length === 0 ? (
-                        <div style={{ color: '#64748b', fontSize: '0.82rem' }}>No active helpdesk tickets.</div>
+                        <div style={{ color: '#64748b', fontSize: '0.82rem' }}>{tDeliv('No active helpdesk tickets.')}</div>
                       ) : (
                         supportTickets.map((t) => (
                           <div key={t.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2073,17 +2273,17 @@ export const DeliveryPortal: React.FC = () => {
                                 padding: '2px 8px', 
                                 borderRadius: '12px', 
                                 fontWeight: 'bold' 
-                              }}>{t.status}</span>
+                              }}>{tDeliv(t.status)}</span>
                             </div>
                             <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                              <strong>Ticket ID:</strong> {t.id}
+                              <strong>{tDeliv('Ticket ID:')}</strong> {t.id}
                             </div>
                             <div style={{ fontSize: '0.8rem', color: '#334155', background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                              <strong>My Message:</strong> {t.description || 'No description'}
+                              <strong>{tDeliv('My Message:')}</strong> {t.description || 'No description'}
                             </div>
                             {t.admin_response && (
                               <div style={{ fontSize: '0.8rem', color: '#1e3a8a', background: '#eff6ff', padding: '8px', borderRadius: '6px', border: '1px solid #bfdbfe', marginTop: '4px' }}>
-                                💬 <strong>Admin Reply:</strong> {t.admin_response}
+                                💬 <strong>{tDeliv('Admin Reply:')}</strong> {t.admin_response}
                               </div>
                             )}
                           </div>
@@ -2094,20 +2294,20 @@ export const DeliveryPortal: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Raise Support Ticket</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>{tDeliv('Raise Support Ticket')}</h2>
                   
                   <form onSubmit={handleRaiseTicket} style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Subject</label>
-                      <input type="text" required value={supportSubject} onChange={e => setSupportSubject(e.target.value)} placeholder="Issue title" style={{ width: '100%', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>{tDeliv('Subject')}</label>
+                      <input type="text" required value={supportSubject} onChange={e => setSupportSubject(e.target.value)} placeholder={tDeliv('Issue title')} style={{ width: '100%', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }} />
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>Message Description</label>
-                      <textarea required value={supportMsg} onChange={e => setSupportMsg(e.target.value)} placeholder="Please detail the issue..." style={{ width: '100%', height: '100px', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box', resize: 'none' }} />
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px' }}>{tDeliv('Message Description')}</label>
+                      <textarea required value={supportMsg} onChange={e => setSupportMsg(e.target.value)} placeholder={tDeliv('Please detail the issue...')} style={{ width: '100%', height: '100px', padding: '10px', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box', resize: 'none' }} />
                     </div>
 
-                    <button type="submit" style={{ padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>Raise Support Ticket</button>
+                    <button type="submit" style={{ padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>{tDeliv('Raise Support Ticket')}</button>
                   </form>
                 </div>
 
@@ -2117,15 +2317,15 @@ export const DeliveryPortal: React.FC = () => {
             {/* --- ANNOUNCEMENTS TAB --- */}
             {activeTab === 'announcements' && (
               <div>
-                <h3 style={{ margin: '0 0 16px 0', color: '#1e3a8a' }}>📢 System Announcements</h3>
+                <h3 style={{ margin: '0 0 16px 0', color: '#1e3a8a' }}>📢 {tDeliv('System Announcements')}</h3>
                 <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '24px' }}>
-                  Important platform updates and operational changes from the management.
+                  {tDeliv('Important platform updates and operational changes from the management.')}
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {systemAnnouncements.length === 0 ? (
                     <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                      No active system announcements at this time.
+                      {tDeliv('No active system announcements at this time.')}
                     </div>
                   ) : (
                     systemAnnouncements.map(ann => (

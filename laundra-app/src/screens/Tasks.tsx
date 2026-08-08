@@ -13,9 +13,11 @@ import { TaskService } from '../services/TaskService';
 import { Order } from '../types/order';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/radius';
+import { tApp } from '../utils/i18n';
 
 export const TasksScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
+  const language = useAuthStore((state) => state.language);
   const { data: orders = [], isLoading, refetch, isRefetching, updateStatus } = useTasks();
 
   const [activeTab, setActiveTab] = useState<'pickups' | 'deliveries'>('pickups');
@@ -121,7 +123,7 @@ export const TasksScreen = () => {
   return (
     <ScreenContainer style={styles.container}>
       {/* Top App Bar matching mockup */}
-      <Header title="Assigned Tasks" showBack />
+      <Header title={tApp('Assigned Tasks', language)} showBack />
 
       {/* Segmented Control Switcher */}
       <View style={styles.tabContainer}>
@@ -130,7 +132,7 @@ export const TasksScreen = () => {
           onPress={() => setActiveTab('pickups')}
         >
           <Text style={[styles.tabText, activeTab === 'pickups' && styles.activeTabText]}>
-            Pickups {pickupOrders.length > 0 ? `(${pickupOrders.length})` : ''}
+            {tApp('Pickups', language)} {pickupOrders.length > 0 ? `(${pickupOrders.length})` : ''}
           </Text>
         </TouchableOpacity>
 
@@ -139,7 +141,7 @@ export const TasksScreen = () => {
           onPress={() => setActiveTab('deliveries')}
         >
           <Text style={[styles.tabText, activeTab === 'deliveries' && styles.activeTabText]}>
-            Deliveries {deliveryOrders.length > 0 ? `(${deliveryOrders.length})` : ''}
+            {tApp('Deliveries', language)} {deliveryOrders.length > 0 ? `(${deliveryOrders.length})` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -165,10 +167,10 @@ export const TasksScreen = () => {
             </View>
 
             <Text style={styles.emptyTitle}>
-              No pending {activeTab === 'pickups' ? 'pickup' : 'delivery'}{"\n"}assignments.
+              {activeTab === 'pickups' ? tApp('No pending pickup assignments.', language) : tApp('No pending delivery assignments.', language)}
             </Text>
             <Text style={styles.emptySubtitle}>
-              You will see new {activeTab === 'pickups' ? 'pickup' : 'delivery'} tasks here.
+              {activeTab === 'pickups' ? tApp('You will see new pickup tasks here.', language) : tApp('You will see new delivery tasks here.', language)}
             </Text>
           </View>
         }

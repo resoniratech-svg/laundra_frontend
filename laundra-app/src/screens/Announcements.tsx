@@ -7,9 +7,12 @@ import { EmptyState } from '../components/EmptyState';
 import { Announcement } from '../types/announcement';
 import { useNavigation } from '@react-navigation/native';
 import { AnnouncementService } from '../services/AnnouncementService';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 export const AnnouncementsScreen = () => {
   const navigation = useNavigation();
+  const language = useAuthStore((state) => state.language);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +31,7 @@ export const AnnouncementsScreen = () => {
 
   return (
     <ScreenContainer>
-      <Header title="Company Announcements" showBack onBack={() => navigation.goBack()} />
+      <Header title={tApp('Company Announcements', language)} showBack onBack={() => navigation.goBack()} />
       <View style={styles.container}>
         {loading ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -43,7 +46,7 @@ export const AnnouncementsScreen = () => {
             onRefresh={loadAnnouncements}
             refreshing={loading}
             ListEmptyComponent={
-              <EmptyState icon="📢" title="No Active Announcements" message="Check back later for company broadcasts and notices." />
+              <EmptyState icon="📢" title={tApp('No Active Announcements', language)} message={tApp('Check back later for company broadcasts and notices.', language)} />
             }
           />
         )}

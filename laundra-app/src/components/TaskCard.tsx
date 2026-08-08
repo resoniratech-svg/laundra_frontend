@@ -5,6 +5,8 @@ import { colors } from '../theme/colors';
 import { radius } from '../theme/radius';
 import { shadow } from '../theme/shadow';
 import { Badge } from './Badge';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 interface TaskCardProps {
   order: Order;
@@ -19,26 +21,32 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onPrimaryAction,
   onCall,
 }) => {
+  const language = useAuthStore((state) => state.language);
   const isPickup = type === 'pickup';
   const statusStr = (order.deliveryStatus || order.status || '').toLowerCase();
 
-  let primaryBtnText = '🚀 Mark On the Way';
+  let primaryBtnLabel = 'Mark On the Way';
+  let primaryBtnIcon = '🚀';
   let primaryBtnBg = colors.primary;
 
   if (isPickup) {
     if (statusStr === 'courier on the way' || statusStr === 'accepted' || statusStr === 'on_the_way') {
-      primaryBtnText = '📍 Mark Reached Location';
+      primaryBtnLabel = 'Mark Reached Location';
+      primaryBtnIcon = '📍';
       primaryBtnBg = '#7c3aed'; // Purple
     } else if (statusStr === 'reached customer' || statusStr === 'reached') {
-      primaryBtnText = '🧺 Complete Pickup Details';
+      primaryBtnLabel = 'Complete Pickup Details';
+      primaryBtnIcon = '🧺';
       primaryBtnBg = colors.success; // Green
     }
   } else {
     if (statusStr === 'out for delivery' || statusStr === 'out_for_delivery') {
-      primaryBtnText = '✅ Complete Delivery';
+      primaryBtnLabel = 'Complete Delivery';
+      primaryBtnIcon = '✅';
       primaryBtnBg = colors.success; // Green
     } else {
-      primaryBtnText = '🚚 Mark Out For Delivery';
+      primaryBtnLabel = 'Mark Out For Delivery';
+      primaryBtnIcon = '🚚';
       primaryBtnBg = colors.primary; // Blue
     }
   }
@@ -57,42 +65,45 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const itemList = (order.items && order.items.length > 0) ? order.items : ((order as any).services || []);
 
   const servicesText = itemList.length > 0
-    ? itemList.map((it: any) => `${it.name || it.service_name || it.serviceName || 'Laundry Service'} x${it.quantity || it.qty || 1}`).join(', ')
-    : 'Standard Laundry Load';
+    ? itemList.map((it: any) => `${tApp(it.name || it.service_name || it.serviceName || 'Laundry Service', language)} x${it.quantity || it.qty || 1}`).join(', ')
+    : tApp('Standard Laundry Load', language);
 
   const dateStr = order.pickupDate || (order.created_at ? order.created_at.split('T')[0] : new Date().toLocaleDateString());
 
-  const badgeLabel = ['out for delivery', 'out_for_delivery'].includes(statusStr)
+  const badgeLabelRaw = ['out for delivery', 'out_for_delivery'].includes(statusStr)
     ? 'Out for Delivery'
     : (isPickup
         ? (order.deliveryStatus || order.status || 'Pending Pickup')
         : (statusStr === 'assigned' ? 'Assigned' : (order.deliveryStatus || order.status || 'Assigned')));
 
+  const badgeLabelTrans = tApp(badgeLabelRaw, language);
+
   return (
     <View style={[styles.card, shadow.card]}>
       {/* Top Header */}
       <View style={styles.header}>
-        <Text style={styles.orderId}>Order #{order.id}</Text>
-        <Badge label={badgeLabel} />
+        <Text style={styles.orderId}>{tApp('Order #', language)}{order.id}</Text>
+        <Badge label={badgeLabelTrans} />
       </View>
 
       {/* Main Details Section */}
       <View style={styles.body}>
-        <Text style={styles.detailItem}>👤 <Text style={styles.boldLabel}>Client Name:</Text> {order.customerName}</Text>
-        <Text style={styles.detailItem}>📞 <Text style={styles.boldLabel}>Client Phone:</Text> {clientPhone}</Text>
-        <Text style={styles.detailItem}>📍 <Text style={styles.boldLabel}>Address:</Text> {clientAddress}</Text>
+        <Text style={styles.detailItem}>👤 <Text style={styles.boldLabel}>{tApp('Client Name:', language)}</Text> {order.customerName}</Text>
+        <Text style={styles.detailItem}>📞 <Text style={styles.boldLabel}>{tApp('Client Phone:', language)}</Text> {clientPhone}</Text>
+        <Text style={styles.detailItem}>📍 <Text style={styles.boldLabel}>{tApp('Address:', language)}</Text> {clientAddress}</Text>
 
         {isPickup ? (
-          <Text style={styles.detailItem}>🧺 <Text style={styles.boldLabel}>Services:</Text> {servicesText}</Text>
+          <Text style={styles.detailItem}>🧺 <Text style={styles.boldLabel}>{tApp('Services:', language)}</Text> {tApp(servicesText, language)}</Text>
         ) : (
           <View style={styles.servicesBox}>
-            <Text style={styles.servicesHeader}>🧺 Services & Delivery Quantities:</Text>
+            <Text style={styles.servicesHeader}>🧺 {tApp('Services & Delivery Quantities:', language)}</Text>
             {itemList.map((it: any, idx: number) => {
-              const sName = it.name || it.service_name || it.serviceName || `Service ${idx + 1}`;
+              const rawName = it.name || it.service_name || it.serviceName || `Service ${idx + 1}`;
+              const sName = tApp(rawName, language);
               const displayQty = it.readyQuantity !== undefined ? Number(it.readyQuantity) : (it.ready_quantity !== undefined ? Number(it.ready_quantity) : (it.quantity || it.orderedQuantity || 1));
               return (
                 <Text key={idx} style={styles.serviceLine}>
-                  • <Text style={{ fontWeight: '800' }}>{sName}</Text>: Given for Delivery: <Text style={styles.qtyGreen}>{displayQty} Pcs</Text>
+                  • <Text style={{ fontWeight: '800' }}>{sName}</Text>: {tApp('Given for Delivery:', language)} <Text style={styles.qtyGreen}>{displayQty} {tApp('Pcs', language)}</Text>
                 </Text>
               );
             })}
@@ -100,21 +111,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         )}
 
         <Text style={styles.detailItem}>
-          📅 <Text style={styles.boldLabel}>{isPickup ? 'Pickup' : 'Delivery'} Time:</Text> {dateStr} ({isPickup ? '10:00 AM - 1:00 PM' : '3:00 PM - 6:00 PM'})
+          📅 <Text style={styles.boldLabel}>{isPickup ? tApp('Pickup Time:', language) : tApp('Delivery Time:', language)}</Text> {dateStr} ({isPickup ? '10:00 AM - 1:00 PM' : '3:00 PM - 6:00 PM'})
         </Text>
 
         {!isPickup && (
-          <Text style={styles.detailItem}>💳 <Text style={styles.boldLabel}>Method:</Text> CASH (Paid)</Text>
+          <Text style={styles.detailItem}>💳 <Text style={styles.boldLabel}>{tApp('Method:', language)}</Text> {tApp('CASH (Paid)', language)}</Text>
         )}
 
         <Text style={styles.detailItem}>
-          📝 <Text style={styles.boldLabel}>Instructions:</Text> {isPickup ? 'Handle with care, separate whites.' : 'Deliver order directly to customer upon arrival.'}
+          📝 <Text style={styles.boldLabel}>{tApp('Instructions:', language)}</Text> {isPickup ? tApp('Handle with care, separate whites.', language) : tApp('Deliver order directly to customer upon arrival.', language)}
         </Text>
 
         {/* Commission Tag */}
         <View style={[styles.commissionTag, isPickup ? styles.pickupCommissionBg : styles.deliveryCommissionBg]}>
           <Text style={[styles.commissionText, isPickup ? styles.pickupCommissionText : styles.deliveryCommissionText]}>
-            💰 {isPickup ? 'Pickup' : 'Delivery'} Commission: QR {(Number(commissionAmt) || 0).toFixed(2)}
+            💰 {isPickup ? tApp('Pickup Commission:', language) : tApp('Delivery Commission:', language)} QR {(Number(commissionAmt) || 0).toFixed(2)}
           </Text>
         </View>
       </View>
@@ -123,16 +134,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {isPickup ? (
         <View style={{ marginBottom: 10 }}>
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => onCall?.(clientPhone)}>
-            <Text style={styles.secondaryBtnText}>📞 Contact Client</Text>
+            <Text style={styles.secondaryBtnText}>📞 {tApp('Contact Client', language)}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => onCall?.(clientPhone)}>
-            <Text style={styles.secondaryBtnText}>📞 Contact Client</Text>
+            <Text style={styles.secondaryBtnText}>📞 {tApp('Contact Client', language)}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryBtn} onPress={handleNavigate}>
-            <Text style={styles.secondaryBtnText}>🗺️ Navigate</Text>
+            <Text style={styles.secondaryBtnText}>🗺️ {tApp('Navigate', language)}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -142,7 +153,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         style={[styles.primaryBtn, { backgroundColor: primaryBtnBg }]}
         onPress={() => onPrimaryAction(order)}
       >
-        <Text style={styles.primaryBtnText}>{primaryBtnText}</Text>
+        <Text style={styles.primaryBtnText}>{primaryBtnIcon} {tApp(primaryBtnLabel, language)}</Text>
       </TouchableOpacity>
     </View>
   );

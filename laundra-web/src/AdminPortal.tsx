@@ -4358,7 +4358,9 @@ export const AdminPortal: React.FC = () => {
 
                   const unpaidPickupTasks: { id: string; orderId: string; customerName: string; amount: number; delivId?: string }[] = [];
                   const unpaidDeliveryTasks: { id: string; orderId: string; customerName: string; amount: number; delivId?: string }[] = [];
-                  const processedKeys = new Set<string>();
+                  const processedBackendDelivTaskIds = new Set<string>();
+                  const processedOrdersInBackendPickup = new Set<string>();
+                  const processedOrdersInBackendDelivery = new Set<string>();
 
                   // 1. Primary Source: backendDeliveries (distinct delivery task records deliv-1, deliv-2)
                   (backendDeliveries || []).forEach(d => {
@@ -4376,27 +4378,36 @@ export const AdminPortal: React.FC = () => {
                     const targetOrder = db.orders.find(ord => ord.id === d.order_id || ord.backendId === d.order_id);
                     const orderDisplayId = targetOrder ? targetOrder.id : (d.order_number || String(d.order_id || d.id).slice(0, 8));
                     const custName = targetOrder ? targetOrder.customerName : (d.customer_name || 'Customer');
+                    const rawOrderId = String(d.order_id || orderDisplayId);
+                    const taskIdStr = String(d.id);
 
-                    const dKey = `backend-deliv-${d.id}`;
-                    if (d.type === 'PICKUP' && d.pickup_commission && Number(d.pickup_commission) > 0 && !d.pickup_commission_paid && !processedKeys.has(dKey)) {
-                      processedKeys.add(dKey);
-                      unpaidPickupTasks.push({
-                        id: dKey,
-                        orderId: orderDisplayId,
-                        customerName: custName,
-                        amount: Number(d.pickup_commission),
-                        delivId: d.id
-                      });
+                    if (d.type === 'PICKUP' && d.pickup_commission && Number(d.pickup_commission) > 0 && !d.pickup_commission_paid) {
+                      if (!processedBackendDelivTaskIds.has(taskIdStr)) {
+                        processedBackendDelivTaskIds.add(taskIdStr);
+                        processedOrdersInBackendPickup.add(rawOrderId);
+                        processedOrdersInBackendPickup.add(orderDisplayId);
+                        unpaidPickupTasks.push({
+                          id: `backend-pickup-${d.id}`,
+                          orderId: orderDisplayId,
+                          customerName: custName,
+                          amount: Number(d.pickup_commission),
+                          delivId: d.id
+                        });
+                      }
                     }
-                    if (d.type === 'DELIVERY' && d.delivery_commission && Number(d.delivery_commission) > 0 && !d.delivery_commission_paid && !processedKeys.has(dKey)) {
-                      processedKeys.add(dKey);
-                      unpaidDeliveryTasks.push({
-                        id: dKey,
-                        orderId: orderDisplayId,
-                        customerName: custName,
-                        amount: Number(d.delivery_commission),
-                        delivId: d.id
-                      });
+                    if (d.type === 'DELIVERY' && d.delivery_commission && Number(d.delivery_commission) > 0 && !d.delivery_commission_paid) {
+                      if (!processedBackendDelivTaskIds.has(taskIdStr)) {
+                        processedBackendDelivTaskIds.add(taskIdStr);
+                        processedOrdersInBackendDelivery.add(rawOrderId);
+                        processedOrdersInBackendDelivery.add(orderDisplayId);
+                        unpaidDeliveryTasks.push({
+                          id: `backend-deliv-${d.id}`,
+                          orderId: orderDisplayId,
+                          customerName: custName,
+                          amount: Number(d.delivery_commission),
+                          delivId: d.id
+                        });
+                      }
                     }
                   });
 
@@ -4412,28 +4423,33 @@ export const AdminPortal: React.FC = () => {
                     const isPickupDone = pickupDoneStatuses.includes(st) || pickupDoneStatuses.includes(delSt) || !!o.pickupCommissionPaid;
                     const isDeliveryDone = deliveryDoneStatuses.includes(st) || deliveryDoneStatuses.includes(delSt) || !!o.deliveryCommissionPaid;
 
-                    const alreadyProcessedInBackend = Array.from(processedKeys).some(k => k.includes(o.id) || (o.backendId && k.includes(o.backendId)));
+                    const ordIdStr = String(o.id);
+                    const backIdStr = o.backendId ? String(o.backendId) : '';
 
-                    const pickKey = `local-pickup-${o.id}`;
-                    if (!alreadyProcessedInBackend && isPickupStaff && isPickupDone && !o.pickupCommissionPaid && Number(o.pickupCommission) > 0 && !processedKeys.has(pickKey)) {
-                      processedKeys.add(pickKey);
-                      unpaidPickupTasks.push({
-                        id: pickKey,
-                        orderId: o.id,
-                        customerName: o.customerName || 'Customer',
-                        amount: Number(o.pickupCommission)
-                      });
+                    if (isPickupStaff && isPickupDone && !o.pickupCommissionPaid && Number(o.pickupCommission) > 0) {
+                      if (!processedOrdersInBackendPickup.has(ordIdStr) && (!backIdStr || !processedOrdersInBackendPickup.has(backIdStr))) {
+                        processedOrdersInBackendPickup.add(ordIdStr);
+                        if (backIdStr) processedOrdersInBackendPickup.add(backIdStr);
+                        unpaidPickupTasks.push({
+                          id: `local-pickup-${o.id}`,
+                          orderId: o.id,
+                          customerName: o.customerName || 'Customer',
+                          amount: Number(o.pickupCommission)
+                        });
+                      }
                     }
 
-                    const delivKey = `local-delivery-${o.id}`;
-                    if (!alreadyProcessedInBackend && isDeliveryStaff && isDeliveryDone && !o.deliveryCommissionPaid && Number(o.deliveryCommission) > 0 && !processedKeys.has(delivKey)) {
-                      processedKeys.add(delivKey);
-                      unpaidDeliveryTasks.push({
-                        id: delivKey,
-                        orderId: o.id,
-                        customerName: o.customerName || 'Customer',
-                        amount: Number(o.deliveryCommission)
-                      });
+                    if (isDeliveryStaff && isDeliveryDone && !o.deliveryCommissionPaid && Number(o.deliveryCommission) > 0) {
+                      if (!processedOrdersInBackendDelivery.has(ordIdStr) && (!backIdStr || !processedOrdersInBackendDelivery.has(backIdStr))) {
+                        processedOrdersInBackendDelivery.add(ordIdStr);
+                        if (backIdStr) processedOrdersInBackendDelivery.add(backIdStr);
+                        unpaidDeliveryTasks.push({
+                          id: `local-delivery-${o.id}`,
+                          orderId: o.id,
+                          customerName: o.customerName || 'Customer',
+                          amount: Number(o.deliveryCommission)
+                        });
+                      }
                     }
                   });
 

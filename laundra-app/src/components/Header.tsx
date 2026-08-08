@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '../theme/colors';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 interface HeaderProps {
   title: string;
@@ -11,6 +13,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle, showBack, onBack, rightAction }) => {
+  const language = useAuthStore((state) => state.language);
+
   return (
     <View style={styles.header}>
       <View style={styles.leftContainer}>
@@ -20,8 +24,8 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, showBack, onBac
           </TouchableOpacity>
         )}
         <View>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          <Text style={styles.title}>{tApp(title, language)}</Text>
+          {subtitle && <Text style={styles.subtitle}>{tApp(subtitle, language)}</Text>}
         </View>
       </View>
       {rightAction && <View style={styles.rightContainer}>{rightAction}</View>}

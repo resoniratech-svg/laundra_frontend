@@ -7,9 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import { LeaveService } from '../services/LeaveService';
 import { LeaveRequest } from '../types/leave';
 import { radius } from '../theme/radius';
+import { useAuthStore } from '../store/authStore';
+import { tApp } from '../utils/i18n';
 
 export const DutyLeavesScreen = () => {
   const navigation = useNavigation();
+  const language = useAuthStore((state) => state.language);
   const { attendanceLogs = [] } = useAttendance();
 
   const [startDateObj, setStartDateObj] = useState<Date | null>(null);
@@ -152,7 +155,7 @@ export const DutyLeavesScreen = () => {
         <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Duty & Leave Log</Text>
+        <Text style={styles.headerTitle}>{tApp('Duty & Leave Log', language)}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -160,11 +163,11 @@ export const DutyLeavesScreen = () => {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 18, marginRight: 8 }}>📑</Text>
-            <Text style={styles.cardHeaderTitle}>Apply for Leave</Text>
+            <Text style={styles.cardHeaderTitle}>{tApp('Apply for Leave', language)}</Text>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Start Date</Text>
+            <Text style={styles.fieldLabel}>{tApp('Start Date', language)}</Text>
             <TouchableOpacity onPress={openStartDatePicker} activeOpacity={0.7} style={styles.inputRow}>
               <Text style={[styles.textInputFlex, !startDate && { color: '#94a3b8' }]}>
                 {startDate || 'dd-mm-yyyy'}
@@ -174,7 +177,7 @@ export const DutyLeavesScreen = () => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>End Date</Text>
+            <Text style={styles.fieldLabel}>{tApp('End Date', language)}</Text>
             <TouchableOpacity onPress={openEndDatePicker} activeOpacity={0.7} style={styles.inputRow}>
               <Text style={[styles.textInputFlex, !endDate && { color: '#94a3b8' }]}>
                 {endDate || 'dd-mm-yyyy'}
@@ -184,11 +187,11 @@ export const DutyLeavesScreen = () => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.fieldLabel}>Reason</Text>
+            <Text style={styles.fieldLabel}>{tApp('Reason', language)}</Text>
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.textInputFlex}
-                placeholder="Reason for leave"
+                placeholder={tApp('Reason for leave', language)}
                 placeholderTextColor="#94a3b8"
                 value={reason}
                 onChangeText={setReason}
@@ -200,7 +203,7 @@ export const DutyLeavesScreen = () => {
             {submitting ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.submitBtnText}>Submit Request</Text>
+              <Text style={styles.submitBtnText}>{tApp('Submit Request', language)}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -209,7 +212,7 @@ export const DutyLeavesScreen = () => {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 18, marginRight: 8 }}>📑</Text>
-            <Text style={styles.cardHeaderTitle}>Leave History Status</Text>
+            <Text style={styles.cardHeaderTitle}>{tApp('Leave History Status', language)}</Text>
           </View>
 
           {backendLeaves.length === 0 ? (
@@ -232,7 +235,7 @@ export const DutyLeavesScreen = () => {
                   </View>
                   <View style={[styles.badge, { backgroundColor: badgeBg }]}>
                     <Text style={[styles.badgeText, { color: badgeTextColor }]}>
-                      {req.status}
+                      {tApp(req.status, language)}
                     </Text>
                   </View>
                 </View>
@@ -426,4 +429,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-
