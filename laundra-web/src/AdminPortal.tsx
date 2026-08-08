@@ -2025,18 +2025,58 @@ export const AdminPortal: React.FC = () => {
       }
       
       const updatedUsers = db.users.filter(u => u.id !== user.id && u.email !== user.email);
-      const updatedLeaves = (db.leaveRequests || []).filter(l => l.deliveryBoyEmail !== user.email && l.deliveryBoyName !== user.name);
-      const updatedOrders = db.orders.map(o => (o.assignedDriverId === user.id || o.driverName === user.name) ? { ...o, assignedDriverId: undefined, driverName: undefined } : o);
+      
+      // Delete all leave requests for this staff member
+      const updatedLeaves = (db.leaveRequests || []).filter(l => 
+        l.deliveryBoyEmail !== user.email && 
+        l.deliveryBoyName !== user.name && 
+        (l as any).staffId !== user.id && 
+        (l as any).user_id !== user.id
+      );
+
+      // Delete all support tickets for this staff member
+      const updatedTickets = ((db as any).supportTickets || []).filter((t: any) => 
+        t.user_id !== user.id && 
+        t.userEmail !== user.email && 
+        t.userName !== user.name
+      );
+
+      // Purge staff earnings / courier assignments from orders
+      const updatedOrders = db.orders.map(o => {
+        const isMatch = o.assignedDriverId === user.id || o.driverName === user.name;
+        const isPickupCourier = o.pickupCourier === user.name;
+        const isDeliveryCourier = o.deliveryCourier === user.name;
+
+        if (!isMatch && !isPickupCourier && !isDeliveryCourier) return o;
+
+        const updatedOrder = { ...o };
+        if (isMatch) {
+          updatedOrder.assignedDriverId = undefined;
+          updatedOrder.driverName = undefined;
+        }
+        if (isPickupCourier) {
+          updatedOrder.pickupCourier = undefined;
+          updatedOrder.pickupCommission = 0;
+          updatedOrder.pickupCommissionPaid = false;
+        }
+        if (isDeliveryCourier) {
+          updatedOrder.deliveryCourier = undefined;
+          updatedOrder.deliveryCommission = 0;
+          updatedOrder.deliveryCommissionPaid = false;
+        }
+        return updatedOrder;
+      });
 
       saveDB({ 
         users: updatedUsers, 
         leaveRequests: updatedLeaves,
+        supportTickets: updatedTickets,
         orders: updatedOrders
-      });
+      } as any);
 
       addActivity('Settings', `Deleted staff member: ${user.name}`);
       fetchBackendData();
-      alert(`Staff member "${user.name}" and all associated data have been permanently deleted.`);
+      alert(`Staff member "${user.name}" and all associated tasks, earnings, leave requests, and support tickets have been permanently deleted.`);
     }
   };
 
