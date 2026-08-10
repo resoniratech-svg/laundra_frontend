@@ -2024,28 +2024,32 @@ export const AdminPortal: React.FC = () => {
         console.error('Network error deleting staff:', err);
       }
       
-      const updatedUsers = db.users.filter(u => u.id !== user.id && u.email !== user.email);
+      const cleanEmail = (user.email || '').trim().toLowerCase();
+      const cleanName = (user.name || '').trim().toLowerCase();
+      const userIdStr = String(user.id);
+
+      const updatedUsers = db.users.filter(u => String(u.id) !== userIdStr && (u.email || '').trim().toLowerCase() !== cleanEmail);
       
       // Delete all leave requests for this staff member
       const updatedLeaves = (db.leaveRequests || []).filter(l => 
-        l.deliveryBoyEmail !== user.email && 
-        l.deliveryBoyName !== user.name && 
-        (l as any).staffId !== user.id && 
-        (l as any).user_id !== user.id
+        String((l as any).user_id) !== userIdStr &&
+        String((l as any).staffId) !== userIdStr &&
+        (l.deliveryBoyEmail || '').trim().toLowerCase() !== cleanEmail && 
+        (l.deliveryBoyName || '').trim().toLowerCase() !== cleanName
       );
 
       // Delete all support tickets for this staff member
       const updatedTickets = ((db as any).supportTickets || []).filter((t: any) => 
-        t.user_id !== user.id && 
-        t.userEmail !== user.email && 
-        t.userName !== user.name
+        String(t.user_id) !== userIdStr && 
+        (t.userEmail || '').trim().toLowerCase() !== cleanEmail && 
+        (t.userName || '').trim().toLowerCase() !== cleanName
       );
 
       // Purge staff earnings / courier assignments from orders
       const updatedOrders = db.orders.map(o => {
-        const isMatch = o.assignedDriverId === user.id || o.driverName === user.name;
-        const isPickupCourier = o.pickupCourier === user.name;
-        const isDeliveryCourier = o.deliveryCourier === user.name;
+        const isMatch = String(o.assignedDriverId) === userIdStr || (o.driverName || '').trim().toLowerCase() === cleanName;
+        const isPickupCourier = (o.pickupCourier || '').trim().toLowerCase() === cleanName;
+        const isDeliveryCourier = (o.deliveryCourier || '').trim().toLowerCase() === cleanName;
 
         if (!isMatch && !isPickupCourier && !isDeliveryCourier) return o;
 
@@ -2066,6 +2070,14 @@ export const AdminPortal: React.FC = () => {
         }
         return updatedOrder;
       });
+
+      // Clear any cached localStorage keys linked to this email/id
+      try {
+        localStorage.removeItem(`ll_leave_requests_${cleanEmail}`);
+        localStorage.removeItem(`ll_support_tickets_${cleanEmail}`);
+        localStorage.removeItem(`ll_user_tasks_${cleanEmail}`);
+        localStorage.removeItem(`ll_${cleanEmail}_activities`);
+      } catch (e) {}
 
       saveDB({ 
         users: updatedUsers, 
