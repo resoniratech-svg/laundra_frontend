@@ -232,6 +232,7 @@ export const AdminPortal: React.FC = () => {
   const [deliveryModalOrder, setDeliveryModalOrder] = useState<Order | null>(null);
   const [deliveryInputs, setDeliveryInputs] = useState<{ [itemId: string]: number }>({});
   const [deliveryStaffName, setDeliveryStaffName] = useState<string>('');
+  const [viewingDeliveryStaff, setViewingDeliveryStaff] = useState<any | null>(null);
   const [sellingPackageTo, setSellingPackageTo] = useState<Customer | null>(null);
   const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
@@ -1954,7 +1955,10 @@ export const AdminPortal: React.FC = () => {
             email: staffEmail,
             password: staffPass || 'password',
             phone: staffPhone || 'N/A',
-            address: staffAddress || 'N/A',
+            vehicleType: staffVehicleType || '',
+            vehicleNumber: staffVehicleNumber || '',
+            licenseNumber: staffLicenseNumber || '',
+            vehicleRc: staffVehicleRc || '',
             status: 'Active',
             createdAt: new Date().toISOString()
           };
@@ -4231,6 +4235,7 @@ export const AdminPortal: React.FC = () => {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <button onClick={() => setViewingDeliveryStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>👁️ {t('View')}</button>
                         <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Toggle Suspend')}</button>
                         <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Reset Pass')}</button>
                         <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('action.delete')}</button>
@@ -9225,6 +9230,93 @@ export const AdminPortal: React.FC = () => {
                 style={{ width: '160px', height: '160px', marginBottom: '8px' }} 
               />
               <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>Powered by Enable.tech</div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 🚚 VIEW DELIVERY STAFF DETAILS MODAL */}
+      {viewingDeliveryStaff && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', maxWidth: '520px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', padding: '20px 24px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+                  🚚
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'white' }}>{tName(viewingDeliveryStaff.name)}</h3>
+                  <span style={{ fontSize: '0.78rem', opacity: 0.9, fontWeight: '600' }}>Delivery Agent Profile & Documentation</span>
+                </div>
+              </div>
+              <button onClick={() => setViewingDeliveryStaff(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '75vh', overflowY: 'auto' }}>
+              
+              {/* Contact Info Group */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Full Name</div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: '800', color: '#0f172a', marginTop: '2px' }}>{tName(viewingDeliveryStaff.name) || 'N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Status</div>
+                  <div style={{ marginTop: '2px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: viewingDeliveryStaff.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: viewingDeliveryStaff.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
+                      {viewingDeliveryStaff.status || 'Active'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Email Address</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#2563eb', marginTop: '2px', wordBreak: 'break-all' }}>{viewingDeliveryStaff.email || 'N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Phone Number</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>{viewingDeliveryStaff.phone || 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Vehicle & License Information */}
+              <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🚗 Vehicle & License Info</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: '700', textTransform: 'uppercase' }}>Vehicle Type</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0f172a', marginTop: '2px' }}>{viewingDeliveryStaff.vehicleType || viewingDeliveryStaff.vehicle_type || 'Bike'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: '700', textTransform: 'uppercase' }}>Vehicle Number</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0f172a', marginTop: '2px', fontFamily: 'monospace' }}>{viewingDeliveryStaff.vehicleNumber || viewingDeliveryStaff.vehicle_number || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: '700', textTransform: 'uppercase' }}>License Number</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0f172a', marginTop: '2px', fontFamily: 'monospace' }}>{viewingDeliveryStaff.licenseNumber || viewingDeliveryStaff.license_number || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: '700', textTransform: 'uppercase' }}>Vehicle RC</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0f172a', marginTop: '2px', fontFamily: 'monospace' }}>{viewingDeliveryStaff.vehicleRc || viewingDeliveryStaff.vehicle_rc || 'N/A'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Residential Address */}
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Residential Address</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: '600', color: '#334155', marginTop: '4px', lineHeight: '1.4' }}>{viewingDeliveryStaff.address || 'N/A'}</div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setViewingDeliveryStaff(null)} style={{ padding: '10px 20px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Close</button>
             </div>
 
           </div>

@@ -137,7 +137,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       return ['orders', 'announcements'].includes(moduleId);
     }
     if (db.activeRole === 'Cashier' || db.activeRole === 'cashier') {
-      return ['dashboard', 'pos', 'customers', 'orders', 'wallet-loyalty', 'announcements'].includes(moduleId);
+      return ['dashboard', 'pos', 'customers', 'orders', 'order-history', 'delivery-staff', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'announcements', 'reviews'].includes(moduleId);
     }
 
     return true;
