@@ -413,12 +413,7 @@ const DEFAULT_SERVICES: Service[] = [
   { id: 'srv-12', name: 'Restaurant Tablecloth Care', category: 'Commercial Laundry', price: 3.80, expressSurcharge: 20, active: true, image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80' }
 ];
 
-const DEFAULT_CUSTOMERS: Customer[] = [
-  { id: 'cust-1', name: 'Selena Gomez', phone: '555-0144', email: 'selena@gomez.com', address: '102 Ocean View Apt, Malibu', walletBalance: 150.00, loyaltyPoints: 1240, creditBalance: 0.00, notes: 'Prefers organic detergent, hang dry silk', subRemaining: 24, subDuration: "1 Month Left", password: 'password', qrStatus: 'Not Shared Yet' },
-  { id: 'cust-2', name: 'David Beckham', phone: '555-0120', email: 'david@beckham.com', address: '77 Old Trafford Ln, London', walletBalance: 45.50, loyaltyPoints: 450, creditBalance: 12.00, notes: 'Heavy starch on shirts, separate collars', password: 'password', qrStatus: 'Active QR' },
-  { id: 'cust-3', name: 'Emma Watson', phone: '555-0199', email: 'emma@watson.com', address: '42 Oxford Library Way', walletBalance: 320.00, loyaltyPoints: 2400, creditBalance: 0.00, notes: 'Steam press only, delicate lace care', password: 'password', qrStatus: 'Regenerated' },
-  { id: 'cust-4', name: 'Robert Downey Jr.', phone: '555-3000', email: 'tony@stark.com', address: '10880 Malibu Point, CA', walletBalance: 0.00, loyaltyPoints: 95, creditBalance: 145.00, notes: 'Express services preferred. Deliver to assistant.', password: 'password', qrStatus: 'Shared via WhatsApp' }
-];
+const DEFAULT_CUSTOMERS: Customer[] = [];
 
 const DEFAULT_ORDERS: Order[] = [];
 
@@ -447,17 +442,11 @@ const DEFAULT_COUPONS: Coupon[] = [
 
 const DEFAULT_CUSTOMER_PACKAGES: CustomerPackage[] = [];
 
-const DEFAULT_NOTIFICATIONS: Notification[] = [
-  { id: 1, text: "New home pickup requested by Selena Gomez.", time: "10 mins ago", unread: true },
-  { id: 2, text: "Cash Drawer transaction: Float Opened $350.00", time: "1 hour ago", unread: true },
-  { id: 3, text: "Order #OR-8839 status changed to Ready.", time: "2 hours ago", unread: false }
-];
+const DEFAULT_NOTIFICATIONS: Notification[] = [];
 
 const DEFAULT_USERS: User[] = [
   { id: 'u-1', name: 'System Admin', role: 'admin', email: 'admin@laundra.com', password: 'admin', phone: '555-0190', address: 'Downtown HQ', status: 'Active', createdAt: new Date().toISOString() },
-  { id: 'u-2', name: 'John Doe', role: 'delivery', email: 'johndoe@laundra.com', password: 'delivery', phone: '555-0144', address: 'Uptown Premium', status: 'Active', createdAt: new Date().toISOString() },
-  { id: 'u-3', name: 'Selena Gomez', role: 'customer', email: 'selena@gomez.com', password: 'password', phone: '555-0144', address: '102 Ocean View Apt, Malibu', status: 'Active', createdAt: new Date().toISOString() },
-  { id: 'u-4', name: 'David Beckham', role: 'customer', email: 'david@beckham.com', password: 'password', phone: '555-0120', address: '77 Old Trafford Ln, London', status: 'Active', createdAt: new Date().toISOString() }
+  { id: 'u-2', name: 'John Doe', role: 'delivery', email: 'johndoe@laundra.com', password: 'delivery', phone: '555-0144', address: 'Uptown Premium', status: 'Active', createdAt: new Date().toISOString() }
 ];
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
@@ -822,10 +811,13 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }
         
-        // Auto-clear dummy customers if seeded on a non-default company
-        if (key === 'customers' && compId !== 'comp-default' && Array.isArray(parsed) && parsed.some((c: any) => c.id === 'cust-1')) {
-          parsed = [];
-          localStorage.setItem(`ll_${compId}_${key}`, JSON.stringify(parsed));
+        // Auto-clear dummy seed customers if present in state
+        if (key === 'customers' && Array.isArray(parsed)) {
+          const filtered = parsed.filter((c: any) => !['cust-1', 'cust-2', 'cust-3', 'cust-4'].includes(c.id));
+          if (filtered.length !== parsed.length) {
+            parsed = filtered;
+            localStorage.setItem(`ll_${compId}_${key}`, JSON.stringify(parsed));
+          }
         }
         
         setter(parsed);

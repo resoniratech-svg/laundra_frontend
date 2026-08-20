@@ -437,9 +437,6 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
               {/* Target for AdminPortal to inject POS tabs */}
               <div id="pos-header-portal-target" style={{ display: 'flex', alignItems: 'center', marginLeft: '12px' }}></div>
             </div>
-            <div className="breadcrumb" style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
-              {t('nav.operationalDesk')} / {t(currentTitle)}
-            </div>
           </div>
           {children}
         </main>

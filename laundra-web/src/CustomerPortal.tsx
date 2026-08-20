@@ -667,7 +667,9 @@ export const CustomerPortal: React.FC = () => {
         totalAmount: parseFloat(backendOrder.total_amount || grandTotal),
         total: parseFloat(backendOrder.total_amount || grandTotal),
         frequency: freq,
-        deliveryOtp: secureDeliveryOtp
+        deliveryOtp: secureDeliveryOtp,
+        isOnlinePortalOrder: true,
+        orderSource: 'ONLINE_PORTAL'
       };
 
       const newNotification = {
@@ -915,32 +917,32 @@ export const CustomerPortal: React.FC = () => {
   });
 
   return (
-    <div className="portal-wrapper active" id="customerPortal" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+    <div className="portal-wrapper active" id="customerPortal" style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', overflowX: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', boxSizing: 'border-box' }}>
       
       {isMobile ? (
-        <header style={{ position: 'sticky', top: 0, zIndex: 1000, background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+        <header style={{ position: 'sticky', top: 0, zIndex: 1000, background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #f1f5f9' }}>
             <div>
-              <span style={{ fontSize: '1.05rem', fontWeight: '900', color: '#1e3a8a', display: 'block' }}>
+              <span style={{ fontSize: '1rem', fontWeight: '900', color: '#1e3a8a', display: 'block', lineHeight: 1.2 }}>
                 {companyName || db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundry'}
               </span>
-              <span style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: '800' }}>👤 {tName(customer.name)}</span>
+              <span style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: '800' }}>👤 {tName(customer.name)}</span>
             </div>
             <LanguageSwitcher />
           </div>
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '10px 16px', WebkitOverflowScrolling: 'touch' }}>
-            <button onClick={() => setActiveTab('dashboard')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'dashboard' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'dashboard' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 {t('My Bookings')}</button>
-            <button onClick={() => setActiveTab('services')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'services' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'services' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🏷️ {t('Service Rates')}</button>
-            <button onClick={() => setActiveTab('offers')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'offers' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'offers' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎁 {t('Special Offers')}</button>
-            <button onClick={() => setActiveTab('packages')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'packages' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'packages' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>📦 {t('Packages')}</button>
-            <button onClick={() => setActiveTab('invoices')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'invoices' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'invoices' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🧾 {t('Invoices')}</button>
-            <button onClick={() => setActiveTab('wallet')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'wallet' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'wallet' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>💳 {t('Wallet & Loyalty')}</button>
-            <button onClick={() => setActiveTab('support')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'support' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'support' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🎫 {t('Support Desk')}</button>
+          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', padding: '8px 12px', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+            <button onClick={() => setActiveTab('dashboard')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'dashboard' ? '#2563eb' : '#f1f5f9', color: activeTab === 'dashboard' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>📦 {t('My Bookings')}</button>
+            <button onClick={() => setActiveTab('services')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'services' ? '#2563eb' : '#f1f5f9', color: activeTab === 'services' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>🏷️ {t('Service Rates')}</button>
+            <button onClick={() => setActiveTab('offers')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'offers' ? '#2563eb' : '#f1f5f9', color: activeTab === 'offers' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>🎁 {t('Special Offers')}</button>
+            <button onClick={() => setActiveTab('packages')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'packages' ? '#2563eb' : '#f1f5f9', color: activeTab === 'packages' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>📦 {t('Packages')}</button>
+            <button onClick={() => setActiveTab('invoices')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'invoices' ? '#2563eb' : '#f1f5f9', color: activeTab === 'invoices' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>🧾 {t('Invoices')}</button>
+            <button onClick={() => setActiveTab('wallet')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'wallet' ? '#2563eb' : '#f1f5f9', color: activeTab === 'wallet' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>💳 {t('Wallet & Loyalty')}</button>
+            <button onClick={() => setActiveTab('support')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'support' ? '#2563eb' : '#f1f5f9', color: activeTab === 'support' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>🎫 {t('Support Desk')}</button>
             {(() => {
               const lastSeen = parseInt(localStorage.getItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`) || '0');
               const unreadAnnouncementsCount = activeTab === 'announcements' ? 0 : Math.max(0, systemAnnouncements.length - lastSeen);
               return (
-                <button onClick={() => { setActiveTab('announcements'); localStorage.setItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`, systemAnnouncements.length.toString()); }} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'announcements' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'announcements' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button onClick={() => { setActiveTab('announcements'); localStorage.setItem(`ll_${db.activeCompanyId}_customer_last_seen_announcements_count`, systemAnnouncements.length.toString()); }} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'announcements' ? '#2563eb' : '#f1f5f9', color: activeTab === 'announcements' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                   📢 {t('Announcements')}
                   {unreadAnnouncementsCount > 0 && (
                     <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', padding: '1px 6px', fontSize: '0.65rem', fontWeight: '800' }}>{unreadAnnouncementsCount}</span>
@@ -948,8 +950,8 @@ export const CustomerPortal: React.FC = () => {
                 </button>
               );
             })()}
-            <button onClick={() => setActiveTab('reviews')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'reviews' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'reviews' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>⭐ {t('Rate Services')}</button>
-            <button onClick={handleLogout} style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🚪 {t('Log Out')}</button>
+            <button onClick={() => setActiveTab('reviews')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'reviews' ? '#2563eb' : '#f1f5f9', color: activeTab === 'reviews' ? 'white' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>⭐ {t('Rate Services')}</button>
+            <button onClick={handleLogout} style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>🚪 {t('Log Out')}</button>
           </div>
         </header>
       ) : (
@@ -1023,21 +1025,21 @@ export const CustomerPortal: React.FC = () => {
       )}
 
       {/* Main Content Pane */}
-      <main style={{ flex: 1, padding: isMobile ? '16px' : '32px', overflowY: 'auto' }}>
+      <main style={{ flex: 1, padding: isMobile ? '12px 14px' : '32px', overflowY: 'auto', width: '100%', boxSizing: 'border-box' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', gap: '12px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800', color: '#0f172a' }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? '1.15rem' : '1.5rem', fontWeight: '800', color: '#0f172a' }}>
               {activeTab === 'dashboard' ? t('My Bookings & Timeline') : activeTab === 'services' ? t('Laundry Rates') : activeTab === 'offers' ? t('Special Offers & Packages') : activeTab === 'invoices' ? t('My Invoices') : activeTab === 'wallet' ? t('Wallet & Loyalty Points') : activeTab === 'support' ? t('Support Tickets') : activeTab === 'reviews' ? t('Review & Feedback') : activeTab === 'announcements' ? t('System Announcements') : activeTab === 'packages' ? t('My Packages & QR') : t('My Account Settings')}
             </h1>
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginTop: '2px' }}>Customer Portal / {activeTab}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
             {activeTab === 'dashboard' && (
-              <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ flex: isMobile ? 1 : 'none', padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🛒 {t('Book new order')}</button>
+              <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ flex: isMobile ? 1 : 'none', padding: '9px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.82rem' }}>🛒 {t('Book new order')}</button>
             )}
-            <button onClick={handleLogout} style={{ flex: isMobile ? 1 : 'none', padding: '10px 16px', background: '#fef2f2', color: '#dc2626', border: '1.5px solid #fca5a5', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.85rem' }}>🚪 {t('Log Out')}</button>
+            <button onClick={handleLogout} style={{ flex: isMobile ? 1 : 'none', padding: '9px 14px', background: '#fef2f2', color: '#dc2626', border: '1.5px solid #fca5a5', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.82rem' }}>🚪 {t('Log Out')}</button>
           </div>
         </div>
 
@@ -1142,9 +1144,9 @@ export const CustomerPortal: React.FC = () => {
 
         {/* 🏷️ SERVICES TAB */}
         {activeTab === 'services' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: isMobile ? '14px' : '20px', border: '1px solid #cbd5e1' }}>
             <h4 style={{ margin: '0 0 16px 0' }}>🧺 {t('Service Catalog')}</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(130px, 1fr))' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: isMobile ? '10px' : '20px' }}>
               {Array.from(new Set(catalogServices.filter(s => s.name).map(s => s.name)))
                 .map((itemName: any) => {
                   const serviceForPrice = catalogServices.find(s => s.name === itemName);
@@ -1161,14 +1163,14 @@ export const CustomerPortal: React.FC = () => {
                         }
                         setShowWizard(true);
                       }}
-                      style={{ border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                      style={{ border: '1px solid #cbd5e1', borderRadius: '12px', padding: isMobile ? '12px 8px' : '16px', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                     >
-                      <div style={{ fontSize: '3rem' }}>{getEmojiForService(itemName)}</div>
-                      <h4 style={{ margin: '8px 0 0 0', fontSize: '0.9rem', fontWeight: '700', textAlign: 'center', color: '#0f172a' }}>{tName(itemName)}</h4>
-                      <div style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: '700', marginTop: '4px' }}>
+                      <div style={{ fontSize: isMobile ? '2.2rem' : '3rem' }}>{getEmojiForService(itemName)}</div>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: isMobile ? '0.8rem' : '0.9rem', fontWeight: '700', textAlign: 'center', color: '#0f172a' }}>{tName(itemName)}</h4>
+                      <div style={{ fontSize: '0.82rem', color: '#16a34a', fontWeight: '700', marginTop: '2px' }}>
                         QR {serviceForPrice ? parseFloat(serviceForPrice.price || '0').toFixed(2) : '0.00'}
                       </div>
-                      <button style={{ marginTop: '10px', padding: '8px 16px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', width: '100%' }}>{t('Book Now')}</button>
+                      <button style={{ marginTop: '6px', padding: isMobile ? '6px 10px' : '8px 16px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', width: '100%', fontSize: '0.78rem' }}>{t('Book Now')}</button>
                     </div>
                   );
                 })}
@@ -1242,14 +1244,14 @@ export const CustomerPortal: React.FC = () => {
                 <div style={{ color: '#64748b', fontSize: '0.85rem' }}>{t('No orders placed.')}</div>
               ) : (
                 customerOrders.map(o => (
-                  <div key={o.id} style={{ padding: '12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={o.id} style={{ padding: '12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '10px' }}>
                     <div>
                       <strong>Order #{o.id}</strong>
                       <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{t('Date:')} {o.date} • {t('Total:')} QR {parseFloat(String(o.totalAmount || 0)).toFixed(2)}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setViewingInvoice(o)} style={{ padding: '8px 16px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '700' }}>👁️ {t('View')}</button>
-                      <button onClick={() => handleDownloadInvoice(o)} style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '700' }}>📥 {t('Print/PDF')}</button>
+                    <div style={{ display: 'flex', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
+                      <button onClick={() => setViewingInvoice(o)} style={{ flex: isMobile ? 1 : 'none', padding: '8px 16px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '700' }}>👁️ {t('View')}</button>
+                      <button onClick={() => handleDownloadInvoice(o)} style={{ flex: isMobile ? 1 : 'none', padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '700' }}>📥 {t('Print/PDF')}</button>
                     </div>
                   </div>
                 ))
@@ -1412,24 +1414,24 @@ export const CustomerPortal: React.FC = () => {
 
       {/* --- ORDER WIZARD MODAL --- */}
       {showWizard && (
-        <div className="order-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="order-modal" style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+        <div className="order-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: isMobile ? '10px' : '20px' }}>
+          <div className="order-modal" style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', width: '100%', maxWidth: '520px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
             
-            <div className="order-modal-header" style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="order-steps-indicator" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="order-modal-header" style={{ borderBottom: '1px solid #e2e8f0', padding: isMobile ? '14px 16px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="order-steps-indicator" style={{ display: 'flex', gap: isMobile ? '4px' : '8px', alignItems: 'center' }}>
                 {[1, 2, 3, 4, 5].map((s) => (
                   <React.Fragment key={s}>
-                    <div className={`order-step-dot ${wizardStep === s ? 'active' : wizardStep > s ? 'completed' : ''}`} style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700' }}>
+                    <div className={`order-step-dot ${wizardStep === s ? 'active' : wizardStep > s ? 'completed' : ''}`} style={{ width: isMobile ? '22px' : '28px', height: isMobile ? '22px' : '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? '0.7rem' : '0.75rem', fontWeight: '700' }}>
                       <span>{s === 5 ? '✓' : s}</span>
                     </div>
-                    {s < 5 && <div className={`order-step-line ${wizardStep > s ? 'active' : ''}`} style={{ width: '24px', height: '2px', background: '#cbd5e1' }} />}
+                    {s < 5 && <div className={`order-step-line ${wizardStep > s ? 'active' : ''}`} style={{ width: isMobile ? '12px' : '24px', height: '2px', background: '#cbd5e1' }} />}
                   </React.Fragment>
                 ))}
               </div>
               <button onClick={() => setShowWizard(false)} className="order-close-btn" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
             </div>
 
-            <div style={{ padding: '24px 32px' }}>
+            <div style={{ padding: isMobile ? '16px' : '24px 32px' }}>
               
               {wizardStep === 1 && (
                 <div>
@@ -1632,8 +1634,8 @@ export const CustomerPortal: React.FC = () => {
 
       {/* VIEW INVOICE MODAL */}
       {viewingInvoice && (
-        <div className="modal-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="modal-content" style={{ width: '100%', maxWidth: '440px', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+        <div className="modal-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: isMobile ? '10px' : '20px' }}>
+          <div className="modal-content" style={{ width: '100%', maxWidth: '440px', maxHeight: '92vh', overflowY: 'auto', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', padding: '20px 24px', color: 'white', position: 'relative' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>🧾 {t('Order Invoice Details')}</h3>
               <button onClick={() => setViewingInvoice(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
@@ -1717,8 +1719,8 @@ export const CustomerPortal: React.FC = () => {
 
       {/* TRACKING MODAL */}
       {selectedOrder && (
-        <div className="modal-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="modal-content" style={{ width: '100%', maxWidth: '440px', background: 'white', borderRadius: '16px', overflow: 'hidden' }}>
+        <div className="modal-overlay active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: isMobile ? '10px' : '20px' }}>
+          <div className="modal-content" style={{ width: '100%', maxWidth: '440px', maxHeight: '92vh', overflowY: 'auto', background: 'white', borderRadius: '16px', overflow: 'hidden' }}>
             <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', padding: '20px 24px', color: 'white', position: 'relative' }}>
               <h3 style={{ margin: 0 }}>Order Tracking #{selectedOrder.id}</h3>
               <button onClick={() => setSelectedOrder(null)} style={{ position: 'absolute', right: '20px', top: '20px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>

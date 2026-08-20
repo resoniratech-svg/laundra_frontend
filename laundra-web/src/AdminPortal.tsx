@@ -178,7 +178,8 @@ export const AdminPortal: React.FC = () => {
         });
         if (res.ok) {
           const fresh = await res.json();
-          const mappedItems = fresh.items ? fresh.items.map((item: any) => {
+          const localServices = latestLocalOrder.items || latestLocalOrder.services || [];
+          let mappedItems = (fresh.items && fresh.items.length >= localServices.length) ? fresh.items.map((item: any) => {
             const matchedService = (backendServices || []).find((s: any) => s.id === item.service_id);
             const ordered = item.ordered_quantity ?? item.quantity ?? 1;
             const picked = item.picked_up_quantity ?? 0;
@@ -206,7 +207,24 @@ export const AdminPortal: React.FC = () => {
               itemStatus: status,
               price: item.price
             };
-          }) : latestLocalOrder.items;
+          }) : [];
+
+          if (!mappedItems || mappedItems.length === 0 || mappedItems.length < localServices.length) {
+            mappedItems = localServices.map((it: any, idx: number) => ({
+              id: it.id || it.serviceId || `item_${idx}`,
+              serviceId: it.serviceId || it.id,
+              serviceName: it.name || it.serviceName || 'Service',
+              name: it.name || it.serviceName || 'Service',
+              orderedQuantity: it.orderedQuantity || it.quantity || it.qty || 1,
+              pickedUpQuantity: it.pickedUpQuantity || 0,
+              pickupPendingQuantity: it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, (it.orderedQuantity || it.quantity || it.qty || 1) - (it.pickedUpQuantity || 0)),
+              readyQuantity: it.readyQuantity ?? (it.pickedUpQuantity || 0),
+              deliveredQuantity: it.deliveredQuantity || 0,
+              deliveryPendingQuantity: it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, (it.pickedUpQuantity || 0) - (it.deliveredQuantity || 0)),
+              itemStatus: it.itemStatus || 'CREATED',
+              price: it.price || 0
+            }));
+          }
 
           setViewingOrder({
             ...latestLocalOrder,
@@ -684,9 +702,43 @@ export const AdminPortal: React.FC = () => {
   const [customPOSDiscount, setCustomPOSDiscount] = useState<string>('');
   const [posCommission, setPosCommission] = useState<string>('');
   const [customPOSAmount, setCustomPOSAmount] = useState<string>('');
+  const [posEditingOrder, setPosEditingOrder] = useState<Order | null>(null);
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
   const [historySearch, setHistorySearch] = useState('');
   const [historyFilter, setHistoryFilter] = useState('All');
+
+  const handleStartEditOrder = (order: Order) => {
+    setPosEditingOrder(order);
+    setPosCustId(order.customerId || '');
+    setPosCustName(order.customerName || '');
+    setPosCustPhone(order.phone || '');
+    setPosCustEmail(order.email || '');
+    setPosCustAddress(order.address || '');
+    setPosCustomerSearch(order.customerName || '');
+
+    const servicesList = order.services || order.items || [];
+    const mappedCart = servicesList.map((svc: any, idx: number) => {
+      const sName = svc.name || svc.service_name || 'Service Item';
+      const sQty = svc.qty || svc.quantity || svc.orderedQuantity || 1;
+      const sPrice = svc.price || 0;
+      const itemId = svc.serviceId || svc.service_id || svc.id || `item-${idx}`;
+
+      return {
+        itemId: itemId,
+        itemName: sName,
+        serviceTypeId: 'srv-type-1',
+        serviceTypeName: 'Standard',
+        variantId: itemId,
+        variantName: sName,
+        price: sPrice,
+        qty: sQty
+      };
+    });
+
+    setPosCart(mappedCart);
+    setShowOrderModal(false);
+    setActiveModule('pos');
+  };
 
   const custDropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -2527,15 +2579,35 @@ export const AdminPortal: React.FC = () => {
     const updated = db.orders.map(o => {
       if (o.id === orderId) {
         let nextDeliveryStatus = o.deliveryStatus;
-        if (courierName) {
+        let nextStatus = o.status;
+        let itemsList = o.items || o.services || [];
+
+        if (courierName === 'Store') {
+          nextDeliveryStatus = 'Fully Picked Up at Store';
+          nextStatus = 'Fully Picked Up at Store';
+          itemsList = itemsList.map((it: any) => {
+            const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+            return {
+              ...it,
+              pickedUpQuantity: ord,
+              picked_up_quantity: ord,
+              pickupPendingQuantity: 0,
+              itemStatus: 'FULLY_PICKED_UP'
+            };
+          });
+        } else if (courierName) {
           nextDeliveryStatus = 'Pending Pickup';
         }
+
         return {
           ...o,
           pickupCourier: courierName || null,
           courier: courierName || o.deliveryCourier || null,
           pickupCommission: o.pickupCommission ?? 0,
-          deliveryStatus: nextDeliveryStatus
+          deliveryStatus: nextDeliveryStatus,
+          status: nextStatus,
+          items: itemsList,
+          services: itemsList
         };
       }
       return o;
@@ -2551,15 +2623,39 @@ export const AdminPortal: React.FC = () => {
     const updated = db.orders.map(o => {
       if (o.id === orderId) {
         let nextDeliveryStatus = o.deliveryStatus;
-        if (courierName) {
+        let nextStatus = o.status;
+        let deliveredDate = o.deliveredDate;
+        let itemsList = o.items || o.services || [];
+
+        if (courierName === 'Store') {
+          nextDeliveryStatus = 'Fully Delivered at Store';
+          nextStatus = 'Fully Delivered at Store';
+          deliveredDate = new Date().toISOString();
+          itemsList = itemsList.map((it: any) => {
+            const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+            const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
+            return {
+              ...it,
+              pickedUpQuantity: pck,
+              deliveredQuantity: pck,
+              deliveryPendingQuantity: 0,
+              itemStatus: 'FULLY_DELIVERED'
+            };
+          });
+        } else if (courierName) {
           nextDeliveryStatus = 'Out For Delivery';
         }
+
         return {
           ...o,
           deliveryCourier: courierName || null,
           courier: courierName || o.pickupCourier || null,
           deliveryCommission: o.deliveryCommission ?? 0,
-          deliveryStatus: nextDeliveryStatus
+          deliveryStatus: nextDeliveryStatus,
+          status: nextStatus,
+          deliveredDate: deliveredDate,
+          items: itemsList,
+          services: itemsList
         };
       }
       return o;
@@ -2669,16 +2765,72 @@ export const AdminPortal: React.FC = () => {
   const handleCheckoutPOS = async () => {
     if (posCart.length === 0) return;
 
+    const total = getPOSCartTotal();
 
+    if (posEditingOrder) {
+      const finalDiscount = posDiscount + (parseFloat(customPOSDiscount) || 0);
+      const updatedItems = posCart.map((i, idx) => ({
+        id: i.variantId || i.itemId || `item-${idx}`,
+        serviceId: i.variantId || i.itemId,
+        service_id: i.variantId || i.itemId,
+        name: i.itemName,
+        serviceName: i.itemName,
+        service_name: i.itemName,
+        qty: i.qty,
+        quantity: i.qty,
+        orderedQuantity: i.qty,
+        ordered_quantity: i.qty,
+        plan: i.variantName,
+        price: i.price
+      }));
 
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    const monthlyOrdersCount = db.orders.filter(o => o.date.startsWith(currentMonth)).length;
-    if (monthlyOrdersCount >= (limits.maxOrdersPerMonth || 2000)) {
-      alert(`Order placement failed: Monthly order limit of ${limits.maxOrdersPerMonth || 2000} reached for this company.`);
+      const updatedOrder: Order = {
+        ...posEditingOrder,
+        customerName: posCustName || posEditingOrder.customerName,
+        totalAmount: total,
+        total: total,
+        paymentMethod: posPayMethod,
+        paymentStatus: posPayMethod === 'Pay Later' ? 'Unpaid' : 'Paid',
+        services: updatedItems,
+        items: updatedItems,
+        phone: posCustPhone || posEditingOrder.phone,
+        email: posCustEmail || posEditingOrder.email,
+        address: posCustAddress || posEditingOrder.address,
+        discount: finalDiscount,
+        special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : posEditingOrder.special_instructions) : posEditingOrder.special_instructions
+      };
+
+      if (token && posEditingOrder.backendId) {
+        try {
+          const itemsPayload = posCart.map(i => ({ service_id: i.variantId || i.itemId, quantity: i.qty }));
+          await fetch(`${BASE_URL}/api/v1/orders/${posEditingOrder.backendId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ items: itemsPayload, total_amount: total })
+          });
+        } catch (e) {
+          console.error('Failed to update backend order:', e);
+        }
+      }
+
+      saveDB({
+        orders: db.orders.map(o => (o.id === posEditingOrder.id || (o.backendId && o.backendId === posEditingOrder.backendId)) ? updatedOrder : o)
+      });
+
+      addActivity('Order', `Updated Order #${posEditingOrder.id} for ${posCustName || posEditingOrder.customerName}`);
+      alert(`Order #${posEditingOrder.id} updated successfully!`);
+
+      setPosCart([]);
+      setPosEditingOrder(null);
+      setPosCustId('');
+      setPosCustName('');
+      setPosCustPhone('');
+      setPosCustEmail('');
+      setPosCustAddress('');
+      setPosCustomerSearch('');
+      setActiveModule('orders');
       return;
     }
-
-    const total = getPOSCartTotal();
 
     let updatedCustomers = db.customers;
     let updatedUsers = db.users;
@@ -2967,6 +3119,10 @@ export const AdminPortal: React.FC = () => {
       address: posCustAddress || undefined,
       discount: finalDiscount,
       special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined,
+      isPosOrder: true,
+      orderSource: 'POS',
+      isWalkInGuest: Boolean(!posCustId || posCustId === 'guest' || showGuestFields),
+      isGuestCheckout: Boolean(!posCustId || posCustId === 'guest' || showGuestFields),
       ...(posPackageCoveredAmount !== undefined ? {
         packageCoveredAmount: posPackageCoveredAmount,
         extraChargeableAmount: posExtraChargeableAmount,
@@ -4276,7 +4432,8 @@ export const AdminPortal: React.FC = () => {
                   <th style={{ padding: '12px' }}>{t('th.customerId')}</th>
                   <th style={{ padding: '12px' }}>{t('th.customerName')}</th>
                   <th style={{ padding: '12px' }}>{t('th.customerType')}</th>
-                  <th style={{ padding: '12px' }}>{t('th.contact')}</th>
+                  <th style={{ padding: '12px' }}>{t('Customer Mobile Number')}</th>
+                  <th style={{ padding: '12px' }}>{t('Customer Email')}</th>
                   <th style={{ padding: '12px' }}>{t('th.qrStatus')}</th>
                   <th style={{ padding: '12px' }}>{t('th.walletBalance')}</th>
                   <th style={{ padding: '12px', textAlign: 'center' }}>{t('th.actions')}</th>
@@ -4331,7 +4488,8 @@ export const AdminPortal: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '12px' }}>{c.email ? `${c.email} • ` : ''}{c.phone}</td>
+                        <td style={{ padding: '12px', fontWeight: '600' }}>{c.phone || 'N/A'}</td>
+                        <td style={{ padding: '12px', color: c.email ? '#0f172a' : '#94a3b8' }}>{c.email || 'N/A'}</td>
                         <td style={{ padding: '12px' }}>
                           {hasPkg ? (
                             <span style={{ padding: '4px 8px', background: isCompleted ? '#fef3c7' : '#dbeafe', color: isCompleted ? '#92400e' : '#1d4ed8', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>
@@ -5046,9 +5204,11 @@ export const AdminPortal: React.FC = () => {
                 <option value="Created">{t('Created')}</option>
                 <option value="Accepted">{t('Accepted')}</option>
                 <option value="Received">{t('Received')}</option>
+                <option value="Fully Picked Up at Store">{t('Fully Picked Up at Store')}</option>
                 <option value="Ready">{t('Ready')}</option>
                 <option value="Out For Delivery">{t('Out For Delivery')}</option>
                 <option value="Delivered">{t('Delivered')}</option>
+                <option value="Fully Delivered at Store">{t('Fully Delivered at Store')}</option>
               </select>
             </div>
             {(db.activeRole === 'Admin' || db.activeRole === 'Cashier') && (
@@ -5115,8 +5275,8 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px' }}>
                         <span style={{
                           padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
-                          background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Created' ? '#eff6ff' : '#fef3c7',
-                          color: o.status === 'Delivered' ? '#15803d' : o.status === 'Created' ? '#2563eb' : '#b45309'
+                          background: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#dcfce7' : (o.status === 'Created' ? '#eff6ff' : (o.status === 'Fully Picked Up at Store' ? '#fffbeb' : '#fef3c7')),
+                          color: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#15803d' : (o.status === 'Created' ? '#2563eb' : (o.status === 'Fully Picked Up at Store' ? '#b45309' : '#b45309'))
                         }}>{t(o.status)}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
@@ -5297,131 +5457,17 @@ export const AdminPortal: React.FC = () => {
                             onChange={e => handleUpdateOrderStatus(o.id, e.target.value as any)}
                             style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
                           >
-                            {['Created', 'Accepted', 'Received', 'Ready', 'Out For Delivery', 'Delivered'].map(s => (
+                            {Array.from(new Set(['Created', 'Accepted', 'Received', 'Fully Picked Up at Store', 'Ready', 'Out For Delivery', 'Delivered', 'Fully Delivered at Store', o.status].filter(Boolean))).map(s => (
                               <option key={s} value={s}>{t(s)}</option>
                             ))}
                           </select>
                           <button 
-                            disabled={(() => {
-                              const items = o.items || o.services || [];
-                              if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase());
-                              const hasPending = items.some((it: any) => {
-                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
-                                const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
-                                return pend > 0;
-                              });
-                              return !hasPending;
-                            })()}
-                            onClick={() => {
-                              const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
-                              setPickupModalOrder(fresh);
-                              const initialInputs: Record<string, number> = {};
-                              (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
-                                const key = it.id || it.serviceId || it.service_id || String(idx);
-                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                const picked = it.pickedUpQuantity || it.picked_up_quantity || 0;
-                                const pending = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - picked);
-                                initialInputs[key] = pending;
-                              });
-                              setPickupInputs(initialInputs);
-                            }} 
-                            style={{ 
-                              padding: '4px 8px', 
-                              fontSize: '0.75rem', 
-                              background: (() => {
-                                const items = o.items || o.services || [];
-                                if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? '#f1f5f9' : '#e0e7ff';
-                                const hasPending = items.some((it: any) => {
-                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                  const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
-                                  const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
-                                  return pend > 0;
-                                });
-                                return !hasPending ? '#f1f5f9' : '#e0e7ff';
-                              })(), 
-                              color: (() => {
-                                const items = o.items || o.services || [];
-                                if (items.length === 0) return ['received', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) ? '#94a3b8' : '#3730a3';
-                                const hasPending = items.some((it: any) => {
-                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                  const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
-                                  const pend = it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck);
-                                  return pend > 0;
-                                });
-                                return !hasPending ? '#94a3b8' : '#3730a3';
-                              })(), 
-                              border: '1px solid #c7d2fe', 
-                              borderRadius: '6px', 
-                              cursor: 'pointer', 
-                              fontWeight: 'bold' 
-                            }}
-                          >📦 {t('Pickup')}</button>
-
-                          <button 
-                            disabled={(() => {
-                              const items = o.items || o.services || [];
-                              if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered';
-                              const totalDelPending = items.reduce((acc: number, it: any) => {
-                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                return acc + Math.max(0, pck - del);
-                              }, 0);
-                              return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered';
-                            })()}
-                            onClick={() => {
-                              const fresh = db.orders.find((x: any) => x.id === o.id || x.backendId === o.backendId) || o;
-                              setDeliveryModalOrder(fresh);
-                              const initialInputs: Record<string, number> = {};
-                              (fresh.items || fresh.services || []).forEach((it: any, idx: number) => {
-                                const key = it.id || it.serviceId || it.service_id || String(idx);
-                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
-                                  ? Number(it.pickedUpQuantity)
-                                  : ((it.picked_up_quantity !== undefined && Number(it.picked_up_quantity) > 0) ? Number(it.picked_up_quantity) : ord);
-                                const delivered = it.deliveredQuantity || it.delivered_quantity || 0;
-                                const remainingToDeliver = Math.max(0, picked - delivered);
-                                const delPending = remainingToDeliver > 0 ? remainingToDeliver : ord;
-
-                                initialInputs[key] = delPending;
-                                initialInputs[String(idx)] = delPending;
-                                if (it.id) initialInputs[it.id] = delPending;
-                                if (it.name) initialInputs[it.name] = delPending;
-                              });
-                              setDeliveryInputs(initialInputs);
-                            }} 
-                            style={{ 
-                              padding: '4px 8px', 
-                              fontSize: '0.75rem', 
-                              background: (() => {
-                                const items = o.items || o.services || [];
-                                if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#f1f5f9' : '#dcfce7';
-                                const totalDelPending = items.reduce((acc: number, it: any) => {
-                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                  return acc + Math.max(0, pck - del);
-                                }, 0);
-                                return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#f1f5f9' : '#dcfce7';
-                              })(), 
-                              color: (() => {
-                                const items = o.items || o.services || [];
-                                if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#94a3b8' : '#166534';
-                                const totalDelPending = items.reduce((acc: number, it: any) => {
-                                  const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                  const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                  const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                  return acc + Math.max(0, pck - del);
-                                }, 0);
-                                return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#94a3b8' : '#166534';
-                              })(), 
-                              border: '1px solid #bbf7d0', 
-                              borderRadius: '6px', 
-                              cursor: 'pointer', 
-                              fontWeight: 'bold' 
-                            }}
-                          >🚚 {t('Deliver')}</button>
+                            onClick={() => handleStartEditOrder(o)} 
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                            title="Edit Order in POS"
+                          >
+                            ✏️ {t('Edit')}
+                          </button>
                           <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
@@ -5825,6 +5871,28 @@ export const AdminPortal: React.FC = () => {
           {/* POS Cart details & client info */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
             <h4 style={{ margin: '0 0 12px 0' }}>🛒 {t('Checkout Cart Details')}</h4>
+
+            {posEditingOrder && (
+              <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#92400e', fontSize: '0.85rem' }}>
+                <div>
+                  <strong>✏️ Editing Order #{posEditingOrder.id}</strong>
+                  <div style={{ fontSize: '0.75rem', color: '#b45309', marginTop: '2px' }}>Customer: <strong>{posCustName || posEditingOrder.customerName}</strong></div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setPosEditingOrder(null);
+                    setPosCart([]);
+                    setPosCustId('');
+                    setPosCustName('');
+                    setPosCustomerSearch('');
+                  }}
+                  style={{ background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
+                >
+                  ✕ Cancel
+                </button>
+              </div>
+            )}
             
             {/* Cart listing */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', maxHeight: '200px', overflowY: 'auto' }}>
@@ -6322,7 +6390,7 @@ export const AdminPortal: React.FC = () => {
                                 width: '100%'
                               }}
                             >
-                              {isPackageCustomer ? `📦 Checkout (Package + Extra Payment: QR ${packageBreakdown.totalExtraCharges.toFixed(2)})` : t('Checkout')}
+                              {posEditingOrder ? `✏️ Update Order #${posEditingOrder.id}` : (isPackageCustomer ? `📦 Checkout (Package + Extra Payment: QR ${packageBreakdown.totalExtraCharges.toFixed(2)})` : t('Checkout'))}
                             </button>
                           </>
                         ) : (
@@ -7963,7 +8031,7 @@ export const AdminPortal: React.FC = () => {
                     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
                       <h4 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '0.85rem' }}>📦 {t('Item-Level Quantity & Status Breakdown')}</h4>
                       {(() => {
-                        const itemsList = viewingOrder.items || [];
+                        const itemsList = (viewingOrder.items && viewingOrder.items.length > 0) ? viewingOrder.items : (viewingOrder.services || []);
                         if (itemsList.length === 0) {
                           return <div style={{ fontSize: '0.8rem', color: '#64748b' }}>No item details available.</div>;
                         }
@@ -8293,34 +8361,45 @@ export const AdminPortal: React.FC = () => {
 
       {/* PARTIAL / FULL DELIVERY ACTION MODAL */}
       {deliveryModalOrder && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #14532d, #16a34a)', padding: '20px 24px', color: 'white', position: 'relative' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>🚚 Item-Level Delivery Action</h3>
-              <div style={{ fontSize: '0.8rem', opacity: 0.85, marginTop: '2px' }}>Order #{deliveryModalOrder.id} • Customer: {tName(deliveryModalOrder.customerName)}</div>
-              <button onClick={() => setDeliveryModalOrder(null)} style={{ position: 'absolute', right: '16px', top: '16px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '650px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg, #14532d, #16a34a)', padding: '18px 24px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🚚</span> Item-Level Delivery Action
+                </h3>
+                <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '3px' }}>
+                  Order #{deliveryModalOrder.id} • Customer: {tName(deliveryModalOrder.customerName)}
+                </div>
+              </div>
+              <button onClick={() => setDeliveryModalOrder(null)} style={{ color: 'white', border: 'none', background: 'rgba(255,255,255,0.2)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-                <div><strong>Customer:</strong> {tName(deliveryModalOrder.customerName)}</div>
-                <div><strong>Phone:</strong> {deliveryModalOrder.phone || 'N/A'}</div>
+            {/* Scrollable Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: 'calc(90vh - 130px)' }}>
+              
+              <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <div>👤 <strong>Customer:</strong> {tName(deliveryModalOrder.customerName)}</div>
+                <div>📞 <strong>Phone:</strong> {deliveryModalOrder.phone || 'N/A'}</div>
+                <div>📍 <strong>Address:</strong> {deliveryModalOrder.address || 'Branch Pickup'}</div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '4px' }}>Staff / Courier Name (Optional):</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Staff / Courier Name (Optional):</label>
                 <input
                   type="text"
                   placeholder="Enter staff name..."
                   value={deliveryStaffName}
                   onChange={e => setDeliveryStaffName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
                 />
               </div>
 
               <div>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '0.88rem', color: '#1e293b' }}>Enter Quantity Delivered per Service:</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#0f172a', fontWeight: '800' }}>Enter Quantity Delivered per Service:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(deliveryModalOrder.items || deliveryModalOrder.services || []).map((it: any, idx: number) => {
                     const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
                     const picked = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0)
@@ -8332,16 +8411,20 @@ export const AdminPortal: React.FC = () => {
                     const currentVal = deliveryInputs[key] !== undefined ? deliveryInputs[key] : (deliveryInputs[String(idx)] !== undefined ? deliveryInputs[String(idx)] : (pending > 0 ? pending : ord));
 
                     return (
-                      <div key={idx} style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#14532d', marginBottom: '4px' }}>
-                          {it.serviceName || it.name || `Service ${idx + 1}`}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: '#166534' }}>
-                          <div>Picked Up: <strong>{picked}</strong> | Delivered: <strong>{delivered}</strong> | Pending Delivery: <strong style={{ color: '#dc2626' }}>{pending}</strong></div>
+                      <div key={idx} style={{ background: '#f0fdf4', padding: '14px 16px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                          <div style={{ fontWeight: '800', fontSize: '0.9rem', color: '#14532d', marginBottom: '4px' }}>
+                            {it.serviceName || it.name || `Service ${idx + 1}`}
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: '#166534', flexWrap: 'wrap' }}>
+                            <span>Picked Up: <strong>{picked}</strong></span>
+                            <span>Delivered: <strong>{delivered}</strong></span>
+                            <span>Pending Delivery: <strong style={{ color: pending > 0 ? '#dc2626' : '#166534' }}>{pending}</strong></span>
+                          </div>
                         </div>
 
-                        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 'bold' }}>Deliver Qty Now:</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#14532d', whiteSpace: 'nowrap' }}>Deliver Qty Now:</label>
                           <input
                             type="number"
                             min={1}
@@ -8357,7 +8440,7 @@ export const AdminPortal: React.FC = () => {
                                 ...(it.name ? { [it.name]: val } : {})
                               }));
                             }}
-                            style={{ width: '80px', padding: '6px 10px', border: '1.5px solid #22c55e', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 'bold' }}
+                            style={{ width: '80px', padding: '6px 10px', border: '2px solid #22c55e', borderRadius: '8px', fontSize: '0.95rem', fontWeight: '800', textAlign: 'center', background: 'white' }}
                           />
                         </div>
                       </div>
@@ -8365,17 +8448,19 @@ export const AdminPortal: React.FC = () => {
                   })}
                 </div>
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button onClick={() => setDeliveryModalOrder(null)} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
-                <button
-                  onClick={() => handleConfirmDelivery(deliveryModalOrder.id, deliveryModalOrder.backendId)}
-                  style={{ padding: '8px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
-                >
-                  CONFIRM DELIVERY
-                </button>
-              </div>
             </div>
+
+            {/* Footer Actions */}
+            <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setDeliveryModalOrder(null)} style={{ padding: '9px 18px', background: 'white', border: '1.5px solid #cbd5e1', color: '#475569', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
+              <button
+                onClick={() => handleConfirmDelivery(deliveryModalOrder.id, deliveryModalOrder.backendId)}
+                style={{ padding: '9px 24px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(22,163,74,0.3)' }}
+              >
+                Confirm Delivery
+              </button>
+            </div>
+
           </div>
         </div>
       )}

@@ -89,7 +89,7 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
       </div>
 
       {activeTab === 'available' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
           {availablePackages.map(p => (
             <div key={p.id} style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <h3 style={{ margin: 0, color: '#1e293b' }}>{p.name}</h3>
@@ -125,7 +125,7 @@ export default function CustomerPrepaidPackages({ customerId, token }: { custome
       )}
 
       {activeTab === 'my-packages' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
           {myPackages.map(mp => (
             <div key={mp.id} style={{ background: 'white', borderRadius: '12px', padding: '20px', border: `2px solid ${mp.status === 'ACTIVE' ? '#8b5cf6' : '#cbd5e1'}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
