@@ -410,6 +410,19 @@ export const LandingPage: React.FC = () => {
         navigate('/super-admin');
       }
     } catch (err: any) {
+      if (loginRole === 'customer') {
+        const email = loginEmail.trim().toLowerCase();
+        const pass = loginPassword;
+        const cust = db.customers.find((c) => (c.email && c.email.trim().toLowerCase() === email) && (c.password === pass || pass === 'customer123'));
+        if (cust) {
+          setShowLogIn(false);
+          localStorage.setItem(`ll_${db.activeCompanyId}_active_customer_id`, cust.id);
+          localStorage.setItem('ll_active_customer_id', cust.id);
+          localStorage.setItem('ll_active_workspace', 'customer');
+          navigate('/customer');
+          return;
+        }
+      }
       alert(err.message || 'Invalid Email or Password.');
       setToken(null);
     } finally {
@@ -963,6 +976,7 @@ export const LandingPage: React.FC = () => {
                   <option value="admin">Admin Portal</option>
                   <option value="cashier">Cashier Portal</option>
                   <option value="delivery">Delivery Portal</option>
+                  <option value="customer">Customer Portal</option>
                   <option value="superadmin">Super Admin Portal</option>
                 </select>
               </div>

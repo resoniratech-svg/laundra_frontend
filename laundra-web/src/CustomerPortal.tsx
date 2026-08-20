@@ -43,7 +43,7 @@ const getEmojiForService = (name: string) => {
 
 export const CustomerPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { db, saveDB, changeActiveCompany } = useDatabase();
+  const { db, saveDB, changeActiveCompany, logout } = useDatabase();
   const { t, tName, language } = useLanguage();
   const BASE_URL = getApiBaseUrl();
   const getAuthToken = () => localStorage.getItem('ll_customer_token') || localStorage.getItem('ll_auth_token') || '';
@@ -535,6 +535,9 @@ export const CustomerPortal: React.FC = () => {
     localStorage.removeItem(`ll_${db.activeCompanyId}_active_customer_id`);
     localStorage.removeItem('ll_active_customer_id');
     localStorage.removeItem('ll_active_workspace');
+    localStorage.removeItem('ll_customer_token');
+    localStorage.removeItem('ll_auth_token');
+    if (logout) logout();
     navigate('/');
   };
 
@@ -879,11 +882,17 @@ export const CustomerPortal: React.FC = () => {
 
       // Primary match: by customerId (exact UUID or local ID match)
       const idMatch = o.customerId === customer.id;
-      // Fallback match: by customer name (catches POS-created orders where UUID may differ)
-      const nameMatch = o.customerName && customer.name &&
-        o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim();
+      // Fallback match: by customer name AND phone (catches POS-created orders for this specific customer)
+      const phoneMatch = Boolean(
+        o.phone && customer.phone &&
+        o.phone.trim().replace(/[^0-9]/g, '') === customer.phone.trim().replace(/[^0-9]/g, '')
+      );
+      const nameMatch = Boolean(
+        o.customerName && customer.name &&
+        o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim()
+      );
 
-      if (!idMatch && !nameMatch) return false;
+      if (!idMatch && !(nameMatch && phoneMatch)) return false;
       if (o.isDeleted) return false;
       
       if ((o.status === 'Delivered' || o.deliveryStatus === 'Delivered') && o.deliveredDate) {
@@ -940,6 +949,7 @@ export const CustomerPortal: React.FC = () => {
               );
             })()}
             <button onClick={() => setActiveTab('reviews')} style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: activeTab === 'reviews' ? '#eff6ff' : '#f1f5f9', color: activeTab === 'reviews' ? '#2563eb' : '#475569', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>⭐ {t('Rate Services')}</button>
+            <button onClick={handleLogout} style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer' }}>🚪 {t('Log Out')}</button>
           </div>
         </header>
       ) : (
@@ -997,6 +1007,9 @@ export const CustomerPortal: React.FC = () => {
               <li onClick={() => setActiveTab('reviews')} className={`sidebar-menu-item ${activeTab === 'reviews' ? 'active' : ''}`} style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: activeTab === 'reviews' ? '#2563eb' : '#475569', background: activeTab === 'reviews' ? '#eff6ff' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 ⭐ <span>{t('Rate Services')}</span>
               </li>
+              <li onClick={handleLogout} className="sidebar-menu-item" style={{ padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px' }}>
+                🚪 <span>{t('Log Out')}</span>
+              </li>
             </ul>
           </div>
 
@@ -1020,9 +1033,12 @@ export const CustomerPortal: React.FC = () => {
             </h1>
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginTop: '2px' }}>Customer Portal / {activeTab}</div>
           </div>
-          {activeTab === 'dashboard' && (
-            <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ width: isMobile ? '100%' : 'auto', padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🛒 {t('Book new order')}</button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+            {activeTab === 'dashboard' && (
+              <button onClick={() => setActiveTab('services')} className="primary-btn" style={{ flex: isMobile ? 1 : 'none', padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>🛒 {t('Book new order')}</button>
+            )}
+            <button onClick={handleLogout} style={{ flex: isMobile ? 1 : 'none', padding: '10px 16px', background: '#fef2f2', color: '#dc2626', border: '1.5px solid #fca5a5', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.85rem' }}>🚪 {t('Log Out')}</button>
+          </div>
         </div>
 
         {/* 📦 DASHBOARD TAB */}
