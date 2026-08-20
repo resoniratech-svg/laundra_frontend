@@ -1603,46 +1603,39 @@ export const AdminPortal: React.FC = () => {
 
   const handleSendCustomerOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!custName.trim() || !custPhone.trim()) {
-      alert('Please fill in required fields (Full Name and Phone).');
+    if (!custName.trim() || !custPhone.trim() || !custEmail.trim()) {
+      alert('Please fill in required fields (Full Name, Phone, and Customer Email).');
       return;
     }
 
-    const effectiveEmail = custEmail.trim() || `customer_${Date.now()}@laundra.com`;
-    if (!custEmail.trim()) {
-      setCustEmail(effectiveEmail);
-    }
+    const targetEmail = custEmail.trim();
     const adminToken = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || token || '';
 
     try {
       const res = await fetch(`${BASE_URL}/api/v1/customers/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
-        body: JSON.stringify({ email: effectiveEmail, phone: custPhone })
+        body: JSON.stringify({ email: targetEmail })
       });
       const data = await res.json();
 
       if (!res.ok) {
-        const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOtp(fallbackOtp);
-        alert(`[Email OTP Verification]\nVerification code sent to ${effectiveEmail}: ${fallbackOtp}`);
-        setAddingCustomerStep(2);
+        alert(`Failed to send Email OTP: ${data.detail || data.message || 'Unknown error'}`);
         return;
       }
 
       if (data.warning && data.otp_debug) {
         setGeneratedOtp(data.otp_debug);
-        alert(`📩 Verification code sent to Email (${effectiveEmail}).\nOTP Code: ${data.otp_debug}`);
+        alert(`⚠️ Platform SMTP Warning: ${data.warning}\nDevelopment OTP Code: ${data.otp_debug}`);
       } else {
-        setGeneratedOtp(''); // Clear local code so verification uses live backend email OTP check
+        setGeneratedOtp(''); // Clear local code so verification uses live backend OTP check
       }
     } catch (err) {
       console.warn('Backend send-otp network error:', err);
       const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedOtp(fallbackOtp);
-      alert(`[Email OTP Verification]\nVerification code sent to ${effectiveEmail}: ${fallbackOtp}`);
+      alert(`Network error. Offline verification code for ${targetEmail}: ${fallbackOtp}`);
     }
-
     setAddingCustomerStep(2);
   };
 
@@ -2269,7 +2262,7 @@ export const AdminPortal: React.FC = () => {
       try {
         const deleteUrl = (cust.id && cust.id.length > 20)
           ? `${BASE_URL}/api/v1/customers/${cust.id}`
-          : `${BASE_URL}/api/v1/customers/by-email/${encodeURIComponent(cust.email)}`;
+          : (cust.email ? `${BASE_URL}/api/v1/customers/by-email/${encodeURIComponent(cust.email)}` : `${BASE_URL}/api/v1/customers/${cust.id}`);
 
         const res = await fetch(deleteUrl, {
           method: 'DELETE',
@@ -2287,11 +2280,25 @@ export const AdminPortal: React.FC = () => {
         return;
       }
 
-      const updatedCustomers = db.customers.filter(c => c.id !== cust.id);
-      const updatedUsers = db.users.filter(u => !(u.role === 'customer' && u.email.toLowerCase() === cust.email.toLowerCase()));
+      const updatedCustomers = db.customers.filter(c => {
+        if (c.id === cust.id) return false;
+        if ((c as any).backendId && (c as any).backendId === cust.id) return false;
+        if (cust.backendId && c.id === cust.backendId) return false;
+        if (cust.email && c.email && c.email.trim() && c.email.toLowerCase() === cust.email.toLowerCase()) return false;
+        if (cust.phone && c.phone && c.phone.trim() && c.phone.replace(/[^0-9]/g, '') === cust.phone.replace(/[^0-9]/g, '')) return false;
+        return true;
+      });
+
+      const updatedUsers = db.users.filter(u => {
+        if (u.id === cust.id) return false;
+        if (cust.email && u.email && u.email.trim() && u.email.toLowerCase() === cust.email.toLowerCase()) return false;
+        if (cust.phone && u.phone && u.phone.trim() && u.phone.replace(/[^0-9]/g, '') === cust.phone.replace(/[^0-9]/g, '')) return false;
+        return true;
+      });
+
       saveDB({ customers: updatedCustomers, users: updatedUsers });
       addActivity('Customer', `Deleted customer: ${cust.name}`);
-      fetchBackendData();
+
       alert(`Customer "${cust.name}" deleted successfully.`);
     }
   };
@@ -7146,21 +7153,10 @@ export const AdminPortal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Row 2: Email + Gender */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#64748b' }}>{t('Email Address (Optional)')}</label>
-                    <input type="email" value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder={t('Can be left blank')} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Gender (Optional)')}</label>
-                    <select value={custGender} onChange={e => setCustGender(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white' }}>
-                      <option value="">{t('Select Gender')}</option>
-                      <option value="Male">{t('Male')}</option>
-                      <option value="Female">{t('Female')}</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
+                {/* Customer Email */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>{t('Customer Email *')}</label>
+                  <input type="email" required value={custEmail} onChange={e => setCustEmail(e.target.value)} placeholder={t('Enter customer email...')} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' }} />
                 </div>
 
                 {/* Row 3: Address - full width */}
@@ -7170,7 +7166,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 <button type="submit" style={{ padding: '13px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', marginTop: '4px' }}>
-                  {t('Next: Send OTP →')}
+                  {t('Next: Send Email OTP →')}
                 </button>
               </form>
             )}
@@ -7178,13 +7174,13 @@ export const AdminPortal: React.FC = () => {
             {addingCustomerStep === 2 && (
               <form onSubmit={handleVerifyCustomerOtp} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', flex: 1 }}>
                 <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: '10px', padding: '14px 18px', color: '#1e40af', fontSize: '0.9rem' }}>
-                  📩 Verification code sent to Email: <strong>{custEmail}</strong>. Please enter the 6-digit OTP code below.
+                  📩 Verification code sent to email: <strong>{custEmail}</strong>. Please enter the 6-digit OTP code below.
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '6px', color: '#374151' }}>Enter OTP Code *</label>
                   <input type="text" required value={custOtp} onChange={e => setCustOtp(e.target.value)} maxLength={6} placeholder="• • • • • •" style={{ width: '100%', padding: '14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', textAlign: 'center', fontWeight: '800', letterSpacing: '8px', fontSize: '1.4rem', boxSizing: 'border-box' }} />
                 </div>
-                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', width: '100%' }}>Verify OTP →</button>
+                <button type="submit" style={{ padding: '12px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '1rem', letterSpacing: '0.5px', width: '100%' }}>Verify Email OTP →</button>
               </form>
             )}
 
