@@ -1067,6 +1067,8 @@ export const DeliveryPortal: React.FC = () => {
                   : (orderData.delivery_commission ? Number(orderData.delivery_commission) : 0),
                 pickupCommissionPaid: d.pickup_commission_paid ?? orderData.pickup_commission_paid ?? false,
                 deliveryCommissionPaid: d.delivery_commission_paid ?? orderData.delivery_commission_paid ?? false,
+                pickupPaymentMethod: d.pickup_payment_method || orderData.pickup_payment_method || null,
+                deliveryPaymentMethod: d.delivery_payment_method || orderData.delivery_payment_method || null,
                 items: orderData.items?.map((it: any) => ({
                   ...it,
                   id: it.order_item_id || it.id,
@@ -1954,7 +1956,7 @@ export const DeliveryPortal: React.FC = () => {
                                   );
                                 })}
                               </div>
-                              <div>📅 <strong>{tDeliv('Delivery Time:')}</strong> {o.date} (3:00 PM - 6:00 PM)</div>
+                              <div>📅 <strong>{tDeliv('Delivery Time:')}</strong> {o.date}</div>
                               <div>💳 <strong>{tDeliv('Method:')}</strong> {o.paymentMethod || 'CASH'} ({tDeliv(o.paymentStatus || 'Paid')})</div>
                               <div>📝 <strong>{tDeliv('Instructions:')}</strong> {tDeliv('Deliver order directly to customer upon arrival.')}</div>
                               <div style={{ marginTop: '6px', background: '#eff6ff', color: '#1e40af', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', display: 'inline-block', width: 'fit-content' }}>💰 {tDeliv('Delivery Commission:')} QR {(o.deliveryCommission || 0).toFixed(2)}</div>
@@ -2057,7 +2059,7 @@ export const DeliveryPortal: React.FC = () => {
                         customerName: o.customerName || 'Customer',
                         amount: Number(o.pickupCommission),
                         paid: !!o.pickupCommissionPaid,
-                        method: o.pickupPaymentMethod
+                        method: (o as any).pickupPaymentMethod || o.pickupPaymentMethod || null
                       });
                     }
 
@@ -2071,7 +2073,7 @@ export const DeliveryPortal: React.FC = () => {
                         customerName: o.customerName || 'Customer',
                         amount: Number(o.deliveryCommission),
                         paid: !!o.deliveryCommissionPaid,
-                        method: o.deliveryPaymentMethod
+                        method: (o as any).deliveryPaymentMethod || o.deliveryPaymentMethod || null
                       });
                     }
                   });
@@ -2131,7 +2133,10 @@ export const DeliveryPortal: React.FC = () => {
                                     <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                                       <td style={{ padding: '12px', fontWeight: '600' }}>{dateStr}</td>
                                       <td style={{ padding: '12px' }}>
-                                        <div style={{ fontWeight: '700', color: '#1e3a8a' }}>#{item.id.split('-')[0]}</div>
+                                        <div style={{ fontWeight: '700', color: '#1e3a8a' }}>
+                                          #{item.id.includes('_') ? item.id.split('_')[0] : item.id.split('-')[0]}
+                                          {item.id.includes('_') && item.id.split('_')[2] && item.id.split('_')[2] !== 'undefined' ? ` (Task #${item.id.split('_')[2].slice(0, 6)})` : ''}
+                                        </div>
                                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.customerName}</div>
                                       </td>
                                       <td style={{ padding: '12px', fontWeight: '700', color: item.type === 'Pickup' ? '#d97706' : '#2563eb' }}>

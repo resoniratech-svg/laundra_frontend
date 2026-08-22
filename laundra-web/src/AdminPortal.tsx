@@ -824,6 +824,8 @@ export const AdminPortal: React.FC = () => {
   // Search & Filter
   const [orderSearch, setOrderSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('All');
+  const [filterFromDate, setFilterFromDate] = useState('');
+  const [filterToDate, setFilterToDate] = useState('');
   const [custSearch, setCustSearch] = useState('');
 
   // Get active company configurations
@@ -1244,8 +1246,8 @@ export const AdminPortal: React.FC = () => {
               discount: existing.discount ?? freshOrder.discount ?? 0,
               pickupCommission: existing.pickupCommission ?? freshOrder.pickupCommission ?? 0,
               deliveryCommission: existing.deliveryCommission ?? freshOrder.deliveryCommission ?? 0,
-              pickupCommissionPaid: existing.pickupCommissionPaid || false,
-              deliveryCommissionPaid: existing.deliveryCommissionPaid || false,
+              pickupCommissionPaid: existing.pickupCommissionPaid || freshOrder.pickupCommissionPaid || false,
+              deliveryCommissionPaid: existing.deliveryCommissionPaid || freshOrder.deliveryCommissionPaid || false,
               pickupAccepted: existing.pickupAccepted || false,
               deliveryAccepted: existing.deliveryAccepted || false,
             };
@@ -2611,6 +2613,7 @@ export const AdminPortal: React.FC = () => {
           pickupCourier: courierName || null,
           courier: courierName || o.deliveryCourier || null,
           pickupCommission: o.pickupCommission ?? 0,
+          pickupCommissionPaid: false,
           deliveryStatus: nextDeliveryStatus,
           status: nextStatus,
           items: itemsList,
@@ -2658,6 +2661,7 @@ export const AdminPortal: React.FC = () => {
           deliveryCourier: courierName || null,
           courier: courierName || o.pickupCourier || null,
           deliveryCommission: o.deliveryCommission ?? 0,
+          deliveryCommissionPaid: false,
           deliveryStatus: nextDeliveryStatus,
           status: nextStatus,
           deliveredDate: deliveredDate,
@@ -4936,17 +4940,47 @@ export const AdminPortal: React.FC = () => {
                           <option value="Check">Check</option>
                         </select>
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             if (unpaidAmount <= 0) {
                               alert('No unpaid commission for this staff member.');
                               return;
                             }
                             const method = (document.getElementById(`payment-method-${u.id}`) as HTMLSelectElement).value;
                             if (window.confirm(`Mark QR ${unpaidAmount.toFixed(2)} as Paid via ${method} for ${u.name}?`)) {
+                              const delivIds = [...unpaidPickupTasks, ...unpaidDeliveryTasks]
+                                .map(t => (t as any).delivId)
+                                .filter(Boolean);
+
+                              const orderIds = [...unpaidPickupTasks, ...unpaidDeliveryTasks]
+                                .map(t => (t as any).orderId || (t as any).id)
+                                .filter(Boolean);
+
+                              const token = localStorage.getItem('ll_auth_token');
+                              if (token) {
+                                try {
+                                  await fetch(`${BASE_URL}/api/v1/deliveries/mark-commission-paid`, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify({
+                                      staff_id: u.id,
+                                      staff_name: u.name,
+                                      delivery_ids: delivIds,
+                                      order_ids: orderIds,
+                                      payment_method: method
+                                    })
+                                  });
+                                } catch (err) {
+                                  console.error("Error updating backend commission paid:", err);
+                                }
+                              }
+
                               const updatedOrders = db.orders.map(o => {
                                 let newOrder = { ...o };
-                                const isPickupStaff = o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === staffName || o.pickupCourier.includes('All Delivery'));
-                                const isDeliveryStaff = o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === staffName || o.deliveryCourier.includes('All Delivery'));
+                                const isPickupStaff = (o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === staffName || o.pickupCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
+                                const isDeliveryStaff = (o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === staffName || o.deliveryCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
 
                                 if (isPickupStaff && !o.pickupCommissionPaid) {
                                   newOrder.pickupCommissionPaid = true;
@@ -4960,6 +4994,21 @@ export const AdminPortal: React.FC = () => {
                                 }
                                 return newOrder;
                               });
+
+                              // Immediately update backendDeliveries so the task disappears from the list without needing a refresh
+                              const paidDelivIdSet = new Set(delivIds.map(String));
+                              setBackendDeliveries(prev => (prev || []).map(d => {
+                                if (paidDelivIdSet.has(String(d.id))) {
+                                  return {
+                                    ...d,
+                                    pickup_commission_paid: d.type === 'PICKUP' ? true : d.pickup_commission_paid,
+                                    delivery_commission_paid: d.type === 'DELIVERY' ? true : d.delivery_commission_paid,
+                                    pickup_payment_method: d.type === 'PICKUP' ? method : d.pickup_payment_method,
+                                    delivery_payment_method: d.type === 'DELIVERY' ? method : d.delivery_payment_method,
+                                  };
+                                }
+                                return d;
+                              }));
 
                               const newExpense = {
                                 id: Date.now(),
@@ -4975,7 +5024,10 @@ export const AdminPortal: React.FC = () => {
                                 orders: updatedOrders,
                                 expenses: [newExpense, ...(db.expenses || [])] 
                               });
-                              alert(`Successfully marked QR ${unpaidAmount.toFixed(2)} as paid to ${u.name} via ${method}!`);
+
+                              if (typeof syncDataWithBackend === 'function') {
+                                syncDataWithBackend();
+                              }
                             }
                           }}
                           disabled={unpaidAmount <= 0}
@@ -5194,7 +5246,7 @@ export const AdminPortal: React.FC = () => {
             )}
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               <input 
                 type="text" 
                 value={orderSearch} 
@@ -5217,6 +5269,28 @@ export const AdminPortal: React.FC = () => {
                 <option value="Delivered">{t('Delivered')}</option>
                 <option value="Fully Delivered at Store">{t('Fully Delivered at Store')}</option>
               </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', whiteSpace: 'nowrap' }}>📅 From:</span>
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={e => setFilterFromDate(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.85rem', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', whiteSpace: 'nowrap' }}>To:</span>
+                <input
+                  type="date"
+                  value={filterToDate}
+                  onChange={e => setFilterToDate(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.85rem', cursor: 'pointer' }}
+                />
+                {(filterFromDate || filterToDate) && (
+                  <button
+                    onClick={() => { setFilterFromDate(''); setFilterToDate(''); }}
+                    style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}
+                  >✕ Clear</button>
+                )}
+              </div>
             </div>
             {(db.activeRole === 'Admin' || db.activeRole === 'Cashier') && (
               <button onClick={() => setActiveModule('pos')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('action.createManualOrder')}</button>
@@ -5267,6 +5341,16 @@ export const AdminPortal: React.FC = () => {
                            (termDigits.length > 0 && rawPhone.startsWith(termDigits));
                   })
                   .filter(o => orderFilter === 'All' || o.status === orderFilter)
+                  .filter(o => {
+                    if (!filterFromDate && !filterToDate) return true;
+                    // Normalise order date to YYYY-MM-DD for comparison
+                    const raw = o.date || '';
+                    const orderDate = raw.length >= 10 ? raw.substring(0, 10) : raw;
+                    if (filterFromDate && filterToDate) return orderDate >= filterFromDate && orderDate <= filterToDate;
+                    if (filterFromDate) return orderDate >= filterFromDate;
+                    if (filterToDate) return orderDate <= filterToDate;
+                    return true;
+                  })
                   .filter(o => {
                     if (db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy') return true;
                     return o.courier === db.currentDeliveryBoy || o.courier === 'All Delivery Staff';
@@ -5361,15 +5445,19 @@ export const AdminPortal: React.FC = () => {
                                 value={o.deliveryCourier || ((o.status || '').toLowerCase() === 'delivered' ? o.courier : '') || ''}
                                 onChange={e => handleAssignDeliveryCourier(o.id, e.target.value)}
                                 disabled={(() => {
+                                  const st = (o.status || '').toLowerCase();
+                                  // Always disabled once fully delivered
+                                  if (st === 'delivered' || st === 'fully delivered at store') return true;
+                                  // Already has a delivery courier assigned — keep enabled so re-assign is possible
+                                  if (o.deliveryCourier && o.deliveryCourier !== '' && o.deliveryCourier !== '-- Unassigned --' && o.deliveryCourier !== 'Unassigned') return false;
+                                  // Enable only if at least one item has readyQuantity > 0
                                   const items = o.items || o.services || [];
-                                  if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered';
-                                  const totalDelPending = items.reduce((acc: number, it: any) => {
-                                    const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                    const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                    const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                    return acc + Math.max(0, pck - del);
-                                  }, 0);
-                                  return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered';
+                                  if (items.length === 0) {
+                                    // No item data — fallback: enable only if status is ready/out for delivery
+                                    return !['ready', 'out for delivery', 'out_for_delivery', 'partially delivered', 'partially_delivered'].includes(st);
+                                  }
+                                  const hasReadyItems = items.some((it: any) => Number(it.readyQuantity || it.ready_quantity || 0) > 0);
+                                  return !hasReadyItems;
                                 })()}
                                 style={{ 
                                   padding: '4px 6px', 
@@ -5377,17 +5465,23 @@ export const AdminPortal: React.FC = () => {
                                   borderRadius: '6px', 
                                   fontSize: '0.8rem', 
                                   background: (() => {
+                                    const st = (o.status || '').toLowerCase();
+                                    if (st === 'delivered' || st === 'fully delivered at store') return '#e2e8f0';
+                                    if (o.deliveryCourier && o.deliveryCourier !== '' && o.deliveryCourier !== '-- Unassigned --' && o.deliveryCourier !== 'Unassigned') return 'white';
                                     const items = o.items || o.services || [];
-                                    if (items.length === 0) return (o.status || '').toLowerCase() === 'delivered' ? '#e2e8f0' : 'white';
-                                    const totalDelPending = items.reduce((acc: number, it: any) => {
-                                      const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                      const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                      const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                      return acc + Math.max(0, pck - del);
-                                    }, 0);
-                                    return totalDelPending === 0 && (o.status || '').toLowerCase() === 'delivered' ? '#e2e8f0' : 'white';
+                                    if (items.length === 0) return ['ready', 'out for delivery', 'out_for_delivery', 'partially delivered', 'partially_delivered'].includes(st) ? 'white' : '#e2e8f0';
+                                    const hasReadyItems = items.some((it: any) => Number(it.readyQuantity || it.ready_quantity || 0) > 0);
+                                    return hasReadyItems ? 'white' : '#e2e8f0';
                                   })(), 
-                                  cursor: 'pointer',
+                                  cursor: (() => {
+                                    const st = (o.status || '').toLowerCase();
+                                    if (st === 'delivered' || st === 'fully delivered at store') return 'not-allowed';
+                                    if (o.deliveryCourier && o.deliveryCourier !== '' && o.deliveryCourier !== '-- Unassigned --' && o.deliveryCourier !== 'Unassigned') return 'pointer';
+                                    const items = o.items || o.services || [];
+                                    if (items.length === 0) return ['ready', 'out for delivery', 'out_for_delivery', 'partially delivered', 'partially_delivered'].includes(st) ? 'pointer' : 'not-allowed';
+                                    const hasReadyItems = items.some((it: any) => Number(it.readyQuantity || it.ready_quantity || 0) > 0);
+                                    return hasReadyItems ? 'pointer' : 'not-allowed';
+                                  })(),
                                   width: '120px' 
                                 }}
                               >
@@ -5409,8 +5503,20 @@ export const AdminPortal: React.FC = () => {
 
                               if (!hasPickupCourier && !hasDeliveryCourier) return null;
 
-                              const isPickupCompleted = ['received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered'].includes((o.status || '').toLowerCase()) || !!o.pickupCommissionPaid;
-                              const isDeliveryCompleted = (o.status || '').toLowerCase() === 'delivered' || !!o.deliveryCommissionPaid;
+                              const itemsList = o.items || o.services || [];
+                              const hasPendingPickupItems = itemsList.length === 0 || itemsList.some((it: any) => {
+                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
+                                const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                return ord > pck;
+                              });
+                              const hasPendingDeliveryItems = itemsList.length === 0 || itemsList.some((it: any) => {
+                                const pck = it.pickedUpQuantity || it.picked_up_quantity || 0;
+                                const del = it.deliveredQuantity || it.delivered_quantity || 0;
+                                return pck > del;
+                              });
+
+                              const isPickupCompleted = ((o.status || '').toLowerCase() === 'delivered' || !hasPendingPickupItems) && !!o.pickupCommissionPaid;
+                              const isDeliveryCompleted = ((o.status || '').toLowerCase() === 'delivered' || !hasPendingDeliveryItems) && !!o.deliveryCommissionPaid;
 
                               return (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0', width: '130px' }}>
@@ -5470,8 +5576,9 @@ export const AdminPortal: React.FC = () => {
                           </select>
                           <button 
                             onClick={() => handleStartEditOrder(o)} 
-                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                            title="Edit Order in POS"
+                            disabled={['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase())}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: ['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase()) ? '#e2e8f0' : '#fffbeb', color: ['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase()) ? '#94a3b8' : '#b45309', border: '1px solid #fde68a', borderRadius: '6px', cursor: ['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase()) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                            title={['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase()) ? 'Order fully delivered – editing disabled' : 'Edit Order in POS'}
                           >
                             ✏️ {t('Edit')}
                           </button>
@@ -7934,13 +8041,13 @@ export const AdminPortal: React.FC = () => {
                             <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: '700', marginBottom: '2px' }}>{t('Delivery Courier')}</label>
                             {(() => {
                               const items = viewingOrder.items || viewingOrder.services || [];
-                              const isFullyDelivered = items.length > 0 ? items.every((it: any) => {
-                                const ord = it.orderedQuantity || it.ordered_quantity || it.qty || it.quantity || 1;
-                                const pck = (it.pickedUpQuantity !== undefined && Number(it.pickedUpQuantity) > 0) ? Number(it.pickedUpQuantity) : ord;
-                                const del = it.deliveredQuantity || it.delivered_quantity || 0;
-                                return Math.max(0, pck - Number(del)) === 0;
-                              }) : (viewingOrder.status || '').toLowerCase() === 'delivered';
-                              const deliveryDisabled = isFullyDelivered;
+                              const st = (viewingOrder.status || '').toLowerCase();
+                              const isFullyDelivered = st === 'delivered' || st === 'fully delivered at store';
+                              const hasAssignedCourier = viewingOrder.deliveryCourier && viewingOrder.deliveryCourier !== '' && viewingOrder.deliveryCourier !== '-- Unassigned --' && viewingOrder.deliveryCourier !== 'Unassigned';
+                              const hasReadyItems = items.length === 0
+                                ? ['ready', 'out for delivery', 'out_for_delivery', 'partially delivered', 'partially_delivered'].includes(st)
+                                : items.some((it: any) => Number(it.readyQuantity || it.ready_quantity || 0) > 0);
+                              const deliveryDisabled = isFullyDelivered || (!hasAssignedCourier && !hasReadyItems);
                               return (
                                 <select 
                                   value={viewingOrder.deliveryCourier || (((viewingOrder.status || '').toLowerCase() === 'delivered') ? viewingOrder.courier : '') || ''} 
