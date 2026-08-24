@@ -123,7 +123,7 @@ export const TasksScreen = () => {
   return (
     <ScreenContainer style={styles.container}>
       {/* Top App Bar matching mockup */}
-      <Header title={tApp('Assigned Tasks', language)} showBack />
+      <Header title={tApp('Assigned Tasks', language)} showBack={false} />
 
       {/* Segmented Control Switcher */}
       <View style={styles.tabContainer}>

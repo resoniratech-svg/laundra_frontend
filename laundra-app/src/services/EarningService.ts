@@ -53,11 +53,13 @@ export const EarningService = {
           lifetimeEarnings += amt;
           trips.push({
             orderId: o.id,
+            delivTaskId: String(delId),
             type: 'Pickup',
             customerName: o.customerName || 'Customer',
             date: o.pickupDate || (o.created_at ? o.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
             amount: amt,
             status: isPaid ? 'Paid' : 'Pending',
+            paidMethod: isPaid ? (o.pickupPaymentMethod || 'Cash') : null,
           });
         }
       }
@@ -80,11 +82,13 @@ export const EarningService = {
           lifetimeEarnings += amt;
           trips.push({
             orderId: o.id,
+            delivTaskId: String(delId),
             type: 'Delivery',
             customerName: o.customerName || 'Customer',
             date: (o as any).deliveredDate || o.deliveryDate || (o.created_at ? o.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
             amount: amt,
             status: isPaid ? 'Paid' : 'Pending',
+            paidMethod: isPaid ? (o.deliveryPaymentMethod || 'Cash') : null,
           });
         }
       }

@@ -42,9 +42,6 @@ export const EarningsScreen = () => {
     <ScreenContainer style={styles.container}>
       {/* Header Bar */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>{tApp('My Earnings', language)}</Text>
       </View>
 
@@ -103,14 +100,17 @@ export const EarningsScreen = () => {
                 <View style={styles.transactionCard}>
                   <View style={styles.txLeft}>
                     <Text style={styles.txDate}>{item.date ? new Date(item.date).toLocaleDateString() : 'Today'}</Text>
-                    <Text style={styles.txTaskId}>{tApp('Task #', language)}{item.orderId}</Text>
+                    <Text style={styles.txTaskId}>
+                      {tApp('Task #', language)}{item.orderId}
+                      {item.delivTaskId && item.delivTaskId !== item.orderId && item.delivTaskId !== 'undefined' ? ` (${tApp('Task #', language)}${item.delivTaskId.slice(0, 6)})` : ''}
+                    </Text>
                     <Text style={styles.txType}>{tApp(item.type, language)} • {item.customerName}</Text>
                   </View>
                   <View style={styles.txRight}>
                     <Text style={styles.txAmount}>+QR {(Number(item.amount) || 0).toFixed(2)}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: item.status === 'Paid' ? '#dcfce7' : '#ffedd5' }]}>
                       <Text style={[styles.statusText, { color: item.status === 'Paid' ? '#15803d' : '#c2410c' }]}>
-                        {tApp(item.status, language)}
+                        {item.status === 'Paid' ? `${tApp('Paid via', language)} ${tApp(item.paidMethod || 'Cash', language)}` : tApp('Pending', language)}
                       </Text>
                     </View>
                   </View>

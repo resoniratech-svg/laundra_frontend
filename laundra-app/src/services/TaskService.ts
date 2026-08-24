@@ -49,6 +49,10 @@ export const TaskService = {
               itemCount: orderData.items?.length || 1,
               pickupCommission: orderData.pickup_commission ?? orderData.pickupCommission ?? d.pickup_commission ?? d.pickupCommission ?? 0,
               deliveryCommission: orderData.delivery_commission ?? orderData.deliveryCommission ?? d.delivery_commission ?? d.deliveryCommission ?? 0,
+              pickupCommissionPaid: d.pickup_commission_paid ?? orderData.pickup_commission_paid ?? false,
+              deliveryCommissionPaid: d.delivery_commission_paid ?? orderData.delivery_commission_paid ?? false,
+              pickupPaymentMethod: d.pickup_payment_method || orderData.pickup_payment_method || null,
+              deliveryPaymentMethod: d.delivery_payment_method || orderData.delivery_payment_method || null,
               pickupDate: orderData.pickup_date || d.created_at || new Date().toISOString(),
               created_at: d.created_at || new Date().toISOString(),
               items: (orderData.items || []).map((it: any, idx: number) => {

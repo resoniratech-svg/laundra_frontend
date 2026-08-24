@@ -58,7 +58,8 @@ export const DashboardScreen = () => {
   const announcements = data?.announcements || [];
 
   const userName = currentUser?.name || 'laundry';
-  const companyName = currentUser?.companyName || (currentUser as any)?.company_name || (currentUser as any)?.company?.name || data?.companyName || 'Laundry Operations';
+  const rawCompanyName = currentUser?.companyName || (currentUser as any)?.company_name || (currentUser as any)?.company?.name || data?.companyName;
+  const companyName = (rawCompanyName && rawCompanyName !== 'Iron') ? rawCompanyName : (data?.companyName || 'Laundra Operations');
 
   return (
     <ScreenContainer style={styles.container}>

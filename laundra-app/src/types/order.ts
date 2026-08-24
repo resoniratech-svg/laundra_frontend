@@ -26,6 +26,8 @@ export interface Order {
   deliveryCommission?: number;
   pickupCommissionPaid?: boolean;
   deliveryCommissionPaid?: boolean;
+  pickupPaymentMethod?: string;
+  deliveryPaymentMethod?: string;
   pickupDate?: string;
   deliveryDate?: string;
   pickupOtp?: string;

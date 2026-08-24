@@ -28,8 +28,8 @@ export const AuthService = {
           password: '',
           role: userData.role || 'delivery',
           status: userData.status || 'Active',
-          companyId: userData.tenant_id || userData.companyId || 'comp-101',
-          companyName: userData.company_name || userData.companyName || (userData.company && userData.company.name) || 'Iron',
+          companyId: userData.tenant_id || userData.companyId || '',
+          companyName: userData.company_name || userData.companyName || (userData.company && userData.company.name) || 'Laundra Operations',
           createdAt: new Date().toISOString(),
         };
 

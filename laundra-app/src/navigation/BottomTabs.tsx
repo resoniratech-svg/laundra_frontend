@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashboardScreen } from '../screens/Dashboard';
 import { TasksScreen } from '../screens/Tasks';
 import { EarningsScreen } from '../screens/Earnings';
@@ -20,6 +21,10 @@ const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export const BottomTabs = () => {
   const language = useAuthStore((state) => state.language);
+  const insets = useSafeAreaInsets();
+
+  const bottomPadding = insets.bottom > 0 ? insets.bottom : 8;
+  const tabHeight = 56 + bottomPadding;
 
   return (
     <Tab.Navigator
@@ -31,8 +36,8 @@ export const BottomTabs = () => {
         tabBarStyle: {
           backgroundColor: '#ffffff',
           borderTopColor: colors.border,
-          height: 62,
-          paddingBottom: 8,
+          height: tabHeight,
+          paddingBottom: bottomPadding,
           paddingTop: 6,
         },
         tabBarLabelStyle: {

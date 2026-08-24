@@ -111,7 +111,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         )}
 
         <Text style={styles.detailItem}>
-          📅 <Text style={styles.boldLabel}>{isPickup ? tApp('Pickup Time:', language) : tApp('Delivery Time:', language)}</Text> {dateStr} ({isPickup ? '10:00 AM - 1:00 PM' : '3:00 PM - 6:00 PM'})
+          📅 <Text style={styles.boldLabel}>{isPickup ? tApp('Pickup Time:', language) : tApp('Delivery Time:', language)}</Text> {dateStr}
         </Text>
 
         {!isPickup && (

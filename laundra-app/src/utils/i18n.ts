@@ -39,6 +39,14 @@ export const appArDict: Record<string, string> = {
   'Task': 'المهمة',
   'Pickup': 'استلام',
   'Delivery': 'توصيل',
+  'Paid': 'مدفوع',
+  'Paid via': 'تم الدفع عن طريق',
+  'Paid via Cash': 'تم الدفع نقداً',
+  'Paid via Card': 'تم الدفع بالبطاقة',
+  'Paid via Check': 'تم الدفع بالشيك',
+  'Cash': 'نقداً',
+  'Card': 'بطاقة',
+  'Check': 'شيك',
 
   // More / Operations Screen
   'More Operations': 'عمليات أخرى',
