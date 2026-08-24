@@ -519,7 +519,17 @@ export const SuperAdminPortal: React.FC = () => {
       localStorage.setItem('ll_impersonatedCompanyId', companyId);
       localStorage.setItem('ll_active_workspace', 'admin');
       localStorage.setItem('ll_activerole', 'Admin');
+      localStorage.setItem(`ll_${companyId}_activerole`, 'Admin');
+      localStorage.setItem('ll_active_admin_module', 'dashboard');
+      localStorage.removeItem('ll_active_delivery_boy');
+      localStorage.removeItem('ll_active_customer_id');
+      localStorage.removeItem(`ll_${companyId}_active_delivery_boy`);
+      localStorage.removeItem(`ll_${companyId}_active_customer_id`);
       changeActiveCompany(companyId);
+      saveDB({
+        activeRole: 'Admin',
+        currentDeliveryBoy: null,
+      });
       navigate('/admin');
     }
   };

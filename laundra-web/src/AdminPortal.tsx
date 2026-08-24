@@ -118,6 +118,14 @@ export const AdminPortal: React.FC = () => {
     localStorage.setItem('ll_active_admin_module', activeModule);
   }, [activeModule]);
 
+  // Ensure Super Admin Impersonation always uses Admin role
+  useEffect(() => {
+    const impId = localStorage.getItem('ll_impersonatedCompanyId');
+    if (impId && db.activeRole !== 'Admin') {
+      saveDB({ activeRole: 'Admin', currentDeliveryBoy: null });
+    }
+  }, [db.activeRole]);
+
   // Adjust module tab based on role permissions
   useEffect(() => {
     if (db.activeRole === 'Delivery Staff' || db.activeRole === 'Delivery Boy') {

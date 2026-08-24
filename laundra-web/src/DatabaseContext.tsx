@@ -888,11 +888,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setActiveBranchState(abSaved || 'Downtown HQ');
 
     // Active Role
-    const arSaved = localStorage.getItem(`ll_${compId}_activerole`);
+    const isImpersonating = localStorage.getItem('ll_impersonatedCompanyId') === compId;
+    const arSaved = isImpersonating ? 'Admin' : localStorage.getItem(`ll_${compId}_activerole`);
     setActiveRoleState(arSaved || 'Admin');
 
     // Current Delivery Boy
-    const cdbSaved = localStorage.getItem(`ll_${compId}_active_delivery_boy`);
+    const cdbSaved = isImpersonating ? null : localStorage.getItem(`ll_${compId}_active_delivery_boy`);
     setCurrentDeliveryBoyState(cdbSaved || null);
 
     // Unread Reviews Count
