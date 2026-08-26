@@ -1281,26 +1281,26 @@ export const AdminPortal: React.FC = () => {
               items: activeItems,
               pickupHistory: activePickupHistory,
               deliveryHistory: activeDeliveryHistory,
-              paymentStatus: existing.paymentStatus === 'Paid' ? 'Paid' : (freshOrder.paymentStatus || 'Unpaid'),
-              assignedPickupCourier: existing.assignedPickupCourier || existing.pickupCourier || freshOrder.courier || null,
-              pickupCourier: existing.pickupCourier || existing.assignedPickupCourier || freshOrder.courier || null,
-              assignedDeliveryCourier: (existing.assignedDeliveryCourier && existing.assignedDeliveryCourier !== (existing.assignedPickupCourier || existing.pickupCourier)) ? existing.assignedDeliveryCourier : null,
-              deliveryCourier: (existing.deliveryCourier && existing.deliveryCourier !== (existing.pickupCourier || existing.assignedPickupCourier)) ? existing.deliveryCourier : (freshOrder.status === 'Delivered' ? freshOrder.courier : null),
-              courier: freshOrder.courier || existing.courier || existing.pickupCourier || existing.assignedPickupCourier || null,
-              deliveryStatus: existing.deliveryStatus || freshOrder.deliveryStatus,
-              deliveredDate: existing.deliveredDate || freshOrder.deliveredDate || null,
-              discount: existing.discount ?? freshOrder.discount ?? 0,
-              pickupCommission: existing.pickupCommission ?? freshOrder.pickupCommission ?? 0,
-              deliveryCommission: existing.deliveryCommission ?? freshOrder.deliveryCommission ?? 0,
-              pickupCommissionPaid: existing.pickupCommissionPaid || freshOrder.pickupCommissionPaid || false,
-              deliveryCommissionPaid: existing.deliveryCommissionPaid || freshOrder.deliveryCommissionPaid || false,
-              pickupAccepted: existing.pickupAccepted || false,
-              deliveryAccepted: existing.deliveryAccepted || false,
+              paymentStatus: (freshOrder.paymentStatus === 'Paid' || existing.paymentStatus === 'Paid') ? 'Paid' : (freshOrder.paymentStatus || 'Unpaid'),
+              assignedPickupCourier: freshOrder.pickupCourier || freshOrder.courier || existing.assignedPickupCourier || existing.pickupCourier || null,
+              pickupCourier: freshOrder.pickupCourier || freshOrder.courier || existing.pickupCourier || existing.assignedPickupCourier || null,
+              assignedDeliveryCourier: freshOrder.deliveryCourier || existing.assignedDeliveryCourier || null,
+              deliveryCourier: freshOrder.deliveryCourier || existing.deliveryCourier || (freshOrder.status === 'Delivered' ? freshOrder.courier : null),
+              courier: freshOrder.courier || freshOrder.pickupCourier || existing.courier || existing.pickupCourier || null,
+              deliveryStatus: freshOrder.deliveryStatus || existing.deliveryStatus,
+              deliveredDate: freshOrder.deliveredDate || existing.deliveredDate || null,
+              discount: freshOrder.discount !== undefined ? freshOrder.discount : (existing.discount ?? 0),
+              pickupCommission: (freshOrder.pickupCommission !== undefined && freshOrder.pickupCommission !== null) ? freshOrder.pickupCommission : (existing.pickupCommission ?? 0),
+              deliveryCommission: (freshOrder.deliveryCommission !== undefined && freshOrder.deliveryCommission !== null) ? freshOrder.deliveryCommission : (existing.deliveryCommission ?? 0),
+              pickupCommissionPaid: freshOrder.pickupCommissionPaid || existing.pickupCommissionPaid || false,
+              deliveryCommissionPaid: freshOrder.deliveryCommissionPaid || existing.deliveryCommissionPaid || false,
+              pickupAccepted: freshOrder.pickupAccepted || existing.pickupAccepted || false,
+              deliveryAccepted: freshOrder.deliveryAccepted || existing.deliveryAccepted || false,
             };
           }
           return {
             ...freshOrder,
-            pickupCourier: freshOrder.courier || null,
+            pickupCourier: freshOrder.pickupCourier || freshOrder.courier || null,
             pickupCommission: freshOrder.pickupCommission ?? 0,
             deliveryCommission: freshOrder.deliveryCommission ?? 0,
           };
@@ -5610,7 +5610,7 @@ export const AdminPortal: React.FC = () => {
                                         type="number" 
                                         placeholder="0.00"
                                         disabled={isPickupCompleted}
-                                        value={o.pickupCommission ? o.pickupCommission : ''}
+                                        value={o.pickupCommission !== undefined && o.pickupCommission !== null ? o.pickupCommission : ''}
                                         onChange={e => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
@@ -5629,7 +5629,7 @@ export const AdminPortal: React.FC = () => {
                                         type="number" 
                                         placeholder="0.00"
                                         disabled={isDeliveryCompleted}
-                                        value={o.deliveryCommission ? o.deliveryCommission : ''}
+                                        value={o.deliveryCommission !== undefined && o.deliveryCommission !== null ? o.deliveryCommission : ''}
                                         onChange={e => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
@@ -8189,12 +8189,13 @@ export const AdminPortal: React.FC = () => {
                                     type="number" 
                                     placeholder="0.00"
                                     disabled={isPickupCompleted}
-                                    value={viewingOrder.pickupCommission ? viewingOrder.pickupCommission : ''}
+                                    value={viewingOrder.pickupCommission !== undefined && viewingOrder.pickupCommission !== null ? viewingOrder.pickupCommission : ''}
                                     onChange={e => {
                                       const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                       setViewingOrder({...viewingOrder, pickupCommission: val});
                                       const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, pickupCommission: val} : o);
                                       saveDB({ orders: updatedOrders });
+                                      syncDeliveryToBackend(viewingOrder.id, viewingOrder.pickupCourier || 'All Delivery Staff', 'PICKUP', val);
                                     }}
                                     style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
                                   />
@@ -8208,12 +8209,13 @@ export const AdminPortal: React.FC = () => {
                                     type="number" 
                                     placeholder="0.00"
                                     disabled={isDeliveryCompleted}
-                                    value={viewingOrder.deliveryCommission ? viewingOrder.deliveryCommission : ''}
+                                    value={viewingOrder.deliveryCommission !== undefined && viewingOrder.deliveryCommission !== null ? viewingOrder.deliveryCommission : ''}
                                     onChange={e => {
                                       const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                       setViewingOrder({...viewingOrder, deliveryCommission: val});
                                       const updatedOrders = db.orders.map(o => o.id === viewingOrder.id ? {...o, deliveryCommission: val} : o);
                                       saveDB({ orders: updatedOrders });
+                                      syncDeliveryToBackend(viewingOrder.id, viewingOrder.deliveryCourier || viewingOrder.courier || 'All Delivery Staff', 'DELIVERY', val);
                                     }}
                                     style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1.5px solid #cbd5e1', borderRadius: '4px', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
                                   />
