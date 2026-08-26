@@ -3014,6 +3014,7 @@ export const AdminPortal: React.FC = () => {
     }
 
     const commAmt = posPayMethod === 'Cash' ? parseFloat(posCommission) || 0 : 0;
+    const generatedPosOrderId = String(Math.floor(100000 + Math.random() * 900000));
 
     // --- Try to save to backend first ---
     let backendOrderId: string | null = null;
@@ -3073,6 +3074,7 @@ export const AdminPortal: React.FC = () => {
             },
             body: JSON.stringify({
               customer_id: targetBackendCustId,
+              order_number: generatedPosOrderId,
               items: itemsPayload,
               coupon_code: posCouponApplied ? posCouponCode : null,
               is_express: posCart.some(i => i.variantName === 'Express'),
@@ -3087,7 +3089,7 @@ export const AdminPortal: React.FC = () => {
           if (res.ok) {
             const data = await res.json();
             backendOrderId = data.id;
-            backendOrderNumber = data.order_number;
+            backendOrderNumber = data.order_number || generatedPosOrderId;
           
           // Redeem the package if applied
           if (posPrepaidPackageApplied) {
@@ -3122,6 +3124,8 @@ export const AdminPortal: React.FC = () => {
     // If offline or backend unreachable, enqueue order in local IndexedDB queue
     if (!backendOrderId) {
       offlineQueue.enqueueAction('ORDER_CREATE', {
+        id: generatedPosOrderId,
+        order_number: generatedPosOrderId,
         customer_id: targetBackendCustId || finalCustId,
         customer_name: customerName,
         phone: posCustPhone,
@@ -3137,7 +3141,7 @@ export const AdminPortal: React.FC = () => {
       }, db.activeCompanyId);
     }
 
-    const newOrderId = backendOrderNumber || String(Math.floor(100000 + Math.random() * 900000));
+    const newOrderId = backendOrderNumber || generatedPosOrderId;
 
     const finalDiscount = posDiscount + (parseFloat(customPOSDiscount) || 0);
 

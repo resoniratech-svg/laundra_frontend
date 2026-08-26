@@ -176,6 +176,7 @@ class SyncEngineService {
           headers,
           body: JSON.stringify({
             customer_id: realCustId,
+            order_number: orderData.order_number || orderData.id,
             items: itemsPayload,
             coupon_code: orderData.coupon_code || null,
             is_express: Boolean(orderData.is_express),
