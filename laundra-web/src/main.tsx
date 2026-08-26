@@ -28,6 +28,20 @@ window.fetch = async function (input, init) {
   return originalFetch.call(this, input, init);
 };
 
+// Register Laundra POS Service Worker for Offline PWA Support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        console.log('[Laundra PWA] Service Worker registered with scope:', reg.scope);
+      })
+      .catch((err) => {
+        console.warn('[Laundra PWA] Service Worker registration failed:', err);
+      });
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

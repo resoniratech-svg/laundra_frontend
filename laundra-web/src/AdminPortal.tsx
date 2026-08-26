@@ -5,6 +5,7 @@ import { useDatabase, isPackageCustomerActive, type Order, type Service, type Cu
 import { PortalLayout } from './components/PortalLayout';
 import { apiApproveDeliveryBoy, apiRejectDeliveryBoy } from './deliveryApi';
 import PrepaidPackagesManager from './PrepaidPackagesManager';
+import { offlineQueue } from './services/OfflineQueue';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface CompanyActivity {
@@ -645,8 +646,38 @@ export const AdminPortal: React.FC = () => {
       alert(`Successfully deducted package usage for ${deductCust.name}! Apple Wallet pass updated.`);
       setDeductCust(null);
     } catch (err) {
-      console.error('Error executing package deduction:', err);
-      alert('Network error while executing package deduction.');
+      console.warn('Network error during package deduction. Enqueuing offline deduction:', err);
+      
+      // Enqueue action in local IndexedDB
+      await offlineQueue.enqueueAction('PACKAGE_DEDUCT', {
+        customer_id: deductCust.id,
+        customer_package_id: activeCustomerPkg?.id,
+        deductions: hasDynamicItems
+          ? Object.entries(dynamicDeductions)
+              .filter(([, qty]) => qty > 0)
+              .map(([service, quantity]) => ({ service, quantity }))
+          : [],
+        wash_used: hasDynamicItems ? 0 : deductWash,
+        iron_used: hasDynamicItems ? 0 : deductIron,
+        dry_used: hasDynamicItems ? 0 : deductDry,
+        steam_used: hasDynamicItems ? 0 : deductSteam,
+        amount_used: deductAmount,
+        remarks: deductRemarks
+      }, db.activeCompanyId);
+
+      // Perform local balance decrement
+      const updatedCustomers = db.customers.map(c => c.id === deductCust.id ? {
+        ...c,
+        remainingWashCount: Math.max(0, (c.remainingWashCount || 0) - deductWash),
+        remainingIronCount: Math.max(0, (c.remainingIronCount || 0) - deductIron),
+        remainingDryCleanCount: Math.max(0, (c.remainingDryCleanCount || 0) - deductDry),
+        remainingSteamCount: Math.max(0, (c.remainingSteamCount || 0) - deductSteam),
+        walletBalance: Math.max(0, (c.walletBalance || 0) - deductAmount)
+      } as Customer : c);
+
+      saveDB({ customers: updatedCustomers });
+      alert(`Offline Mode: Deducted package usage for ${deductCust.name}! (Saved locally & will sync when online)`);
+      setDeductCust(null);
     }
   };
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
@@ -3082,6 +3113,22 @@ export const AdminPortal: React.FC = () => {
       }
     }
   }
+
+    // If offline or backend unreachable, enqueue order in local IndexedDB queue
+    if (!backendOrderId) {
+      offlineQueue.enqueueAction('ORDER_CREATE', {
+        customer_id: targetBackendCustId || finalCustId,
+        customer_name: customerName,
+        phone: posCustPhone,
+        email: posCustEmail,
+        address: posCustAddress,
+        items: posCart.map(i => ({ service_id: i.variantId || i.itemId, quantity: i.qty })),
+        total_amount: total,
+        payment_method: posPayMethod,
+        is_express: posCart.some(i => i.variantName === 'Express'),
+        created_at: new Date().toISOString()
+      }, db.activeCompanyId);
+    }
 
     const newOrderId = backendOrderNumber || String(Math.floor(100000 + Math.random() * 900000));
 

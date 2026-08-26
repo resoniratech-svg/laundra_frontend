@@ -6,6 +6,7 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { apiSendDeliveryOtp, apiRegisterDeliveryBoy } from './deliveryApi';
 
 import { getApiBaseUrl } from './config';
+import { InstallAppButton } from './components/InstallAppButton';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -598,6 +599,7 @@ export const LandingPage: React.FC = () => {
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <LanguageSwitcher />
+          <InstallAppButton />
           <button 
             className="secondary-btn" 
             onClick={() => {

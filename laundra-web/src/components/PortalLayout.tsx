@@ -4,6 +4,8 @@ import { useDatabase } from '../DatabaseContext';
 import { useLanguage } from '../LanguageContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { getApiBaseUrl } from '../config';
+import { SyncStatusBadge } from './SyncStatusBadge';
+import { InstallAppButton } from './InstallAppButton';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -279,13 +281,17 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
           {/* Language Switcher */}
           <LanguageSwitcher />
 
+          {/* PWA Sync Status Badge */}
+          <SyncStatusBadge companyId={db.activeCompanyId} />
+
           {/* Theme Toggle */}
           <button onClick={toggleTheme} className="icon-btn" title="Toggle Theme" style={{ background: '#f1f5f9', border: '1px solid var(--border-color)' }}>
             🌓
           </button>
         </div>
 
-        <div className="cta-row" style={{ margin: 0, display: 'flex', gap: '8px' }}>
+        <div className="cta-row" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <InstallAppButton />
           <button onClick={() => navigate('/customer')} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>{t('nav.customerHub')}</button>
           {activeComp?.features?.deliveryModule !== false && (
             <button onClick={() => { saveDB({ activeRole: 'Delivery Staff' }); onModuleChange('orders'); }} className="secondary-btn sub-tab-nav" style={{ fontWeight: '700' }}>{t('nav.deliveryHub')}</button>
