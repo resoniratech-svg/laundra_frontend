@@ -1232,7 +1232,8 @@ export const AdminPortal: React.FC = () => {
 
         // Merge locally-saved courier assignments and item statuses so they aren't wiped on refresh.
         const currentOrders: any[] = db.orders || [];
-        const mergedOrders = mappedOrders.map((freshOrder: any) => {
+        const uniqueFreshOrders = Array.from(new Map(mappedOrders.map((o: any) => [String(o.id).replace('#', '').trim(), o])).values());
+        const mergedOrders = uniqueFreshOrders.map((freshOrder: any) => {
           const existing = currentOrders.find((e: any) => e.id === freshOrder.id || e.backendId === freshOrder.backendId);
           if (existing) {
             const rawItems = (freshOrder.items && freshOrder.items.length > 0)
