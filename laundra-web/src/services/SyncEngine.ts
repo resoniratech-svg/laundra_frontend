@@ -69,7 +69,9 @@ class SyncEngineService {
 
     let synced = 0;
     let failed = 0;
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('ll_auth_token') : null;
+    const token = typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || '')
+      : '';
     const BASE_URL = getApiBaseUrl();
 
     for (const action of pending) {
@@ -117,19 +119,86 @@ class SyncEngineService {
     switch (action.type) {
       case 'ORDER_CREATE': {
         const orderData = action.payload;
-        // Transform local order to backend order payload
+
+        // 1. Auto-resolve or create Customer UUID in PostgreSQL
+        let realCustId = orderData.customer_id;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realCustId || '');
+        if (!isUuid) {
+          try {
+            const custRes = await fetch(`${baseUrl}/api/v1/customers`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                name: orderData.customer_name || 'Walk-in / Guest',
+                phone: orderData.phone || `555-${Math.floor(1000 + Math.random() * 9000)}`,
+                email: orderData.email || `customer_${Date.now()}@laundra.com`,
+                address: orderData.address || 'Branch Pickup'
+              })
+            });
+            if (custRes.ok) {
+              const custData = await custRes.json();
+              realCustId = custData.id;
+            }
+          } catch (e) {
+            console.warn('[SyncEngine] Auto customer registration fallback:', e);
+          }
+        }
+
+        // 2. Auto-resolve Services List for valid service UUIDs
+        let backendServices: any[] = [];
+        try {
+          const srvRes = await fetch(`${baseUrl}/api/v1/services`, { headers });
+          if (srvRes.ok) {
+            backendServices = await srvRes.json();
+          }
+        } catch (e) {}
+
+        const itemsPayload = (orderData.items || []).map((i: any) => {
+          let srvId = i.service_id || i.serviceId || i.variantId || i.itemId;
+          const matched = backendServices.find((bs: any) =>
+            bs.id === srvId || (bs.name && i.name && bs.name.toLowerCase() === i.name.toLowerCase())
+          ) || backendServices[0];
+          if (matched && matched.id) {
+            srvId = matched.id;
+          }
+          return {
+            service_id: srvId,
+            quantity: i.quantity || i.qty || 1
+          };
+        });
+
+        // 3. Send valid payload to create order in PostgreSQL
         const res = await fetch(`${baseUrl}/api/v1/orders`, {
           method: 'POST',
           headers,
-          body: JSON.stringify(orderData)
+          body: JSON.stringify({
+            customer_id: realCustId,
+            items: itemsPayload,
+            coupon_code: orderData.coupon_code || null,
+            is_express: Boolean(orderData.is_express),
+            pay_with_package_id: orderData.pay_with_package_id || null,
+            pickup_address: orderData.address || undefined,
+            delivery_address: orderData.address || undefined,
+            special_instructions: orderData.special_instructions || undefined
+          })
         });
+
         if (res.ok) {
           const cloudOrder = await res.json();
-          // Update local storage order reference if needed
           this.updateLocalOrderWithCloudId(orderData.id || action.id, cloudOrder.id);
           return true;
         }
         return false;
+      }
+
+      case 'ORDER_DELETE': {
+        const { orderId, backendId } = action.payload;
+        const targetId = backendId || orderId;
+        const res = await fetch(`${baseUrl}/api/v1/orders/${targetId}`, {
+          method: 'DELETE',
+          headers
+        });
+        return res.ok || res.status === 404; // 404 means already deleted on cloud
       }
 
       case 'PACKAGE_DEDUCT': {
@@ -160,7 +229,6 @@ class SyncEngineService {
       }
 
       default:
-        // Other custom actions
         return true;
     }
   }

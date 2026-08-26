@@ -5641,18 +5641,31 @@ export const AdminPortal: React.FC = () => {
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
+                              let backendDeleted = false;
                               try {
-                                const res = await fetch(`${BASE_URL}/api/v1/orders/${o.backendId || o.id}`, {
+                                const targetId = o.backendId || o.id;
+                                const res = await fetch(`${BASE_URL}/api/v1/orders/${targetId}`, {
                                   method: 'DELETE',
                                   headers: { 'Authorization': `Bearer ${token}` }
                                 });
-                                if (!res.ok) {
+                                if (res.ok) {
+                                  backendDeleted = true;
+                                } else {
                                   const err = await res.json().catch(() => ({}));
                                   console.warn('Backend delete failed:', err.detail);
                                 }
                               } catch (err) {
-                                console.error('Network error deleting order:', err);
+                                console.warn('Network error deleting order (offline):', err);
                               }
+
+                              // If offline or backend delete failed, enqueue for auto-sync
+                              if (!backendDeleted) {
+                                await offlineQueue.enqueueAction('ORDER_DELETE', {
+                                  orderId: o.id,
+                                  backendId: o.backendId
+                                }, db.activeCompanyId);
+                              }
+
                               // Soft delete in local state
                               saveDB({ orders: db.orders.map(item => item.id === o.id ? { ...item, isDeleted: true } : item) });
                               addActivity('Order', `Deleted order #${o.id}`);
