@@ -1209,7 +1209,13 @@ export const AdminPortal: React.FC = () => {
             appliedPackageId: o.applied_package_id || o.appliedPackageId || null,
             specialInstructions: o.special_instructions || o.remarks || '',
             status: displayStatus,
-            courier: o.delivery_boy_name || null,
+            courier: o.pickup_courier || o.delivery_courier || o.delivery_boy_name || null,
+            pickupCourier: o.pickup_courier || o.delivery_boy_name || null,
+            deliveryCourier: o.delivery_courier || null,
+            assignedPickupCourier: o.pickup_courier || o.delivery_boy_name || null,
+            assignedDeliveryCourier: o.delivery_courier || null,
+            pickupCommission: parseFloat(o.pickup_commission || '0') || 0,
+            deliveryCommission: parseFloat(o.delivery_commission || '0') || 0,
             deliveryStatus: o.status === 'DELIVERED' ? 'Delivered' : 'Pending',
             phone: customerPhone,
             address: o.pickup_address || customerAddress,
@@ -2573,7 +2579,7 @@ export const AdminPortal: React.FC = () => {
     const delivComm = deliveryType === 'DELIVERY' ? (customCommission !== undefined ? customCommission : (targetOrder?.deliveryCommission ?? 0)) : (targetOrder?.deliveryCommission ?? 0);
 
     try {
-      await fetch(`${BASE_URL}/api/v1/deliveries`, {
+      const res = await fetch(`${BASE_URL}/api/v1/deliveries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2582,13 +2588,23 @@ export const AdminPortal: React.FC = () => {
         body: JSON.stringify({
           order_id: targetId,
           delivery_boy_id: driverId,
+          courier_name: courierName,
           type: deliveryType,
           pickup_commission: pickComm,
           delivery_commission: delivComm
         })
       });
+      if (!res.ok) {
+        throw new Error('Server returned error on courier assignment');
+      }
     } catch (err) {
-      console.error('Failed to sync delivery assignment to backend:', err);
+      console.warn('Offline or error syncing delivery assignment. Enqueuing:', err);
+      await offlineQueue.enqueueAction('COURIER_ASSIGN', {
+        orderId: targetId,
+        courierName,
+        deliveryType,
+        commission: customCommission !== undefined ? customCommission : (deliveryType === 'PICKUP' ? pickComm : delivComm)
+      }, db.activeCompanyId);
     }
   };
 

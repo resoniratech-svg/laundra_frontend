@@ -207,6 +207,22 @@ class SyncEngineService {
         return res.ok || res.status === 404; // 404 means already deleted on cloud
       }
 
+      case 'COURIER_ASSIGN': {
+        const { orderId, courierName, deliveryType, commission } = action.payload;
+        const res = await fetch(`${baseUrl}/api/v1/deliveries`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            order_id: orderId,
+            courier_name: courierName,
+            type: deliveryType || 'PICKUP',
+            pickup_commission: deliveryType === 'PICKUP' ? (commission ?? 0) : 0,
+            delivery_commission: deliveryType === 'DELIVERY' ? (commission ?? 0) : 0
+          })
+        });
+        return res.ok;
+      }
+
       case 'PACKAGE_DEDUCT': {
         const res = await fetch(`${baseUrl}/api/v1/prepaid-packages/deduct`, {
           method: 'POST',
