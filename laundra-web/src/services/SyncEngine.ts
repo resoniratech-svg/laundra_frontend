@@ -168,6 +168,9 @@ class SyncEngineService {
         });
 
         // 3. Send valid payload to create order in PostgreSQL
+        const computedPaymentStatus = orderData.payment_method === 'Pay Later' ? 'UNPAID' : (orderData.payment_status || 'PAID');
+        const computedPaidAmount = orderData.payment_method === 'Pay Later' ? 0 : (orderData.paid_amount ?? orderData.total_amount ?? 0);
+
         const res = await fetch(`${baseUrl}/api/v1/orders`, {
           method: 'POST',
           headers,
@@ -179,6 +182,8 @@ class SyncEngineService {
             pay_with_package_id: orderData.pay_with_package_id || null,
             pickup_address: orderData.address || undefined,
             delivery_address: orderData.address || undefined,
+            payment_status: computedPaymentStatus,
+            paid_amount: computedPaidAmount,
             special_instructions: orderData.special_instructions || undefined
           })
         });

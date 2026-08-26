@@ -3062,6 +3062,9 @@ export const AdminPortal: React.FC = () => {
             };
           });
 
+          const computedPaymentStatus = posPayMethod === 'Pay Later' ? 'UNPAID' : 'PAID';
+          const computedPaidAmount = posPayMethod === 'Pay Later' ? 0 : total;
+
           const res = await fetch(`${BASE_URL}/api/v1/orders`, {
             method: 'POST',
             headers: {
@@ -3076,6 +3079,8 @@ export const AdminPortal: React.FC = () => {
               pay_with_package_id: (posPayMethod === 'Package' && posSelectedPackageId) ? posSelectedPackageId : null,
               pickup_address: posCustAddress || undefined,
               delivery_address: posCustAddress || undefined,
+              payment_status: computedPaymentStatus,
+              paid_amount: computedPaidAmount,
               special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
             })
           });
@@ -3122,9 +3127,11 @@ export const AdminPortal: React.FC = () => {
         phone: posCustPhone,
         email: posCustEmail,
         address: posCustAddress,
-        items: posCart.map(i => ({ service_id: i.variantId || i.itemId, quantity: i.qty })),
+        items: posCart.map(i => ({ service_id: i.variantId || i.itemId, quantity: i.qty, name: i.itemName, price: i.price })),
         total_amount: total,
         payment_method: posPayMethod,
+        payment_status: posPayMethod === 'Pay Later' ? 'UNPAID' : 'PAID',
+        paid_amount: posPayMethod === 'Pay Later' ? 0 : total,
         is_express: posCart.some(i => i.variantName === 'Express'),
         created_at: new Date().toISOString()
       }, db.activeCompanyId);
