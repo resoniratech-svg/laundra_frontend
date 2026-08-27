@@ -139,7 +139,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       return ['orders', 'announcements'].includes(moduleId);
     }
     if (db.activeRole === 'Cashier' || db.activeRole === 'cashier') {
-      return ['dashboard', 'pos', 'customers', 'orders', 'order-history', 'delivery-staff', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'announcements', 'reviews'].includes(moduleId);
+      return ['dashboard', 'pos', 'customers', 'orders', 'order-history', 'delivery-staff', 'delivery-payment', 'driver-handover', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'announcements', 'reviews'].includes(moduleId);
     }
 
     return true;
@@ -152,6 +152,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     'cashiers': 'Cashier Management',
     'delivery-staff': 'Delivery Staff Management',
     'delivery-payment': 'Delivery Payment Module',
+    'driver-handover': 'Driver Cash Handover & Settlement',
     'services': 'Service Management',
     'orders': 'Order Management Engine',
     'order-history': 'Order History Archive',
@@ -179,6 +180,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     { id: 'cashiers', label: t('menu.cashiers', 'Cashier Management'), icon: '🧑‍💼' },
     { id: 'delivery-staff', label: t('menu.deliveryStaff', 'Delivery Staff'), icon: '🚚' },
     { id: 'delivery-payment', label: t('menu.deliveryPayments', 'Delivery Payments'), icon: '💰' },
+    { id: 'driver-handover', label: t('menu.driverHandover', 'Driver Cash Handover & Settlement'), icon: '🤝' },
     { id: 'services', label: t('menu.services', 'Service Management'), icon: '🏷️' },
     { id: 'coupons', label: t('menu.coupons', 'Coupons Manager'), icon: '🎁' },
     { id: 'prepaid-packages', label: t('menu.packages', 'Packages Manager'), icon: '📦' },

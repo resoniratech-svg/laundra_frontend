@@ -26,6 +26,8 @@ export const MoreScreen = () => {
   };
 
   const menuItems = [
+    { id: 'FieldOrder', title: `➕ ${tApp('Field Order & Customer', language)}`, desc: tApp('Book field orders & create customer accounts', language) },
+    { id: 'CashHandover', title: `💰 ${tApp('Cash In Hand & Handover', language)}`, desc: tApp('Track physical cash, cards, & shift store handover', language) },
     { id: 'DutyLeaves', title: `📅 ${tApp('Duty & Leave', language)}`, desc: tApp('Clock In/Out attendance & leave requests', language) },
     { id: 'Helpdesk', title: `💬 ${tApp('Helpdesk Support', language)}`, desc: tApp('Raise support tickets & contact admin', language) },
     { id: 'Announcements', title: `📢 ${tApp('Announcements', language)}`, desc: tApp('Platform announcements & company notices', language) },

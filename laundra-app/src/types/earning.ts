@@ -1,10 +1,12 @@
 export interface EarningTrip {
   orderId: string;
+  delivTaskId?: string;
   type: 'Pickup' | 'Delivery';
   customerName: string;
   date: string;
   amount: number;
   status: 'Paid' | 'Pending';
+  paidMethod?: string;
 }
 
 export interface EarningSummary {

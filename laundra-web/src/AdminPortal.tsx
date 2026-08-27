@@ -187,19 +187,23 @@ export const AdminPortal: React.FC = () => {
         });
         if (res.ok) {
           const fresh = await res.json();
-          const localServices = latestLocalOrder.items || latestLocalOrder.services || [];
+          const isPickupDoneState = ['fully picked up', 'fully_picked_up', 'received', 'sorting', 'washing', 'drying', 'ironing', 'ready', 'out for delivery', 'delivered', 'fully delivered at store'].includes((fresh.status || latestLocalOrder.status || '').toLowerCase());
+
           let mappedItems = (fresh.items && fresh.items.length >= localServices.length) ? fresh.items.map((item: any) => {
             const matchedService = (backendServices || []).find((s: any) => s.id === item.service_id);
             const ordered = item.ordered_quantity ?? item.quantity ?? 1;
-            const picked = item.picked_up_quantity ?? 0;
-            const pickupPending = item.pickup_pending_quantity ?? Math.max(0, ordered - picked);
+            let picked = item.picked_up_quantity ?? 0;
+            if (isPickupDoneState && picked === 0) {
+              picked = ordered;
+            }
+            const pickupPending = isPickupDoneState ? 0 : (item.pickup_pending_quantity ?? Math.max(0, ordered - picked));
             const delivered = item.delivered_quantity ?? 0;
             const deliveryPending = item.delivery_pending_quantity ?? Math.max(0, picked - delivered);
             const ready = item.ready_quantity !== undefined ? Number(item.ready_quantity) : 0;
             let status = item.item_status || 'CREATED';
             if (delivered >= picked && picked >= ordered && ordered > 0) status = 'FULLY_DELIVERED';
             else if (delivered > 0) status = 'PARTIALLY_DELIVERED';
-            else if (picked >= ordered) status = 'FULLY_PICKED_UP';
+            else if (picked >= ordered || isPickupDoneState) status = 'FULLY_PICKED_UP';
             else if (picked > 0) status = 'PARTIALLY_PICKED_UP';
 
             return {
@@ -219,20 +223,28 @@ export const AdminPortal: React.FC = () => {
           }) : [];
 
           if (!mappedItems || mappedItems.length === 0 || mappedItems.length < localServices.length) {
-            mappedItems = localServices.map((it: any, idx: number) => ({
-              id: it.id || it.serviceId || `item_${idx}`,
-              serviceId: it.serviceId || it.id,
-              serviceName: it.name || it.serviceName || 'Service',
-              name: it.name || it.serviceName || 'Service',
-              orderedQuantity: it.orderedQuantity || it.quantity || it.qty || 1,
-              pickedUpQuantity: it.pickedUpQuantity || 0,
-              pickupPendingQuantity: it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, (it.orderedQuantity || it.quantity || it.qty || 1) - (it.pickedUpQuantity || 0)),
-              readyQuantity: it.readyQuantity ?? (it.pickedUpQuantity || 0),
-              deliveredQuantity: it.deliveredQuantity || 0,
-              deliveryPendingQuantity: it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, (it.pickedUpQuantity || 0) - (it.deliveredQuantity || 0)),
-              itemStatus: it.itemStatus || 'CREATED',
-              price: it.price || 0
-            }));
+            mappedItems = localServices.map((it: any, idx: number) => {
+              const ord = it.orderedQuantity || it.quantity || it.qty || 1;
+              let pck = it.pickedUpQuantity || 0;
+              if (isPickupDoneState && pck === 0) {
+                pck = ord;
+              }
+              const pend = isPickupDoneState ? 0 : (it.pickupPendingQuantity !== undefined ? it.pickupPendingQuantity : Math.max(0, ord - pck));
+              return {
+                id: it.id || it.serviceId || `item_${idx}`,
+                serviceId: it.serviceId || it.id,
+                serviceName: it.name || it.serviceName || 'Service',
+                name: it.name || it.serviceName || 'Service',
+                orderedQuantity: ord,
+                pickedUpQuantity: pck,
+                pickupPendingQuantity: pend,
+                readyQuantity: it.readyQuantity ?? pck,
+                deliveredQuantity: it.deliveredQuantity || 0,
+                deliveryPendingQuantity: it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, pck - (it.deliveredQuantity || 0)),
+                itemStatus: isPickupDoneState ? 'FULLY_PICKED_UP' : (it.itemStatus || 'CREATED'),
+                price: it.price || 0
+              };
+            });
           }
 
           setViewingOrder({
@@ -263,6 +275,14 @@ export const AdminPortal: React.FC = () => {
   const [sellingPackageTo, setSellingPackageTo] = useState<Customer | null>(null);
   const [selectedPrepaidPackage, setSelectedPrepaidPackage] = useState<string>('');
   const [backendPrepaidPackages, setBackendPrepaidPackages] = useState<any[]>([]);
+
+  // Driver Cash Handover & Settlement state
+  const [selectedHandoverDriver, setSelectedHandoverDriver] = useState<string>('');
+  const [handoverSelectedOrderIds, setHandoverSelectedOrderIds] = useState<string[]>([]);
+  const [handoverFilterDate, setHandoverFilterDate] = useState<string>('');
+  const [handoverNotes, setHandoverNotes] = useState<string>('');
+  const [viewingSettlementVoucher, setViewingSettlementVoucher] = useState<any | null>(null);
+  const [settlementActiveTab, setSettlementActiveTab] = useState<'pending' | 'history'>('pending');
 
   // Deduct usage state
   const [deductCust, setDeductCust] = useState<Customer | null>(null);
@@ -1204,7 +1224,7 @@ export const AdminPortal: React.FC = () => {
             weightItems: `${totalQty} Items`,
             quantity: totalQty,
             planType: o.is_express ? 'Express' : 'One-time / Daily',
-            paymentMethod: o.payment_method || 'CASH',
+            paymentMethod: o.payment_method || o.pickup_payment_method || o.delivery_payment_method || 'CASH',
             paymentStatus: (o.payment_status === 'PAID' || o.payment_status === 'Paid') ? 'Paid' : 'Unpaid',
             appliedPackageId: o.applied_package_id || o.appliedPackageId || null,
             specialInstructions: o.special_instructions || o.remarks || '',
@@ -1281,6 +1301,7 @@ export const AdminPortal: React.FC = () => {
               items: activeItems,
               pickupHistory: activePickupHistory,
               deliveryHistory: activeDeliveryHistory,
+              paymentMethod: freshOrder.paymentMethod || existing.paymentMethod || 'CASH',
               paymentStatus: (freshOrder.paymentStatus === 'Paid' || existing.paymentStatus === 'Paid') ? 'Paid' : (freshOrder.paymentStatus || 'Unpaid'),
               assignedPickupCourier: freshOrder.pickupCourier || freshOrder.courier || existing.assignedPickupCourier || existing.pickupCourier || null,
               pickupCourier: freshOrder.pickupCourier || freshOrder.courier || existing.pickupCourier || existing.assignedPickupCourier || null,
@@ -1293,16 +1314,26 @@ export const AdminPortal: React.FC = () => {
               pickupCommission: (freshOrder.pickupCommission !== undefined && freshOrder.pickupCommission !== null) ? freshOrder.pickupCommission : (existing.pickupCommission ?? 0),
               deliveryCommission: (freshOrder.deliveryCommission !== undefined && freshOrder.deliveryCommission !== null) ? freshOrder.deliveryCommission : (existing.deliveryCommission ?? 0),
               pickupCommissionPaid: freshOrder.pickupCommissionPaid || existing.pickupCommissionPaid || false,
-              deliveryCommissionPaid: freshOrder.deliveryCommissionPaid || existing.deliveryCommissionPaid || false,
               pickupAccepted: freshOrder.pickupAccepted || existing.pickupAccepted || false,
               deliveryAccepted: freshOrder.deliveryAccepted || existing.deliveryAccepted || false,
+              paymentCollectedBy: existing.paymentCollectedBy || freshOrder.paymentCollectedBy || undefined,
+              handoverSettled: existing.handoverSettled || (db.driverSettlements || []).some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId))),
+              handoverSettledAt: existing.handoverSettledAt || (db.driverSettlements || []).find(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId)))?.settledAt,
+              handoverSettledBy: existing.handoverSettledBy || (db.driverSettlements || []).find(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId)))?.settledBy,
+              handoverSettlementId: existing.handoverSettlementId || (db.driverSettlements || []).find(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId)))?.id
             };
           }
+          const isSettledInHistory = (db.driverSettlements || []).some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId)));
+          const matchedSettlement = isSettledInHistory ? (db.driverSettlements || []).find(s => (s.orders || []).some((so: any) => String(so.orderId) === String(freshOrder.id) || String(so.orderId) === String(freshOrder.backendId))) : null;
           return {
             ...freshOrder,
             pickupCourier: freshOrder.pickupCourier || freshOrder.courier || null,
             pickupCommission: freshOrder.pickupCommission ?? 0,
             deliveryCommission: freshOrder.deliveryCommission ?? 0,
+            handoverSettled: isSettledInHistory,
+            handoverSettledAt: matchedSettlement?.settledAt,
+            handoverSettledBy: matchedSettlement?.settledBy,
+            handoverSettlementId: matchedSettlement?.id
           };
         });
 
@@ -5038,7 +5069,7 @@ export const AdminPortal: React.FC = () => {
                                 .map(t => (t as any).orderId || (t as any).id)
                                 .filter(Boolean);
 
-                              const token = localStorage.getItem('ll_auth_token');
+                              const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token');
                               if (token) {
                                 try {
                                   await fetch(`${BASE_URL}/api/v1/deliveries/mark-commission-paid`, {
@@ -5060,17 +5091,19 @@ export const AdminPortal: React.FC = () => {
                                 }
                               }
 
+                              const targetOrderIdsSet = new Set(orderIds.map(String));
                               const updatedOrders = db.orders.map(o => {
                                 let newOrder = { ...o };
+                                const isTarget = targetOrderIdsSet.has(String(o.id)) || (o.backendId && targetOrderIdsSet.has(String(o.backendId)));
                                 const isPickupStaff = (o.pickupCourier && (o.pickupCourier.trim().toLowerCase() === staffName || o.pickupCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
                                 const isDeliveryStaff = (o.deliveryCourier && (o.deliveryCourier.trim().toLowerCase() === staffName || o.deliveryCourier.includes('All Delivery'))) || (o.courier && o.courier.trim().toLowerCase() === staffName);
 
-                                if (isPickupStaff && !o.pickupCommissionPaid) {
+                                if (isTarget && isPickupStaff && !o.pickupCommissionPaid) {
                                   newOrder.pickupCommissionPaid = true;
                                   newOrder.pickupPaymentMethod = method;
                                   newOrder.pickupPaymentDate = new Date().toISOString();
                                 }
-                                if (isDeliveryStaff && !o.deliveryCommissionPaid) {
+                                if (isTarget && isDeliveryStaff && !o.deliveryCommissionPaid) {
                                   newOrder.deliveryCommissionPaid = true;
                                   newOrder.deliveryPaymentMethod = method;
                                   newOrder.deliveryPaymentDate = new Date().toISOString();
@@ -5235,6 +5268,698 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
+      {/* 🤝 DRIVER CASH HANDOVER & SETTLEMENT TAB */}
+      {activeModule === 'driver-handover' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Header & Sub-Tabs */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🤝</span> {t('Driver Cash Handover & Daily Settlement')}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                  {t('Reconcile physical cash, card receipts, and cheques collected by delivery drivers in the field.')}
+                </p>
+              </div>
+
+              {/* Subtabs: Pending Settlement vs Settlement Archive */}
+              <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSettlementActiveTab('pending')}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    background: settlementActiveTab === 'pending' ? '#2563eb' : 'transparent',
+                    color: settlementActiveTab === 'pending' ? 'white' : '#64748b',
+                    boxShadow: settlementActiveTab === 'pending' ? '0 2px 4px rgba(37, 99, 235, 0.2)' : 'none'
+                  }}
+                >
+                  💵 {t('Active Collections Awaiting Settlement')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettlementActiveTab('history')}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    background: settlementActiveTab === 'history' ? '#2563eb' : 'transparent',
+                    color: settlementActiveTab === 'history' ? 'white' : '#64748b',
+                    boxShadow: settlementActiveTab === 'history' ? '0 2px 4px rgba(37, 99, 235, 0.2)' : 'none'
+                  }}
+                >
+                  📜 {t('Settlement History & Vouchers')} ({(db.driverSettlements || []).length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {settlementActiveTab === 'pending' ? (
+            <>
+              {/* Drivers Summary Cards Grid */}
+              {(() => {
+                const deliveryStaffUsers = db.users.filter(u => (u.role || '').toLowerCase().includes('delivery'));
+                
+                // Helper to get unremitted orders for a driver
+                const isOrderSettled = (o: any) => {
+                  if (o.handoverSettled) return true;
+                  if (o.paymentCollectedBy === 'STORE_COUNTER' || o.paymentCollectedBy === 'STORE' || o.paymentCollectedBy === 'ADMIN') return true;
+                  const settledInHistory = (db.driverSettlements || []).some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(o.id) || String(so.orderId) === String(o.backendId)));
+                  return settledInHistory;
+                };
+
+                const getDriverUnsettledOrders = (driverName: string) => {
+                  const dName = driverName.trim().toLowerCase();
+                  return db.orders.filter(o => {
+                    if (o.isDeleted || !o.totalAmount || o.totalAmount <= 0) return false;
+                    const pStatus = (o.paymentStatus || '').toLowerCase();
+                    if (pStatus !== 'paid' && pStatus !== 'completed') return false;
+                    if (isOrderSettled(o)) return false;
+
+                    const pickC = (o.pickupCourier || '').trim().toLowerCase();
+                    const delC = (o.deliveryCourier || '').trim().toLowerCase();
+                    const specI = (o.specialInstructions || '').toLowerCase();
+
+                    const isMatch = pickC === dName || delC === dName || (o.source === 'DELIVERY_AGENT' && specI.includes(dName));
+                    return isMatch;
+                  });
+                };
+
+                // Global totals across all drivers
+                const allUnsettledOrders = db.orders.filter(o => {
+                  if (o.isDeleted || !o.totalAmount || o.totalAmount <= 0) return false;
+                  const pStatus = (o.paymentStatus || '').toLowerCase();
+                  if (pStatus !== 'paid' && pStatus !== 'completed') return false;
+                  if (isOrderSettled(o)) return false;
+                  const hasDriver = !!(o.pickupCourier && !['Store', 'Unassigned'].includes(o.pickupCourier)) || !!(o.deliveryCourier && !['Store', 'Unassigned'].includes(o.deliveryCourier)) || o.source === 'DELIVERY_AGENT';
+                  return hasDriver;
+                });
+
+                const totalCashAll = allUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                const totalNonCashAll = allUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() !== 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                const totalAll = totalCashAll + totalNonCashAll;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    
+                    {/* KPI Top Bar */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                      <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', color: 'white', padding: '18px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.2)' }}>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: '700' }}>💵 {t('Total Physical Cash To Collect')}</div>
+                        <div style={{ fontSize: '1.7rem', fontWeight: '900', marginTop: '6px' }}>QR {totalCashAll.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.72rem', opacity: 0.8, marginTop: '4px' }}>{t('Awaiting cash handover to drawer')}</div>
+                      </div>
+
+                      <div style={{ background: 'white', padding: '18px 20px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '700' }}>💳 {t('Total Card & Cheque Collections')}</div>
+                        <div style={{ fontSize: '1.7rem', fontWeight: '900', color: '#7c3aed', marginTop: '6px' }}>QR {totalNonCashAll.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px' }}>{t('POS swipe receipts & signed cheques')}</div>
+                      </div>
+
+                      <div style={{ background: 'white', padding: '18px 20px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '700' }}>📦 {t('Orders Awaiting Settlement')}</div>
+                        <div style={{ fontSize: '1.7rem', fontWeight: '900', color: '#0f172a', marginTop: '6px' }}>{allUnsettledOrders.length}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 'bold', marginTop: '4px' }}>QR {totalAll.toFixed(2)} {t('Total Field Revenue')}</div>
+                      </div>
+                    </div>
+
+                    {/* Driver Filter Selector Tabs - Only Individual Drivers */}
+                    {(() => {
+                      const activeDriverKey = (selectedHandoverDriver && deliveryStaffUsers.some(u => u.name.toLowerCase() === selectedHandoverDriver.toLowerCase()))
+                        ? selectedHandoverDriver.toLowerCase()
+                        : (deliveryStaffUsers[0]?.name.toLowerCase() || '');
+
+                      return (
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                          {deliveryStaffUsers.map(usr => {
+                            const driverOrders = getDriverUnsettledOrders(usr.name);
+                            const driverCash = driverOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                            const isSelected = activeDriverKey === usr.name.toLowerCase();
+
+                            return (
+                              <button
+                                key={usr.id}
+                                type="button"
+                                onClick={() => setSelectedHandoverDriver(usr.name.toLowerCase())}
+                                style={{
+                                  padding: '10px 18px',
+                                  borderRadius: '8px',
+                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#eff6ff' : 'white',
+                                  color: isSelected ? '#1d4ed8' : '#334155',
+                                  fontWeight: '800',
+                                  fontSize: '0.82rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <span>🛵 {usr.name}</span>
+                                <span style={{ color: driverCash > 0 ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>
+                                  QR {driverCash.toFixed(2)} Cash
+                                </span>
+                                <span style={{ background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem' }}>
+                                  {driverOrders.length}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Settlement Table & Action Box */}
+                    {(() => {
+                      const activeDriverKey = (selectedHandoverDriver && deliveryStaffUsers.some(u => u.name.toLowerCase() === selectedHandoverDriver.toLowerCase()))
+                        ? selectedHandoverDriver.toLowerCase()
+                        : (deliveryStaffUsers[0]?.name.toLowerCase() || '');
+
+                      const displayedOrders = getDriverUnsettledOrders(activeDriverKey);
+
+                      const selectedCash = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                      const selectedCard = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                      const selectedCheque = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                      const selectedTotal = displayedOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+                      const handleConfirmSettlement = () => {
+                        if (displayedOrders.length === 0) {
+                          alert('No orders available to settle.');
+                          return;
+                        }
+
+                        const targetDriverObj = deliveryStaffUsers.find(u => u.name.toLowerCase() === activeDriverKey) || deliveryStaffUsers[0];
+                        const targetDriverName = targetDriverObj?.name || activeDriverKey;
+
+                        const settlementId = `SETTLE-${Date.now().toString().slice(-6)}`;
+                        const settlementNum = `ST-${Math.floor(100000 + Math.random() * 900000)}`;
+
+                        const newSettlement = {
+                          id: settlementId,
+                          settlementNumber: settlementNum,
+                          driverId: targetDriverObj?.id || 'all',
+                          driverName: targetDriverName,
+                          settledBy: db.activeRole === 'Cashier' ? 'Store Cashier' : 'Store Admin',
+                          settledAt: new Date().toISOString(),
+                          cashAmount: selectedCash,
+                          cardAmount: selectedCard,
+                          chequeAmount: selectedCheque,
+                          onlineAmount: 0,
+                          totalAmount: selectedTotal,
+                          orderCount: displayedOrders.length,
+                          orders: displayedOrders.map(o => ({
+                            orderId: o.id,
+                            customerName: o.customerName,
+                            amount: Number(o.totalAmount || 0),
+                            paymentMethod: o.paymentMethod || 'Cash',
+                            date: o.date
+                          })),
+                          notes: handoverNotes
+                        };
+
+                        // Mark orders as settled
+                        const settledOrderIds = new Set(displayedOrders.map(o => o.id));
+                        const updatedOrders = db.orders.map(o => {
+                          if (settledOrderIds.has(o.id)) {
+                            return {
+                              ...o,
+                              handoverSettled: true,
+                              handoverSettledAt: new Date().toISOString(),
+                              handoverSettledBy: db.activeRole === 'Cashier' ? 'Cashier' : 'Admin',
+                              handoverSettlementId: settlementId
+                            };
+                          }
+                          return o;
+                        });
+
+                        // Add cash into store drawer
+                        const updatedDrawerCash = (db.drawerCash || 0) + selectedCash;
+
+                        // Log drawer transaction
+                        if (selectedCash > 0) {
+                          const drawerTx = {
+                            id: 'tx-handover-' + Date.now(),
+                            type: 'Cash In' as const,
+                            amount: selectedCash,
+                            note: `Driver Cash Handover (${targetDriverName}) - #${settlementNum}`,
+                            time: new Date().toLocaleTimeString()
+                          };
+                          setDrawerTxs(prev => [drawerTx, ...prev]);
+                        }
+
+                        const updatedSettlements = [newSettlement, ...(db.driverSettlements || [])];
+                        saveDB({
+                          orders: updatedOrders,
+                          drawerCash: updatedDrawerCash,
+                          driverSettlements: updatedSettlements
+                        });
+
+                        setHandoverNotes('');
+                        alert(`✅ Handover of QR ${selectedCash.toFixed(2)} cash from ${targetDriverName} confirmed and settled on ${new Date().toLocaleString()}!`);
+                        setSettlementActiveTab('history');
+                      };
+
+                      return (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+                          
+                          {/* Orders List Table */}
+                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                              <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>
+                                📋 {t('Active Unsettled Orders')} ({displayedOrders.length})
+                              </h4>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                Driver: <strong>{selectedHandoverDriver === 'all' ? 'All Staff' : selectedHandoverDriver}</strong>
+                              </span>
+                            </div>
+
+                            {displayedOrders.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🎉</div>
+                                <strong style={{ fontSize: '1rem', color: '#15803d' }}>{t('All collections are 100% settled!')}</strong>
+                                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>{t('There are no pending cash or card remittances for this driver.')}</p>
+                              </div>
+                            ) : (
+                              <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                                      <th style={{ padding: '10px 8px' }}>{t('Order #')}</th>
+                                      <th style={{ padding: '10px 8px' }}>{t('Customer')}</th>
+                                      <th style={{ padding: '10px 8px' }}>{t('Driver')}</th>
+                                      <th style={{ padding: '10px 8px' }}>{t('Method')}</th>
+                                      <th style={{ padding: '10px 8px', textAlign: 'right' }}>{t('Amount (QR)')}</th>
+                                      <th style={{ padding: '10px 8px', textAlign: 'center' }}>{t('Status')}</th>
+                                      <th style={{ padding: '10px 8px', textAlign: 'center' }}>{t('Action')}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {displayedOrders.map(o => {
+                                      const pMethod = (o.paymentMethod || 'Cash').toUpperCase();
+                                      const isCash = pMethod === 'CASH';
+
+                                      return (
+                                        <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '10px 8px', fontWeight: '800', color: '#1e3a8a' }}>#{o.id}</td>
+                                          <td style={{ padding: '10px 8px', fontWeight: '600' }}>{o.customerName}</td>
+                                          <td style={{ padding: '10px 8px', color: '#475569' }}>{o.pickupCourier || o.deliveryCourier || 'Driver'}</td>
+                                          <td style={{ padding: '10px 8px' }}>
+                                            <span style={{
+                                              padding: '2px 8px',
+                                              borderRadius: '4px',
+                                              fontSize: '0.72rem',
+                                              fontWeight: 'bold',
+                                              background: isCash ? '#dcfce7' : '#f3e8ff',
+                                              color: isCash ? '#15803d' : '#7e22ce'
+                                            }}>
+                                              {isCash ? '💵 Cash' : pMethod === 'CARD' ? '💳 Card' : pMethod === 'CHEQUE' ? '📝 Cheque' : pMethod}
+                                            </span>
+                                          </td>
+                                          <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '800', color: isCash ? '#15803d' : '#1e293b' }}>
+                                            QR {Number(o.totalAmount || 0).toFixed(2)}
+                                          </td>
+                                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                            <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+                                              Pending Handover
+                                            </span>
+                                          </td>
+                                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => setViewingInvoice(o)}
+                                              style={{
+                                                padding: '4px 10px',
+                                                background: '#eff6ff',
+                                                color: '#1d4ed8',
+                                                border: '1px solid #bfdbfe',
+                                                borderRadius: '6px',
+                                                fontWeight: '700',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                              }}
+                                            >
+                                              👁️ {t('View Invoice')}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Settlement Reconciliation Box */}
+                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1.5px solid #bfdbfe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                              <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🧾</span> {t('Settlement Summary')}
+                              </h4>
+                              <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
+                                {t('Count cash received and reconcile shift.')}
+                              </p>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                                <span>💵 {t('Physical Cash Counted:')}</span>
+                                <strong style={{ color: '#16a34a', fontSize: '0.95rem' }}>QR {selectedCash.toFixed(2)}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                                <span>💳 {t('Card Swipes:')}</span>
+                                <strong>QR {selectedCard.toFixed(2)}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                                <span>📝 {t('Cheques:')}</span>
+                                <strong>QR {selectedCheque.toFixed(2)}</strong>
+                              </div>
+                              <div style={{ borderTop: '2px dashed #cbd5e1', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: '800', color: '#1e293b', fontSize: '0.95rem' }}>💰 {t('Total Settlement:')}</span>
+                                <strong style={{ color: '#1d4ed8', fontSize: '1.3rem' }}>QR {selectedTotal.toFixed(2)}</strong>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={displayedOrders.length === 0}
+                              onClick={handleConfirmSettlement}
+                              style={{
+                                width: '100%',
+                                padding: '12px',
+                                background: displayedOrders.length === 0 ? '#cbd5e1' : '#16a34a',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: '800',
+                                fontSize: '0.9rem',
+                                cursor: displayedOrders.length === 0 ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                boxShadow: displayedOrders.length === 0 ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.3)'
+                              }}
+                            >
+                              <span>✅</span> {t('Confirm Handover & Settle (QR ' + selectedCash.toFixed(2) + ' Cash)')}
+                            </button>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', textAlign: 'center' }}>
+                              ⚡ {t('Cash will be automatically deposited into the Store Cash Drawer.')}
+                            </p>
+                          </div>
+
+                        </div>
+                      );
+                    })()}
+
+                  </div>
+                );
+              })()}
+            </>
+          ) : (
+            /* Settlement History Archive Tab */
+            (() => {
+              const allSettlementsList = [...(db.driverSettlements || [])];
+
+              return (
+                <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>
+                      📜 {t('Settlement Archive & Reconciled History')} ({allSettlementsList.length})
+                    </h4>
+                  </div>
+
+                  {allSettlementsList.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '50px 0', color: '#64748b' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '6px' }}>📂</div>
+                      <strong>{t('No past settlements recorded yet.')}</strong>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                            <th style={{ padding: '10px 8px' }}>{t('Voucher #')}</th>
+                            <th style={{ padding: '10px 8px' }}>{t('Settlement Date')}</th>
+                            <th style={{ padding: '10px 8px' }}>{t('Driver Name')}</th>
+                            <th style={{ padding: '10px 8px' }}>{t('Settled By')}</th>
+                            <th style={{ padding: '10px 8px' }}>{t('Orders & Invoices')}</th>
+                            <th style={{ padding: '10px 8px', textAlign: 'right' }}>{t('Cash Remitted (QR)')}</th>
+                            <th style={{ padding: '10px 8px', textAlign: 'right' }}>{t('Total Amount (QR)')}</th>
+                            <th style={{ padding: '10px 8px', textAlign: 'center' }}>{t('Action')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allSettlementsList.map(s => (
+                            <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '10px 8px', fontWeight: '800', color: '#1e3a8a' }}>#{s.settlementNumber || s.id}</td>
+                              <td style={{ padding: '10px 8px' }}>{new Date(s.settledAt).toLocaleString()}</td>
+                              <td style={{ padding: '10px 8px', fontWeight: '600' }}>🛵 {s.driverName}</td>
+                              <td style={{ padding: '10px 8px', color: '#475569' }}>{s.settledBy}</td>
+                              <td style={{ padding: '10px 8px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                                  {(s.orders || []).map((ord: any, idx: number) => {
+                                    const fullOrd = db.orders.find(o => o.id === ord.orderId || o.id === ord.id || o.backendId === ord.orderId) || ord;
+                                    return (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => setViewingInvoice(fullOrd)}
+                                        style={{
+                                          padding: '2px 8px',
+                                          background: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: '4px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: '700',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px'
+                                        }}
+                                      >
+                                        <span>#{ord.orderId || ord.id}</span>
+                                        <span>👁️</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 'bold', color: '#16a34a' }}>
+                                QR {Number(s.cashAmount || 0).toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '800', color: '#1e3a8a' }}>
+                                QR {Number(s.totalAmount || 0).toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingSettlementVoucher(s)}
+                                    style={{
+                                      padding: '4px 10px',
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1px solid #bfdbfe',
+                                      borderRadius: '6px',
+                                      fontWeight: '700',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    📄 {t('Details')}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(t('Are you sure you want to clear this settlement record from history?'))) {
+                                        const updatedSettlements = (db.driverSettlements || []).filter(item => item.id !== s.id && item.settlementNumber !== s.settlementNumber);
+                                        const orderIdsToKeepSettled = new Set((s.orders || []).map((o: any) => String(o.orderId || o.id)));
+                                        const updatedOrders = db.orders.map(o => {
+                                          if (orderIdsToKeepSettled.has(String(o.id)) || o.handoverSettlementId === s.id) {
+                                            return {
+                                              ...o,
+                                              handoverSettled: true
+                                            };
+                                          }
+                                          return o;
+                                        });
+
+                                        saveDB({
+                                          driverSettlements: updatedSettlements,
+                                          orders: updatedOrders
+                                        });
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '4px 10px',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      border: '1px solid #fecaca',
+                                      borderRadius: '6px',
+                                      fontWeight: '700',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    🗑️ {t('Clear')}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )}
+
+          {/* Printable Official Settlement Voucher Modal */}
+          {viewingSettlementVoucher && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+              <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* Voucher Header */}
+                <div style={{ textAlign: 'center', borderBottom: '2px solid #e2e8f0', paddingBottom: '12px' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '2px' }}>🏢</div>
+                  <h3 style={{ margin: '0 0 2px 0', fontSize: '1.25rem', color: '#1e3a8a', fontWeight: '900', textTransform: 'uppercase' }}>
+                    {db.companies.find(c => c.id === db.activeCompanyId)?.name || 'Laundra'}
+                  </h3>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>OFFICIAL DRIVER CASH HANDOVER VOUCHER</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '800', color: '#16a34a', marginTop: '4px' }}>
+                    #{viewingSettlementVoucher.settlementNumber || viewingSettlementVoucher.id}
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div><strong>Driver:</strong> {viewingSettlementVoucher.driverName}</div>
+                  <div><strong>Settled By:</strong> {viewingSettlementVoucher.settledBy}</div>
+                  <div><strong>Date & Time:</strong> {new Date(viewingSettlementVoucher.settledAt).toLocaleString()}</div>
+                  <div><strong>Total Orders:</strong> {viewingSettlementVoucher.orderCount || viewingSettlementVoucher.orders?.length || 0}</div>
+                </div>
+
+                {/* Amount Breakdown */}
+                <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>💵 Physical Cash Deposited:</span>
+                    <strong style={{ color: '#16a34a' }}>QR {Number(viewingSettlementVoucher.cashAmount || 0).toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>💳 Card Swipes Remitted:</span>
+                    <strong>QR {Number(viewingSettlementVoucher.cardAmount || 0).toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📝 Cheques Handed Over:</span>
+                    <strong>QR {Number(viewingSettlementVoucher.chequeAmount || 0).toFixed(2)}</strong>
+                  </div>
+                  <div style={{ borderTop: '1px solid #bbf7d0', paddingTop: '6px', marginTop: '2px', display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: '900', color: '#1e3a8a' }}>
+                    <span>Total Amount Reconciled:</span>
+                    <span>QR {Number(viewingSettlementVoucher.totalAmount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Itemized Orders Table */}
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                    <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0 }}>
+                      <tr>
+                        <th style={{ padding: '6px', textAlign: 'left' }}>Order #</th>
+                        <th style={{ padding: '6px', textAlign: 'left' }}>Customer</th>
+                        <th style={{ padding: '6px', textAlign: 'left' }}>Method</th>
+                        <th style={{ padding: '6px', textAlign: 'right' }}>Amount</th>
+                        <th style={{ padding: '6px', textAlign: 'center' }}>Invoice</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(viewingSettlementVoucher.orders || []).map((o: any, idx: number) => {
+                        const fullOrd = db.orders.find(ord => ord.id === o.orderId || ord.id === o.id || ord.backendId === o.orderId) || o;
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '6px', fontWeight: 'bold' }}>#{o.orderId}</td>
+                            <td style={{ padding: '6px' }}>{o.customerName}</td>
+                            <td style={{ padding: '6px' }}>{o.paymentMethod}</td>
+                            <td style={{ padding: '6px', textAlign: 'right', fontWeight: 'bold' }}>QR {Number(o.amount || 0).toFixed(2)}</td>
+                            <td style={{ padding: '6px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => setViewingInvoice(fullOrd)}
+                                style={{
+                                  padding: '2px 8px',
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                👁️ View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Signatures */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
+                  <div style={{ textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ height: '35px', borderBottom: '1px solid #94a3b8', marginBottom: '4px' }}></div>
+                    <strong>Driver Signature</strong>
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ height: '35px', borderBottom: '1px solid #94a3b8', marginBottom: '4px' }}></div>
+                    <strong>Cashier Signature</strong>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{ flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    🖨️ Print Settlement Voucher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewingSettlementVoucher(null)}
+                    style={{ padding: '10px 18px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+                  >
+                    Close
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
       {/* 🏷️ SERVICE MANAGEMENT TAB */}
       {activeModule === 'services' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -5346,7 +6071,7 @@ export const AdminPortal: React.FC = () => {
                 <option value="Created">{t('Created')}</option>
                 <option value="Accepted">{t('Accepted')}</option>
                 <option value="Received">{t('Received')}</option>
-                <option value="Fully Picked Up at Store">{t('Fully Picked Up at Store')}</option>
+                <option value="Fully Picked Up">{t('Fully Picked Up')}</option>
                 <option value="Ready">{t('Ready')}</option>
                 <option value="Out For Delivery">{t('Out For Delivery')}</option>
                 <option value="Delivered">{t('Delivered')}</option>
@@ -5440,7 +6165,14 @@ export const AdminPortal: React.FC = () => {
                   })
                   .map(o => (
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px', fontWeight: '700' }}>#{o.id}</td>
+                      <td style={{ padding: '12px', fontWeight: '700' }}>
+                        #{o.id}
+                        {(o.source === 'DELIVERY_AGENT' || o.specialInstructions?.includes('Field Order created by Delivery Agent') || o.specialInstructions?.includes('Field Order')) && (
+                          <div style={{ fontSize: '0.65rem', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '1px 4px', marginTop: '2px', fontWeight: 'bold', width: 'fit-content' }}>
+                            🚚 {o.pickupCourier ? `Driver: ${o.pickupCourier}` : 'Field Order'}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
@@ -5449,8 +6181,8 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px' }}>
                         <span style={{
                           padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
-                          background: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#dcfce7' : (o.status === 'Created' ? '#eff6ff' : (o.status === 'Fully Picked Up at Store' ? '#fffbeb' : '#fef3c7')),
-                          color: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#15803d' : (o.status === 'Created' ? '#2563eb' : (o.status === 'Fully Picked Up at Store' ? '#b45309' : '#b45309'))
+                          background: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#dcfce7' : (o.status === 'Created' ? '#eff6ff' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#fffbeb' : '#fef3c7')),
+                          color: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#15803d' : (o.status === 'Created' ? '#2563eb' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#b45309' : '#b45309'))
                         }}>{t(o.status)}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
@@ -5615,7 +6347,16 @@ export const AdminPortal: React.FC = () => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, pickupCommission: val} : item);
                                           saveDB({ orders: updatedOrders });
+                                        }}
+                                        onBlur={e => {
+                                          const val = e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0);
                                           syncDeliveryToBackend(o.id, o.pickupCourier || 'All Delivery Staff', 'PICKUP', val);
+                                        }}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            const val = (e.target as HTMLInputElement).value === '' ? 0 : (parseFloat((e.target as HTMLInputElement).value) || 0);
+                                            syncDeliveryToBackend(o.id, o.pickupCourier || 'All Delivery Staff', 'PICKUP', val);
+                                          }
                                         }}
                                         style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: isPickupCompleted ? '#e2e8f0' : 'white', cursor: isPickupCompleted ? 'not-allowed' : 'text' }}
                                       />
@@ -5634,7 +6375,16 @@ export const AdminPortal: React.FC = () => {
                                           const val = e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0);
                                           const updatedOrders = db.orders.map(item => item.id === o.id ? {...item, deliveryCommission: val} : item);
                                           saveDB({ orders: updatedOrders });
+                                        }}
+                                        onBlur={e => {
+                                          const val = e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0);
                                           syncDeliveryToBackend(o.id, o.deliveryCourier || o.courier || 'All Delivery Staff', 'DELIVERY', val);
+                                        }}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            const val = (e.target as HTMLInputElement).value === '' ? 0 : (parseFloat((e.target as HTMLInputElement).value) || 0);
+                                            syncDeliveryToBackend(o.id, o.deliveryCourier || o.courier || 'All Delivery Staff', 'DELIVERY', val);
+                                          }
                                         }}
                                         style={{ width: '45px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', background: isDeliveryCompleted ? '#e2e8f0' : 'white', cursor: isDeliveryCompleted ? 'not-allowed' : 'text' }}
                                       />
@@ -5653,7 +6403,7 @@ export const AdminPortal: React.FC = () => {
                             onChange={e => handleUpdateOrderStatus(o.id, e.target.value as any)}
                             style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
                           >
-                            {Array.from(new Set(['Created', 'Accepted', 'Received', 'Fully Picked Up at Store', 'Ready', 'Out For Delivery', 'Delivered', 'Fully Delivered at Store', o.status].filter(Boolean))).map(s => (
+                            {Array.from(new Set(['Created', 'Accepted', 'Received', 'Fully Picked Up', 'Ready', 'Out For Delivery', 'Delivered', 'Fully Delivered at Store', o.status].filter(Boolean))).map(s => (
                               <option key={s} value={s}>{t(s)}</option>
                             ))}
                           </select>
@@ -6752,7 +7502,14 @@ export const AdminPortal: React.FC = () => {
             <tbody>
               {db.customers.map(c => (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '10px', fontWeight: '700' }}>{tName(c.name)}</td>
+                  <td style={{ padding: '10px', fontWeight: '700' }}>
+                    {tName(c.name)}
+                    {c.notes && c.notes.includes('Registered by Delivery Agent:') && (
+                      <div style={{ fontSize: '0.68rem', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '1px 6px', display: 'inline-block', marginTop: '3px', fontWeight: '600' }}>
+                        🚚 {c.notes.split('|')[0].trim()}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '10px', color: '#64748b' }}>{c.phone || 'N/A'}</td>
                   <td style={{ padding: '10px', color: '#16a34a', fontWeight: '700' }}>QR {c.walletBalance.toFixed(2)}</td>
                   <td style={{ padding: '10px', color: '#6b21a8', fontWeight: '700' }}>{c.loyaltyPoints} {t('pts')}</td>
@@ -8254,6 +9011,8 @@ export const AdminPortal: React.FC = () => {
                           totalDelPend += (it.deliveryPendingQuantity !== undefined ? it.deliveryPendingQuantity : Math.max(0, (viewingOrder.status || '').toLowerCase() === 'delivered' ? 0 : (it.readyQuantity ?? pck) - del));
                         });
 
+                        const isAllDeliveryPendingZero = totalDelPend === 0 && (totalDel > 0 || (viewingOrder.status || '').toLowerCase() === 'delivered');
+
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '180px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -8289,6 +9048,7 @@ export const AdminPortal: React.FC = () => {
                                             type="number"
                                             min={0}
                                             max={pck}
+                                            disabled={isAllDeliveryPendingZero}
                                             value={currentReadyVal}
                                             onChange={(e) => {
                                               const val = parseInt(e.target.value, 10);
@@ -8301,13 +9061,14 @@ export const AdminPortal: React.FC = () => {
                                             style={{
                                               width: '50px',
                                               padding: '2px 4px',
-                                              border: isInvalidReady ? '1.5px solid #dc2626' : '1.5px solid #2563eb',
+                                              border: isAllDeliveryPendingZero ? '1px solid #cbd5e1' : (isInvalidReady ? '1.5px solid #dc2626' : '1.5px solid #2563eb'),
                                               borderRadius: '4px',
                                               fontWeight: '800',
                                               textAlign: 'center',
                                               fontSize: '0.78rem',
-                                              background: isInvalidReady ? '#fef2f2' : '#eff6ff',
-                                              color: isInvalidReady ? '#dc2626' : '#1d4ed8',
+                                              background: isAllDeliveryPendingZero ? '#e2e8f0' : (isInvalidReady ? '#fef2f2' : '#eff6ff'),
+                                              color: isAllDeliveryPendingZero ? '#64748b' : (isInvalidReady ? '#dc2626' : '#1d4ed8'),
+                                              cursor: isAllDeliveryPendingZero ? 'not-allowed' : 'text',
                                               boxSizing: 'border-box'
                                             }}
                                           />
@@ -8337,6 +9098,7 @@ export const AdminPortal: React.FC = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-2px' }}>
                               <button
                                 type="button"
+                                disabled={isAllDeliveryPendingZero}
                                 onClick={async () => {
                                   // Validate ready quantities before saving
                                   const payloadItems: { item_id: string; quantity: number }[] = [];
@@ -8408,20 +9170,21 @@ export const AdminPortal: React.FC = () => {
                                 }}
                                 style={{
                                   padding: '4px 10px',
-                                  background: '#2563eb',
+                                  background: isAllDeliveryPendingZero ? '#94a3b8' : '#2563eb',
                                   color: 'white',
                                   border: 'none',
                                   borderRadius: '5px',
                                   fontWeight: 'bold',
                                   fontSize: '0.75rem',
-                                  cursor: 'pointer',
+                                  cursor: isAllDeliveryPendingZero ? 'not-allowed' : 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                  boxShadow: isAllDeliveryPendingZero ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
+                                  opacity: isAllDeliveryPendingZero ? 0.7 : 1
                                 }}
                               >
-                                💾 {t('Save Ready Quantities')}
+                                {isAllDeliveryPendingZero ? '🔒 Delivery Completed' : `💾 ${t('Save Ready Quantities')}`}
                               </button>
                             </div>
 
@@ -9683,7 +10446,7 @@ export const AdminPortal: React.FC = () => {
                 onClick={async () => {
                   const updatedOrders = db.orders.map(o => 
                     o.id === payLaterModalOrder.id 
-                      ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod } 
+                      ? { ...o, paymentStatus: 'Paid', paymentMethod: payLaterSelectedMethod, paymentCollectedBy: 'STORE_COUNTER' } 
                       : o
                   );
                   saveDB({ orders: updatedOrders });

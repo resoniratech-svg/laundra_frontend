@@ -15,6 +15,7 @@ import { formatDate } from '../utils/formatDate';
 import { useTasks } from '../hooks/useTasks';
 import { isMyPickupOrder, isMyDeliveryOrder } from '../utils/helpers';
 import { tApp } from '../utils/i18n';
+import { Order } from '../types/order';
 
 export const DashboardScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -58,8 +59,8 @@ export const DashboardScreen = () => {
   const announcements = data?.announcements || [];
 
   const userName = currentUser?.name || 'laundry';
-  const rawCompanyName = currentUser?.companyName || (currentUser as any)?.company_name || (currentUser as any)?.company?.name || data?.companyName;
-  const companyName = (rawCompanyName && rawCompanyName !== 'Iron') ? rawCompanyName : (data?.companyName || 'Laundra Operations');
+  const rawCompanyName = currentUser?.companyName || (currentUser as any)?.company_name || (currentUser as any)?.company?.name || (data as any)?.companyName;
+  const companyName = (rawCompanyName && rawCompanyName !== 'Iron') ? rawCompanyName : ((data as any)?.companyName || 'Laundra Operations');
 
   return (
     <ScreenContainer style={styles.container}>

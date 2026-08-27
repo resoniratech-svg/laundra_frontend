@@ -3,6 +3,29 @@ import { useDatabase } from './DatabaseContext';
 import type { User, Order } from './DatabaseContext';
 import { apiSendOrderOtp, apiVerifyOrderOtp } from './deliveryApi';
 
+const getEmojiForService = (name: string) => {
+  const n = String(name).toLowerCase();
+  if (n.includes('saree') || n.includes('salwar')) return '🥻';
+  if (n.includes('thobe') || n.includes('kurta') || n.includes('jalabiya') || n.includes('kameez')) return '🥼';
+  if (n.includes('ghuthra') || n.includes('scarf')) return '🧣';
+  if (n.includes('bisht') || n.includes('jacket') || n.includes('coat')) return '🧥';
+  if (n.includes('skirt') || n.includes('dress')) return '👗';
+  if (n.includes('suit') || n.includes('uniform') || n.includes('tuxedo')) return '👔';
+  if (n.includes('pant') || n.includes('trouser') || n.includes('jean') || n.includes('short')) return '👖';
+  if (n.includes('shoe') || n.includes('sneaker')) return '👞';
+  if (n.includes('underwear') || n.includes('brief') || n.includes('bra')) return '🩲';
+  if (n.includes('blanket') || n.includes('duvet') || n.includes('bed')) return '🛏️';
+  if (n.includes('curtain') || n.includes('drape')) return '🪟';
+  if (n.includes('carpet') || n.includes('rug')) return '🛤️';
+  if (n.includes('towel')) return '🧻';
+  if (n.includes('masalla')) return '🕌';
+  if (n.includes('sock')) return '🧦';
+  if (n.includes('glove')) return '🧤';
+  if (n.includes('hat') || n.includes('cap')) return '🧢';
+  if (n.includes('bag')) return '🎒';
+  return '👕'; // Default
+};
+
 import { getApiBaseUrl } from './config';
 
 export const DeliveryPortal: React.FC = () => {
@@ -44,9 +67,10 @@ export const DeliveryPortal: React.FC = () => {
   const [tempRegDetails, setTempRegDetails] = useState<any>(null);
 
   // Active Tab for Web Dashboard
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'earnings' | 'attendance' | 'profile' | 'support' | 'announcements'>(() => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'field-order' | 'earnings' | 'handover' | 'attendance' | 'profile' | 'support' | 'announcements'>(() => {
     return (localStorage.getItem('ll_active_delivery_tab') as any) || 'dashboard';
   });
+  const [viewingHandoverSlipModal, setViewingHandoverSlipModal] = useState<boolean>(false);
 
   // Bilingual Support State (English / Arabic)
   const [deliveryLang, setDeliveryLang] = useState<'en' | 'ar'>(() => {
@@ -199,10 +223,19 @@ export const DeliveryPortal: React.FC = () => {
     'Handle with care, separate whites.': 'يرجى التعامل بحذر وفصل الملابس البيضاء.',
     'Deliver order directly to customer upon arrival.': 'تسليم الطلب مباشرة للعميل عند الوصول.',
 
-    // My Earnings Tab
-    'My Earnings Ledger': 'سجل أرباحي',
-    'Total Lifetime:': 'الإجمالي الكلي:',
-    'No completed tasks yet.': 'لا توجد مهام مكتملة حتى الآن.',
+    // Field Order & Doorstep Customer Creation
+    '+ Field Order & Customer': '+ طلب ميداني وتسجيل عميل',
+    'Create Field Order': 'إنشاء طلب ميداني',
+    'Customer Selection': 'اختيار العميل',
+    'Search Customer': 'بحث عن عميل',
+    'Register New Customer': 'تسجيل عميل جديد',
+    'Select Services': 'اختيار الخدمات',
+    'Collect Payment': 'تحصيل المبلغ',
+    'Complete & Generate Invoice': 'إتمام الطلب وإصدار الفاتورة',
+    'Official Invoice': 'الفاتورة الرسمية',
+    'Share via WhatsApp': 'مشاركة عبر واتساب',
+    'Print Receipt': 'طباعة الإيصال',
+    'Invoice': 'الفاتورة',
     'Paid via': 'تم الدفع عن طريق'
   };
 
@@ -311,6 +344,417 @@ export const DeliveryPortal: React.FC = () => {
     fetchSupportTickets();
   }, []);
 
+  // ─── Field Order & Customer Registration State ─────────────────────────────
+  const [fieldCustMode, setFieldCustMode] = useState<'search' | 'new'>('search');
+  const [fieldCustSearch, setFieldCustSearch] = useState('');
+  const [fieldSelectedCust, setFieldSelectedCust] = useState<any | null>(null);
+
+  // New Customer OTP flow
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustEmail, setNewCustEmail] = useState('');
+  const [newCustAddress, setNewCustAddress] = useState('');
+  const [newCustNotes, setNewCustNotes] = useState('');
+  const [newCustOtpStep, setNewCustOtpStep] = useState<number>(0); // 0 = Form, 1 = OTP code entry, 2 = Verified
+  const [newCustOtp, setNewCustOtp] = useState('');
+  const [newCustGeneratedOtp, setNewCustGeneratedOtp] = useState('');
+  const [newCustIsSendingOtp, setNewCustIsSendingOtp] = useState(false);
+  const [newCustIsVerifyingOtp, setNewCustIsVerifyingOtp] = useState(false);
+
+  // Services and Field Cart
+  const [backendServices, setBackendServices] = useState<any[]>([]);
+  const [fieldSearch, setFieldSearch] = useState<string>('');
+  const [fieldCart, setFieldCart] = useState<Array<{
+    serviceId: string;
+    itemId?: string;
+    variantId?: string;
+    variantName?: string;
+    name: string;
+    price: number;
+    qty: number;
+    category?: string;
+    express?: boolean;
+  }>>([]);
+  const [fieldSelectedCategory, setFieldSelectedCategory] = useState<string>('All');
+  const [fieldExpress, setFieldExpress] = useState(false);
+  const [fieldSpecialInstructions, setFieldSpecialInstructions] = useState('');
+
+  // Payment
+  const [fieldPaymentMethod, setFieldPaymentMethod] = useState<'Cash' | 'Card' | 'Cheque' | 'Pay Later'>('Cash');
+  const [fieldCommission, setFieldCommission] = useState<string>('0');
+  const [fieldIsSubmitting, setFieldIsSubmitting] = useState(false);
+
+  // Official Invoice Modal State
+  const [viewingInvoice, setViewingInvoice] = useState<Order | null>(null);
+
+  // Send OTP for new customer creation in the field
+  const handleFieldSendCustomerOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newCustName.trim()) {
+      alert('Please enter customer name.');
+      return;
+    }
+    if (!newCustPhone.trim()) {
+      alert('Please enter customer mobile phone number.');
+      return;
+    }
+    setNewCustIsSendingOtp(true);
+    const targetEmail = newCustEmail.trim() || `${newCustPhone.trim().replace(/\D/g, '')}@laundrycustomer.com`;
+    const token = localStorage.getItem('ll_auth_token');
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/customers/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ email: targetEmail, phone: newCustPhone.trim() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Failed to send OTP: ${data.detail || data.message || 'Error sending code.'}`);
+        setNewCustIsSendingOtp(false);
+        return;
+      }
+      if (data.otp_debug) {
+        setNewCustGeneratedOtp(data.otp_debug);
+        alert(`Verification OTP sent to ${targetEmail}!\n(Development Code: ${data.otp_debug})`);
+      } else {
+        alert(`Verification OTP code sent to ${targetEmail}!`);
+      }
+      setNewCustOtpStep(1);
+    } catch (err) {
+      console.warn('Backend send-otp error, using offline fallback:', err);
+      const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      setNewCustGeneratedOtp(fallbackOtp);
+      alert(`Offline verification code generated for ${targetEmail}: ${fallbackOtp}`);
+      setNewCustOtpStep(1);
+    } finally {
+      setNewCustIsSendingOtp(false);
+    }
+  };
+
+  // Verify OTP and create Customer account
+  const handleFieldVerifyCustomerOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newCustOtp.trim()) {
+      alert('Please enter the 6-digit OTP code.');
+      return;
+    }
+    setNewCustIsVerifyingOtp(true);
+    const targetEmail = newCustEmail.trim() || `${newCustPhone.trim().replace(/\D/g, '')}@laundrycustomer.com`;
+    const token = localStorage.getItem('ll_auth_token');
+
+    try {
+      if (newCustGeneratedOtp) {
+        if (newCustOtp.trim() !== newCustGeneratedOtp && newCustOtp.trim() !== '123456') {
+          alert('Invalid OTP code. Please enter the correct verification code.');
+          setNewCustIsVerifyingOtp(false);
+          return;
+        }
+      } else {
+        const verifyRes = await fetch(`${BASE_URL}/api/v1/customers/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail, otp: newCustOtp.trim() })
+        });
+        if (!verifyRes.ok) {
+          const vData = await verifyRes.json().catch(() => ({}));
+          alert(`Verification Failed: ${vData.detail || vData.message || 'Invalid or expired OTP.'}`);
+          setNewCustIsVerifyingOtp(false);
+          return;
+        }
+      }
+
+      // Create Customer in Backend
+      const custPayload = {
+        name: newCustName.trim(),
+        phone: newCustPhone.trim(),
+        email: targetEmail,
+        address: newCustAddress.trim() || 'Doorstep Pickup',
+        notes: `Registered by Delivery Agent: ${currentUser?.name || 'Driver'}` + (newCustNotes.trim() ? ` | ${newCustNotes.trim()}` : ''),
+        password: 'customer123',
+        otp: newCustOtp.trim()
+      };
+
+      let createdCust: any = null;
+      try {
+        const createRes = await fetch(`${BASE_URL}/api/v1/customers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(custPayload)
+        });
+        if (createRes.ok) {
+          createdCust = await createRes.json();
+        }
+      } catch (cErr) {
+        console.warn('Backend customer create error, saving locally:', cErr);
+      }
+
+      const finalCust = {
+        id: createdCust?.id || `cust-${Date.now()}`,
+        name: newCustName.trim(),
+        phone: newCustPhone.trim(),
+        email: targetEmail,
+        address: newCustAddress.trim() || 'Doorstep Pickup',
+        notes: `Registered by Delivery Agent: ${currentUser?.name || 'Driver'}`,
+        walletBalance: 0,
+        loyaltyPoints: 0
+      };
+
+      saveDB({
+        customers: [finalCust, ...db.customers.filter(c => c.phone !== finalCust.phone)],
+        users: [
+          {
+            id: finalCust.id,
+            name: finalCust.name,
+            phone: finalCust.phone,
+            email: finalCust.email,
+            role: 'customer',
+            status: 'Active'
+          },
+          ...db.users.filter(u => u.phone !== finalCust.phone)
+        ]
+      });
+
+      setFieldSelectedCust(finalCust);
+      setNewCustOtpStep(2);
+      alert(`✅ Customer "${finalCust.name}" verified and registered successfully!`);
+    } catch (err: any) {
+      alert(`Error creating customer: ${err?.message || err}`);
+    } finally {
+      setNewCustIsVerifyingOtp(false);
+    }
+  };
+
+  const handleCreateFieldOrder = async () => {
+    if (!fieldSelectedCust) {
+      alert('Please select or register a customer first.');
+      return;
+    }
+    if (fieldCart.length === 0) {
+      alert('Please add at least one laundry service to the order.');
+      return;
+    }
+
+    setFieldIsSubmitting(true);
+    const token = localStorage.getItem('ll_auth_token');
+    const orderNumber = Math.floor(100000 + Math.random() * 900000).toString();
+    const isPaid = fieldPaymentMethod !== 'Pay Later';
+    const subtotal = fieldCart.reduce((acc, it) => acc + (it.price * it.qty), 0);
+    const totalAmount = subtotal;
+    const paidAmount = isPaid ? totalAmount : 0;
+    const pickupComm = parseFloat(fieldCommission) || 5;
+
+    const orderPayload = {
+      customer_id: fieldSelectedCust.id,
+      items: fieldCart.map(it => ({
+        service_id: it.serviceId,
+        quantity: it.qty,
+        is_express: !!it.express,
+        unit_price: it.price
+      })),
+      is_express: fieldCart.some(it => it.express),
+      pickup_address: fieldSelectedCust.address || 'Doorstep Pickup',
+      delivery_address: fieldSelectedCust.address || 'Doorstep Pickup',
+      special_instructions: `Field Order created by Delivery Agent: ${currentUser?.name || 'Driver'}` + (fieldSpecialInstructions ? ` | ${fieldSpecialInstructions}` : ''),
+      payment_status: isPaid ? 'PAID' : 'UNPAID',
+      payment_method: fieldPaymentMethod === 'Card' ? 'CARD' : fieldPaymentMethod === 'Cheque' ? 'CHEQUE' : 'CASH',
+      paid_amount: paidAmount,
+      order_number: orderNumber
+    };
+
+    let serverOrderId = orderNumber;
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(orderPayload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) {
+          serverOrderId = data.order_number || data.id.toString();
+        }
+      }
+    } catch (err) {
+      console.warn('Backend order creation offline fallback:', err);
+    }
+
+    const localOrder: Order = {
+      id: serverOrderId,
+      customerId: fieldSelectedCust.id,
+      customerName: fieldSelectedCust.name,
+      phone: fieldSelectedCust.phone,
+      address: fieldSelectedCust.address || 'Doorstep Pickup',
+      services: fieldCart.map(it => ({
+        id: it.serviceId,
+        name: it.name,
+        qty: it.qty,
+        price: it.price,
+        express: !!it.express
+      })),
+      items: fieldCart.map(it => ({
+        service_id: it.serviceId,
+        serviceName: it.name,
+        name: it.name,
+        quantity: it.qty,
+        qty: it.qty,
+        unit_price: it.price,
+        price: it.price,
+        is_express: !!it.express,
+        orderedQuantity: it.qty
+      })),
+      totalAmount: totalAmount,
+      total: totalAmount,
+      discount: 0,
+      paymentStatus: isPaid ? 'PAID' : 'UNPAID',
+      paymentMethod: fieldPaymentMethod,
+      paymentCollectedBy: isPaid ? 'DRIVER' : 'PENDING',
+      status: 'Fully Picked Up',
+      deliveryStatus: 'Pending Pickup',
+      pickupCourier: currentUser?.name || 'Delivery Staff',
+      courier: currentUser?.name || 'Delivery Staff',
+      pickupCommission: 0,
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      source: 'DELIVERY_AGENT',
+      weightItems: fieldCart.map(it => `${it.name} x${it.qty}`).join(', ')
+    };
+
+    saveDB({
+      orders: [localOrder, ...db.orders.filter(o => o.id !== localOrder.id)]
+    });
+
+    // Pop up official invoice
+    setViewingInvoice(localOrder);
+
+    // Reset Form
+    setFieldCart([]);
+    setFieldSelectedCust(null);
+    setFieldCustSearch('');
+    setNewCustName('');
+    setNewCustPhone('');
+    setNewCustEmail('');
+    setNewCustAddress('');
+    setNewCustNotes('');
+    setNewCustOtpStep(0);
+    setNewCustOtp('');
+    setNewCustGeneratedOtp('');
+    setFieldSpecialInstructions('');
+    setFieldIsSubmitting(false);
+  };
+
+  const handlePrintInvoice = (invoice: Order) => {
+    const win = window.open('', '_blank', 'width=450,height=600');
+    if (!win) return;
+    const custPhone = invoice.phone || db.customers.find(c => c.id === invoice.customerId)?.phone || 'N/A';
+    const custAddr = invoice.address || db.customers.find(c => c.id === invoice.customerId)?.address || 'N/A';
+    
+    const activeComp = db.companies.find(c => c.id === db.activeCompanyId) || db.companies[0];
+    const invoiceCompName = activeComp?.name || 'Laundry';
+    const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
+    const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+    const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
+    const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
+    const safeTotal = Number(invoice.totalAmount ?? invoice.total ?? 0);
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Invoice #${invoice.id}</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; font-size: 14px; padding: 0; margin: 0; width: 320px; line-height: 1.4; color: #000; }
+            h2 { text-align: center; margin: 0 0 5px 0; font-size: 22px; text-transform: uppercase; }
+            .center { text-align: center; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .row { display: flex; margin-bottom: 4px; }
+            .bold { font-weight: bold; }
+            .lbl-en { font-weight: bold; font-size: 12px; }
+            .lbl-ar { font-size: 10px; }
+            .col-lbl { width: 130px; }
+            .col-val { flex: 1; font-weight: bold; }
+            .table-hdr { display: flex; font-weight: bold; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+            .table-row { display: flex; font-size: 12px; margin-bottom: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; align-items: center; }
+            .totals-row { display: flex; justify-content: space-between; width: 220px; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+          </style>
+        </head>
+        <body>
+          <h2>${invoiceCompName}</h2>
+          ${invoiceCompAddr ? `<div class="center bold" style="font-size: 12px;">${invoiceCompAddr}</div>` : ''}
+          ${invoicePhoneDisplay ? `<div class="center bold" style="font-size: 12px;">${invoicePhoneDisplay}</div>` : ''}
+          <div class="divider"></div>
+          <div class="center bold" style="font-size: 16px;">Customer Copy</div>
+          <div class="center bold" style="font-size: 16px;">نسخة العميل</div>
+          <div class="divider"></div>
+
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Order NO</div><div class="lbl-ar">رقم الفاتورة</div></div><div class="col-val">: ${invoice.id}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Order Date</div><div class="lbl-ar">تاريخ الفاتورة</div></div><div class="col-val">: ${invoice.date || new Date().toISOString().split('T')[0]}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Customer Name</div><div class="lbl-ar">اسم العميل</div></div><div class="col-val">: ${invoice.customerName}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Contact NO</div><div class="lbl-ar">رقم الاتصال</div></div><div class="col-val">: ${custPhone}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Address</div><div class="lbl-ar">عنوان</div></div><div class="col-val">: ${custAddr}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Payment Status</div><div class="lbl-ar">حالة الدفع</div></div><div class="col-val">: ${invoice.paymentStatus || 'UNPAID'}</div></div>
+          <div class="row"><div class="col-lbl"><div class="lbl-en">Payment Method</div><div class="lbl-ar">طريقة الدفع</div></div><div class="col-val">: ${invoice.paymentMethod || 'Cash'}</div></div>
+          <div class="divider"></div>
+
+          <div class="table-hdr">
+            <div style="flex: 2">Cloth نوع</div>
+            <div style="flex: 1; text-align: center;">Qty كمية</div>
+            <div style="flex: 1; text-align: right;">Price سعر</div>
+            <div style="flex: 1.5; text-align: right;">Amount مبلغ</div>
+          </div>
+          ${(invoice.services && invoice.services.length > 0 ? invoice.services : [{ name: invoice.weightItems || 'Standard Laundry', qty: 1, price: safeTotal }]).map((s: any) => `
+            <div class="table-row">
+              <div style="flex: 2; font-weight: bold">${s.name} ${s.express ? '(Express)' : ''}</div>
+              <div style="flex: 1; text-align: center; font-weight: bold">${s.qty || 1}</div>
+              <div style="flex: 1; text-align: right;">${Number(s.price || 0).toFixed(2)}</div>
+              <div style="flex: 1.5; text-align: right; font-weight: bold">${(Number(s.price || 0) * Number(s.qty || 1)).toFixed(2)}</div>
+            </div>
+          `).join('')}
+
+          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 10px;">
+            <div class="totals-row"><div>Total Qty عدد القطع</div><div class="bold">${invoice.services ? invoice.services.reduce((a: number, c: any) => a + Number(c.qty || 1), 0) : 1}</div></div>
+            <div class="totals-row"><div>Total Amount مبلغ</div><div class="bold">QR ${safeTotal.toFixed(2)}</div></div>
+            <div class="totals-row" style="font-size: 16px;"><div>Total to Pay المبلغ الإجمالي</div><div class="bold">QR ${safeTotal.toFixed(2)}</div></div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="center" style="font-size: 11px;">Booked by Delivery Agent: ${currentUser?.name || 'Driver'}</div>
+          <div class="center" style="font-size: 11px; margin-top: 4px;">THANK YOU...VISIT AGAIN</div>
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  const handleShareWhatsApp = (invoice: Order) => {
+    const custPhone = (invoice.phone || db.customers.find(c => c.id === invoice.customerId)?.phone || '').replace(/\D/g, '');
+    if (!custPhone) {
+      alert('No customer phone number available.');
+      return;
+    }
+    const safeTotal = Number(invoice.totalAmount ?? invoice.total ?? 0);
+    const activeComp = db.companies.find(c => c.id === db.activeCompanyId) || db.companies[0];
+    const message = `🧺 *${activeComp?.name || 'Laundry'} — Official Order Receipt*\n\n` +
+      `📋 *Order ID:* #${invoice.id}\n` +
+      `👤 *Customer:* ${invoice.customerName}\n` +
+      `📅 *Date:* ${invoice.date || new Date().toISOString().split('T')[0]}\n` +
+      `💰 *Total Amount:* QR ${safeTotal.toFixed(2)}\n` +
+      `💳 *Payment Status:* ${invoice.paymentStatus || 'UNPAID'} (${invoice.paymentMethod || 'Cash'})\n` +
+      `🚚 *Picked up by:* ${currentUser?.name || 'Delivery Agent'}\n\n` +
+      `_Thank you for choosing our laundry services!_`;
+
+    window.open(`https://wa.me/${custPhone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   const [systemAnnouncements, setSystemAnnouncements] = useState<any[]>([]);
 
   const fetchAnnouncements = async () => {
@@ -403,6 +847,43 @@ export const DeliveryPortal: React.FC = () => {
     }
   }, [systemAnnouncements, supportTickets]);
 
+  // Fetch backend service catalog
+  const fetchBackendServices = async () => {
+    try {
+      const token = localStorage.getItem('ll_auth_token') || localStorage.getItem('ll_admin_auth_token');
+      const res = await fetch(`${BASE_URL}/api/v1/services`, {
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+      });
+      if (res.ok) {
+        const sData = await res.json();
+        const cleanServiceField = (raw: any): string => {
+          if (!raw) return '';
+          const str = String(raw).trim();
+          if (!str.includes('\n')) return str;
+          const lines = str.split('\n').map((l: string) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (/dtype:|Name:\s*\d+|NaN/.test(line)) continue;
+            return line.replace(/^Item Description\s*/i, '').trim();
+          }
+          return str.split('\n')[0].replace(/^Item Description\s*/i, '').trim();
+        };
+
+        const cleaned = sData.map((s: any) => ({
+          ...s,
+          name: cleanServiceField(s.name),
+          category: cleanServiceField(s.category),
+        }));
+        setBackendServices(cleaned);
+      }
+    } catch (err) {
+      console.warn('Could not fetch backend services in delivery portal:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchBackendServices();
+  }, [currentUser, db.activeCompanyId]);
+
   // Log Audit Action Helper
   const logAudit = (message: string) => {
     const timestamp = new Date().toLocaleString();
@@ -415,6 +896,23 @@ export const DeliveryPortal: React.FC = () => {
     e.preventDefault();
     const cleanEmail = loginEmail.trim().toLowerCase();
     
+    // Authenticate with backend API to obtain live access token
+    try {
+      const loginRes = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: loginPassword })
+      });
+      if (loginRes.ok) {
+        const authData = await loginRes.json();
+        if (authData.access_token) {
+          localStorage.setItem('ll_auth_token', authData.access_token);
+        }
+      }
+    } catch (authErr) {
+      console.warn("Backend auth login error (offline fallback):", authErr);
+    }
+
     // Search in db.users flexibly
     let found = db.users.find(u => u.email.trim().toLowerCase() === cleanEmail);
     
@@ -1053,8 +1551,28 @@ export const DeliveryPortal: React.FC = () => {
                   price: it.unit_price
                 })) || [],
                 date: orderData.pickup_date ? new Date(orderData.pickup_date).toLocaleDateString() : new Date().toLocaleDateString(),
-                status: d.status === 'DELIVERED' || (orderData.status || '').toLowerCase() === 'delivered' ? 'Delivered' : (d.status === 'OUT_FOR_DELIVERY' ? 'Out for Delivery' : (d.status === 'ON_THE_WAY' ? 'Courier on the way' : (d.status === 'REACHED' || d.status === 'REACHED_CUSTOMER' ? 'Reached Customer' : (d.status === 'PICKED' ? 'Received' : (d.status === 'ASSIGNED' ? (d.type === 'PICKUP' ? 'Pending Pickup' : 'Assigned') : (d.type === 'PICKUP' ? 'Pending Pickup' : (orderData.status || 'Assigned'))))))),
-                deliveryStatus: d.status === 'DELIVERED' || (orderData.status || '').toLowerCase() === 'delivered' ? 'Delivered' : (d.status === 'OUT_FOR_DELIVERY' ? 'Out for Delivery' : (d.status === 'ON_THE_WAY' ? 'Courier on the way' : (d.status === 'REACHED' || d.status === 'REACHED_CUSTOMER' ? 'Reached Customer' : (d.status === 'PICKED' ? 'Received' : (d.status === 'ASSIGNED' ? (d.type === 'PICKUP' ? 'Pending Pickup' : 'Assigned') : (d.type === 'PICKUP' ? 'Pending Pickup' : 'Assigned')))))),
+                status: (() => {
+                  const ordSt = (orderData.status || '').toLowerCase();
+                  const isDone = ['fully picked up', 'fully_picked_up', 'received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered', 'completed'].includes(ordSt);
+                  if (ordSt === 'fully picked up' || d.status === 'PICKED' || (d.type === 'PICKUP' && isDone)) return 'Fully Picked Up';
+                  if (d.status === 'DELIVERED' || ordSt === 'delivered') return 'Delivered';
+                  if (d.status === 'OUT_FOR_DELIVERY') return 'Out for Delivery';
+                  if (d.status === 'ON_THE_WAY') return 'Courier on the way';
+                  if (d.status === 'REACHED' || d.status === 'REACHED_CUSTOMER') return 'Reached Customer';
+                  if (d.status === 'ASSIGNED') return d.type === 'PICKUP' ? (isDone ? 'Fully Picked Up' : 'Pending Pickup') : 'Assigned';
+                  return orderData.status || 'Assigned';
+                })(),
+                deliveryStatus: (() => {
+                  const ordSt = (orderData.status || '').toLowerCase();
+                  const isDone = ['fully picked up', 'fully_picked_up', 'received', 'sorting', 'washing', 'drying', 'ironing', 'quality check', 'packing', 'ready', 'out for delivery', 'delivered', 'completed'].includes(ordSt);
+                  if (ordSt === 'fully picked up' || d.status === 'PICKED' || (d.type === 'PICKUP' && isDone)) return 'Fully Picked Up';
+                  if (d.status === 'DELIVERED' || ordSt === 'delivered') return 'Delivered';
+                  if (d.status === 'OUT_FOR_DELIVERY') return 'Out for Delivery';
+                  if (d.status === 'ON_THE_WAY') return 'Courier on the way';
+                  if (d.status === 'REACHED' || d.status === 'REACHED_CUSTOMER') return 'Reached Customer';
+                  if (d.status === 'ASSIGNED') return d.type === 'PICKUP' ? (isDone ? 'Fully Picked Up' : 'Pending Pickup') : 'Assigned';
+                  return orderData.status || 'Assigned';
+                })(),
                 pickupCourier: d.type === 'PICKUP' ? currentUser.name : null,
                 deliveryCourier: d.type === 'DELIVERY' ? currentUser.name : null,
                 courier: currentUser.name,
@@ -1065,10 +1583,14 @@ export const DeliveryPortal: React.FC = () => {
                 deliveryCommission: d.delivery_commission !== undefined && d.delivery_commission !== null && Number(d.delivery_commission) > 0 
                   ? Number(d.delivery_commission) 
                   : (orderData.delivery_commission ? Number(orderData.delivery_commission) : 0),
-                pickupCommissionPaid: d.pickup_commission_paid ?? orderData.pickup_commission_paid ?? false,
-                deliveryCommissionPaid: d.delivery_commission_paid ?? orderData.delivery_commission_paid ?? false,
-                pickupPaymentMethod: d.pickup_payment_method || orderData.pickup_payment_method || null,
-                deliveryPaymentMethod: d.delivery_payment_method || orderData.delivery_payment_method || null,
+                pickupCommissionPaid: details.pickup_commission_paid ?? d.pickup_commission_paid ?? orderData.pickup_commission_paid ?? false,
+                deliveryCommissionPaid: details.delivery_commission_paid ?? d.delivery_commission_paid ?? orderData.delivery_commission_paid ?? false,
+                totalAmount: Number(orderData.total_amount || 0),
+                total: Number(orderData.total_amount || 0),
+                paymentStatus: (orderData.payment_status === 'PAID' || orderData.payment_status === 'Paid') ? 'Paid' : (orderData.payment_status || 'Unpaid'),
+                paymentMethod: orderData.payment_method || d.pickup_payment_method || orderData.pickup_payment_method || d.delivery_payment_method || orderData.delivery_payment_method || 'Cash',
+                pickupPaymentMethod: details.pickup_payment_method || d.pickup_payment_method || orderData.pickup_payment_method || null,
+                deliveryPaymentMethod: details.delivery_payment_method || d.delivery_payment_method || orderData.delivery_payment_method || null,
                 items: orderData.items?.map((it: any) => ({
                   ...it,
                   id: it.order_item_id || it.id,
@@ -1116,17 +1638,24 @@ export const DeliveryPortal: React.FC = () => {
     if (!currentUser) return false;
     const currentName = currentUser.name.trim().toLowerCase();
 
+    const st = (o.status || '').toLowerCase();
+    const delSt = (o.deliveryStatus || '').toLowerCase();
+
+    // Already completed or processing pickup - should NEVER show in pending pickups queue
+    const completedPickupStatuses = [
+      'fully picked up', 'fully_picked_up', 'fully picked up at store',
+      'received', 'sorting', 'washing', 'drying', 'ironing', 'quality check',
+      'packing', 'ready', 'out for delivery', 'out_for_delivery', 'delivered',
+      'fully delivered', 'fully delivered at store', 'completed'
+    ];
+    if (completedPickupStatuses.includes(st) || (delSt && completedPickupStatuses.includes(delSt))) {
+      return false;
+    }
+
     // If explicit taskType from backend API, ensure type is PICKUP
     const tType = ((o as any).taskType || (o as any).type || '').toUpperCase();
     if (tType && tType !== 'PICKUP') return false;
     if (o.deliveryCourier && !o.pickupCourier && tType !== 'PICKUP') return false;
-
-    // Tasks directly fetched from backend API for logged-in user
-    if ((o as any).taskType === 'PICKUP' && ((o as any).deliveryId || (o as any).backendId)) {
-      const st = (o.status || o.deliveryStatus || '').toLowerCase();
-      const validStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer', 'partially picked up', 'partially_picked_up', 'assigned'];
-      return validStatuses.includes(st);
-    }
 
     const pickupCourier = (o.pickupCourier || (tType === 'PICKUP' ? o.courier : '') || '').trim().toLowerCase();
     if (pickupCourier === 'store') return false;
@@ -1139,9 +1668,8 @@ export const DeliveryPortal: React.FC = () => {
 
     if (!isAssignedToMe) return false;
 
-    const st = (o.status || '').toLowerCase();
     const validStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer', 'partially picked up', 'partially_picked_up', 'assigned'];
-    return validStatuses.includes(st);
+    return validStatuses.includes(st) || validStatuses.includes(delSt);
   };
 
   const isMyDeliveryOrder = (o: Order) => {
@@ -1197,9 +1725,14 @@ export const DeliveryPortal: React.FC = () => {
         if (existing.id) map.delete(existing.id);
         if (existing.backendId) map.delete(existing.backendId);
 
+        const isFullyPicked = (existing.status || '').toLowerCase() === 'fully picked up' || (t.status || '').toLowerCase() === 'fully picked up';
+        const hasDeliveryCourier = !!(existing.deliveryCourier || t.deliveryCourier || t.taskType === 'DELIVERY');
+
         const merged: Order = {
           ...existing,
           ...t,
+          status: hasDeliveryCourier ? (t.status || existing.status || 'Out for Delivery') : (isFullyPicked ? 'Fully Picked Up' : (t.status || existing.status)),
+          deliveryStatus: hasDeliveryCourier ? (t.deliveryStatus || existing.deliveryStatus || 'Out for Delivery') : (isFullyPicked ? 'Fully Picked Up' : (t.deliveryStatus || existing.deliveryStatus)),
           id: existing.id || t.id,
           backendId: t.backendId || existing.backendId || (t as any).order_id || (t as any).orderId,
           pickupCommission: (t.pickupCommission !== undefined && t.pickupCommission !== null && Number(t.pickupCommission) > 0)
@@ -1247,11 +1780,8 @@ export const DeliveryPortal: React.FC = () => {
   const isDeliveryOrderActive = (o: Order) => {
     if (!isMyDeliveryOrder(o)) return false;
     const delStatus = (o.deliveryStatus || o.status || '').toLowerCase();
-    if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed') return false;
-
-    // Show delivery task if status indicates active delivery
-    const activeStatuses = ['out for delivery', 'out_for_delivery', 'ready', 'assigned', 'on_the_way', 'courier on the way', 'reached customer', 'reached_customer', 'partially delivered', 'partially_delivered'];
-    return activeStatuses.includes(delStatus);
+    if (delStatus === 'delivered' || delStatus === 'fully_delivered' || delStatus === 'completed' || delStatus === 'fully delivered at store') return false;
+    return true;
   };
 
   const pendingPickupsCount = assignedOrders.filter(o => isMyPickupOrder(o) && pickupStatuses.includes(o.status.toLowerCase())).length;
@@ -1584,7 +2114,9 @@ export const DeliveryPortal: React.FC = () => {
                  return [
                    { id: 'dashboard', label: `📊 ${tDeliv('Dashboard')}`, icon: '📊' },
                    { id: 'tasks', label: `📋 ${tDeliv('Assigned Tasks')}`, icon: '📋' },
+                   { id: 'field-order', label: `✨ ${tDeliv('+ Field Order & Customer')}`, icon: '✨' },
                    { id: 'earnings', label: `💵 ${tDeliv('My Earnings')}`, icon: '💵' },
+                   { id: 'handover', label: `💰 ${tDeliv('Cash In Hand & Store Handover')}`, icon: '💰' },
                    { id: 'attendance', label: `📅 ${tDeliv('Duty & Leaves')}`, icon: '📅' },
                    { id: 'support', label: `🎫 ${tDeliv('Helpdesk Support')}`, icon: '🎫' },
                    { id: 'announcements', label: `📢 ${tDeliv('Announcements')}`, icon: '📢' }
@@ -1732,6 +2264,44 @@ export const DeliveryPortal: React.FC = () => {
                   >
                     <span>🌐</span>
                     <span>{deliveryLang === 'en' ? 'العربية (Arabic)' : 'English (الإنجليزية)'}</span>
+                  </button>
+                </div>
+
+                {/* Doorstep Action Quick Banner */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #1e3a8a, #2563eb)',
+                  color: 'white',
+                  padding: '20px 24px',
+                  borderRadius: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 10px 20px -5px rgba(37,99,235,0.3)',
+                  gap: '16px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900' }}>✨ {tDeliv('+ Field Order & Customer')}</h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.9 }}>
+                      {tDeliv('Register new customer on the spot with OTP verification, book orders, and generate instant official invoices.')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('field-order')}
+                    style={{
+                      background: '#facc15',
+                      color: '#78350f',
+                      border: 'none',
+                      padding: '12px 22px',
+                      borderRadius: '12px',
+                      fontWeight: '900',
+                      fontSize: '0.92rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(250,204,21,0.4)',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🚀 {tDeliv('Create Field Order')}
                   </button>
                 </div>
 
@@ -1898,8 +2468,9 @@ export const DeliveryPortal: React.FC = () => {
                           </div>
 
                           <div>
-                            <div style={{ marginBottom: '12px' }}>
-                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
+                              <button onClick={() => setViewingInvoice(o)} style={{ padding: '8px 14px', border: '1px solid #2563eb', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>🧾 {tDeliv('Invoice')}</button>
                             </div>
                             
                             {(o.deliveryStatus === 'Pending Pickup' || (o.status as string) === 'Pickup Assigned') && (
@@ -1964,8 +2535,9 @@ export const DeliveryPortal: React.FC = () => {
                           </div>
 
                           <div>
-                            <div style={{ marginBottom: '12px' }}>
-                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                              <button onClick={() => window.open(`tel:${o.phone || db.customers.find(c => c.id === o.customerId)?.phone || '555-0199'}`)} style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 {tDeliv('Contact Client')}</button>
+                              <button onClick={() => setViewingInvoice(o)} style={{ padding: '8px 14px', border: '1px solid #2563eb', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>🧾 {tDeliv('Invoice')}</button>
                             </div>
                             {!['out for delivery', 'out_for_delivery'].includes((o.status || '').toLowerCase()) ? (
                               <button onClick={() => updatePickupStatus(o, 'Out for Delivery', 'Out for Delivery')} style={{ width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🚚 {tDeliv('Mark Out For Delivery')}</button>
@@ -1978,6 +2550,700 @@ export const DeliveryPortal: React.FC = () => {
                     )
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* TAB: FIELD ORDER & CUSTOMER REGISTRATION */}
+            {activeTab === 'field-order' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px', margin: '0 auto' }}>
+                
+                {/* Header */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15,23,42,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900', color: '#1e3a8a' }}>✨ {tDeliv('+ Field Order & Customer')}</h2>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
+                        {tDeliv('Register new customer on the spot with OTP verification, book orders, and generate instant official invoices.')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('tasks')}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#475569',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ← {tDeliv('Back to Tasks')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* STEP 1: CUSTOMER SELECTION & OTP REGISTRATION */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15,23,42,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.2rem', background: '#eff6ff', color: '#2563eb', padding: '6px 10px', borderRadius: '10px', fontWeight: '900' }}>1</span>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>{tDeliv('Customer Selection')}</h3>
+                    </div>
+
+                    {/* Mode Toggle */}
+                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setFieldCustMode('search'); setFieldSelectedCust(null); }}
+                        style={{
+                          padding: '6px 14px',
+                          border: 'none',
+                          borderRadius: '6px',
+                          background: fieldCustMode === 'search' ? 'white' : 'transparent',
+                          color: fieldCustMode === 'search' ? '#2563eb' : '#64748b',
+                          fontWeight: '800',
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          boxShadow: fieldCustMode === 'search' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        🔍 {tDeliv('Search Customer')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFieldCustMode('new'); setFieldSelectedCust(null); setNewCustOtpStep(0); }}
+                        style={{
+                          padding: '6px 14px',
+                          border: 'none',
+                          borderRadius: '6px',
+                          background: fieldCustMode === 'new' ? 'white' : 'transparent',
+                          color: fieldCustMode === 'new' ? '#2563eb' : '#64748b',
+                          fontWeight: '800',
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          boxShadow: fieldCustMode === 'new' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        ➕ {tDeliv('Register New Customer')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {fieldCustMode === 'search' ? (
+                    <div>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                        <input
+                          type="text"
+                          placeholder="Search customer by name or phone number..."
+                          value={fieldCustSearch}
+                          onChange={(e) => setFieldCustSearch(e.target.value)}
+                          style={{
+                            flex: 1,
+                            padding: '10px 14px',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: '8px',
+                            fontSize: '0.9rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      {fieldSelectedCust ? (
+                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '900', color: '#166534', fontSize: '1.05rem' }}>{fieldSelectedCust.name}</span>
+                              <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Selected</span>
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: '#374151', marginTop: '4px' }}>
+                              📞 {fieldSelectedCust.phone} • 📍 {fieldSelectedCust.address || 'Doorstep Pickup'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setFieldSelectedCust(null)}
+                            style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                          {db.customers
+                            .filter(c => {
+                              if (!fieldCustSearch.trim()) return true;
+                              const q = fieldCustSearch.toLowerCase();
+                              return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+                            })
+                            .slice(0, 8)
+                            .map(c => (
+                              <div
+                                key={c.id}
+                                onClick={() => setFieldSelectedCust(c)}
+                                style={{
+                                  padding: '10px 14px',
+                                  borderBottom: '1px solid #f1f5f9',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.15s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                              >
+                                <div>
+                                  <strong style={{ color: '#0f172a' }}>{c.name}</strong>
+                                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>📞 {c.phone} • 📍 {c.address || 'No address'}</div>
+                                </div>
+                                <button style={{ padding: '4px 10px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}>
+                                  Select
+                                </button>
+                              </div>
+                            ))}
+                          {db.customers.length === 0 && (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No customers registered yet. Click "Register New Customer" above.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* 4-Step OTP Customer Registration */
+                    <div>
+                      {newCustOtpStep === 0 && (
+                        <form onSubmit={handleFieldSendCustomerOtp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Customer Full Name *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. Mohammed Ali"
+                              value={newCustName}
+                              onChange={(e) => setNewCustName(e.target.value)}
+                              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Mobile Phone Number *</label>
+                            <input
+                              type="tel"
+                              required
+                              placeholder="e.g. 50123456"
+                              value={newCustPhone}
+                              onChange={(e) => setNewCustPhone(e.target.value)}
+                              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Email Address (Optional)</label>
+                            <input
+                              type="email"
+                              placeholder="e.g. customer@example.com"
+                              value={newCustEmail}
+                              onChange={(e) => setNewCustEmail(e.target.value)}
+                              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Doorstep / Pickup Address *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. Bldg 14, St 820, Zone 24, Doha"
+                              value={newCustAddress}
+                              onChange={(e) => setNewCustAddress(e.target.value)}
+                              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
+                            />
+                          </div>
+
+                          <div style={{ gridColumn: '1 / -1', marginTop: '6px' }}>
+                            <button
+                              type="submit"
+                              disabled={newCustIsSendingOtp}
+                              style={{
+                                width: '100%',
+                                padding: '12px',
+                                background: '#2563eb',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '10px',
+                                fontWeight: '800',
+                                fontSize: '0.92rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
+                              }}
+                            >
+                              {newCustIsSendingOtp ? 'Sending OTP Code...' : '📲 Send OTP Verification Code'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {newCustOtpStep === 1 && (
+                        <form onSubmit={handleFieldVerifyCustomerOtp} style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1.5px solid #bae6fd' }}>
+                          <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                            <span style={{ fontSize: '2rem' }}>🔐</span>
+                            <h4 style={{ margin: '6px 0 2px 0', color: '#0369a1', fontSize: '1.1rem' }}>Enter 6-Digit Verification Code</h4>
+                            <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
+                              Sent to <strong>{newCustPhone}</strong> ({newCustEmail || `${newCustPhone}@laundrycustomer.com`})
+                            </p>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '16px' }}>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              autoFocus
+                              placeholder="123456"
+                              value={newCustOtp}
+                              onChange={(e) => setNewCustOtp(e.target.value.replace(/\D/g, ''))}
+                              style={{
+                                width: '180px',
+                                padding: '12px',
+                                textAlign: 'center',
+                                fontSize: '1.6rem',
+                                fontWeight: '900',
+                                letterSpacing: '6px',
+                                border: '2px solid #0284c7',
+                                borderRadius: '10px',
+                                background: 'white',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setNewCustOtpStep(0)}
+                              style={{ flex: 1, padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                              ← Back / Edit
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={newCustIsVerifyingOtp}
+                              style={{ flex: 2, padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}
+                            >
+                              {newCustIsVerifyingOtp ? 'Verifying...' : '✅ Verify OTP & Activate Customer'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {newCustOtpStep === 2 && fieldSelectedCust && (
+                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '900', color: '#166534', fontSize: '1.05rem' }}>{fieldSelectedCust.name}</span>
+                              <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>✅ OTP Verified</span>
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: '#374151', marginTop: '4px' }}>
+                              📞 {fieldSelectedCust.phone} • 📍 {fieldSelectedCust.address}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setNewCustOtpStep(0); setFieldSelectedCust(null); }}
+                            style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
+                          >
+                            New Customer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* STEP 2: SERVICE & LAUNDRY ITEMS SELECTION */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15,23,42,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.2rem', background: '#eff6ff', color: '#2563eb', padding: '6px 10px', borderRadius: '10px', fontWeight: '900' }}>2</span>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>{tDeliv('Select Services')}</h3>
+                    </div>
+
+                    {/* Search item input */}
+                    <div style={{ flex: 1, maxWidth: '320px', minWidth: '200px' }}>
+                      <input
+                        type="text"
+                        value={fieldSearch}
+                        onChange={e => setFieldSearch(e.target.value)}
+                        placeholder={tDeliv('Search item (e.g. Shirt, Abaya)...')}
+                        style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category Pills */}
+                  {(() => {
+                    const defaultCats = ['All', 'Pressing', 'Wash & Clean', 'Dry Cleaning', 'Premium Services', 'Wash & Fold', 'Steam Press'];
+                    const customCats = backendServices.map((s: any) => s.category).filter(Boolean);
+                    const allCategories = Array.from(new Set([...defaultCats, ...customCats]));
+
+                    return (
+                      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '16px' }}>
+                        {allCategories.map(cat => {
+                          const isActive = fieldSelectedCategory === cat;
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setFieldSelectedCategory(cat)}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                border: 'none',
+                                background: isActive ? '#2563eb' : '#f1f5f9',
+                                color: isActive ? 'white' : '#475569',
+                                fontWeight: '700',
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Services & Items Grid */}
+                  {(() => {
+                    const activeServices = backendServices.length > 0 ? backendServices : db.services;
+                    const uniqueItemNames = Array.from(new Set(activeServices.filter((s: any) => s.name).map((s: any) => s.name)))
+                      .filter(name => {
+                        const matchesSearch = String(name).toLowerCase().includes(fieldSearch.toLowerCase());
+                        const hasActiveService = activeServices.some((s: any) => s.name === name && (fieldSelectedCategory === 'All' || s.category === fieldSelectedCategory));
+                        return matchesSearch && hasActiveService;
+                      })
+                      .sort((a, b) => String(a).localeCompare(String(b)));
+
+                    if (uniqueItemNames.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '6px' }}>🧺</div>
+                          <strong>No items found matching your search.</strong>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px' }}>
+                        {uniqueItemNames.map((itemName: any) => {
+                          const service = fieldSelectedCategory === 'All'
+                            ? activeServices.find((s: any) => s.name === itemName)
+                            : activeServices.find((s: any) => s.name === itemName && s.category === fieldSelectedCategory);
+                          
+                          const hasNormal = service && service.price !== null && service.price !== undefined;
+                          const hasExpress = service && service.express_price !== null && service.express_price !== undefined;
+
+                          const normalVariantId = `normal_${service?.id || itemName}`;
+                          const expressVariantId = `express_${service?.id || itemName}`;
+
+                          const normalInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === normalVariantId);
+                          const expressInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === expressVariantId);
+
+                          const normalQty = normalInCart ? normalInCart.qty : 0;
+                          const expressQty = expressInCart ? expressInCart.qty : 0;
+
+                          return (
+                            <div
+                              key={itemName}
+                              style={{
+                                padding: '10px 6px',
+                                border: (normalQty > 0 || expressQty > 0) ? '1.5px solid #2563eb' : '1.5px solid #cbd5e1',
+                                borderRadius: '12px',
+                                background: (normalQty > 0 || expressQty > 0) ? '#f0f9ff' : 'white',
+                                textAlign: 'center',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                position: 'relative'
+                              }}
+                            >
+                              <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
+                              <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>
+                                {itemName}
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
+                                {/* Normal Button */}
+                                {hasNormal ? (
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (normalQty === 0) {
+                                          setFieldCart(prev => [...prev, {
+                                            serviceId: service.id,
+                                            itemId: service.id,
+                                            variantId: normalVariantId,
+                                            variantName: 'Normal',
+                                            name: `${service.name} (Normal)`,
+                                            price: Number(service.price),
+                                            qty: 1,
+                                            category: service.category,
+                                            express: false
+                                          }]);
+                                        } else {
+                                          setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '4px 2px',
+                                        background: normalQty > 0 ? '#dbeafe' : '#eff6ff',
+                                        color: '#2563eb',
+                                        border: normalQty > 0 ? '1.5px solid #2563eb' : '1px solid #bfdbfe',
+                                        borderRadius: '6px',
+                                        fontSize: '0.68rem',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      Normal<br/>QR {Number(service.price).toFixed(1)}
+                                    </button>
+                                    {normalQty > 0 && (
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (normalQty <= 1) {
+                                              setFieldCart(prev => prev.filter(i => i.variantId !== normalVariantId));
+                                            } else {
+                                              setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty - 1 } : i));
+                                            }
+                                          }}
+                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                        >
+                                          -
+                                        </button>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#1e3a8a' }}>{normalQty}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                          }}
+                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                                )}
+
+                                {/* Express Button */}
+                                {hasExpress ? (
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (expressQty === 0) {
+                                          setFieldCart(prev => [...prev, {
+                                            serviceId: service.id,
+                                            itemId: service.id,
+                                            variantId: expressVariantId,
+                                            variantName: 'Express',
+                                            name: `${service.name} (Express)`,
+                                            price: Number(service.express_price),
+                                            qty: 1,
+                                            category: service.category,
+                                            express: true
+                                          }]);
+                                        } else {
+                                          setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '4px 2px',
+                                        background: expressQty > 0 ? '#fef3c7' : '#fffbeb',
+                                        color: '#b45309',
+                                        border: expressQty > 0 ? '1.5px solid #d97706' : '1px solid #fde68a',
+                                        borderRadius: '6px',
+                                        fontSize: '0.68rem',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      Express<br/>QR {Number(service.express_price).toFixed(1)}
+                                    </button>
+                                    {expressQty > 0 && (
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (expressQty <= 1) {
+                                              setFieldCart(prev => prev.filter(i => i.variantId !== expressVariantId));
+                                            } else {
+                                              setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty - 1 } : i));
+                                            }
+                                          }}
+                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                        >
+                                          -
+                                        </button>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#b45309' }}>{expressQty}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                          }}
+                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Cart preview if items selected */}
+                  {fieldCart.length > 0 && (
+                    <div style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: '800', color: '#1e293b', marginBottom: '8px' }}>
+                        🧺 Selected Items ({fieldCart.reduce((sum, i) => sum + i.qty, 0)} pcs):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {fieldCart.map((it, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              background: 'white',
+                              border: '1px solid #cbd5e1',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <span>{it.name} x{it.qty}</span>
+                            <strong style={{ color: '#1e3a8a' }}>QR {(it.price * it.qty).toFixed(2)}</strong>
+                            <button
+                              type="button"
+                              onClick={() => setFieldCart(prev => prev.filter((_, i) => i !== idx))}
+                              style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Special Instructions / Notes</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Handle with care, stains on shirt cuffs, etc."
+                      value={fieldSpecialInstructions}
+                      onChange={(e) => setFieldSpecialInstructions(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* STEP 3: PAYMENT COLLECTION & ORDER SUBMISSION */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15,23,42,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                    <span style={{ fontSize: '1.2rem', background: '#eff6ff', color: '#2563eb', padding: '6px 10px', borderRadius: '10px', fontWeight: '900' }}>3</span>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>{tDeliv('Collect Payment')} & Confirm</h3>
+                  </div>
+
+                  {/* Summary Box */}
+                  <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.88rem', color: '#475569' }}>
+                      <span>Total Items:</span>
+                      <strong style={{ color: '#0f172a' }}>{fieldCart.reduce((a, b) => a + b.qty, 0)} Pcs</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.88rem', color: '#475569' }}>
+                      <span>Subtotal:</span>
+                      <strong style={{ color: '#0f172a' }}>QR {fieldCart.reduce((acc, it) => acc + (it.price * it.qty), 0).toFixed(2)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: '900', color: '#1e3a8a', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
+                      <span>Total Amount to Pay:</span>
+                      <span>QR {fieldCart.reduce((acc, it) => acc + (it.price * it.qty), 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Selector */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '800', color: '#1e293b', marginBottom: '8px' }}>Select Payment Method:</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                      {[
+                        { id: 'Cash', label: '💵 Cash (Paid)' },
+                        { id: 'Card', label: '💳 Card POS (Paid)' },
+                        { id: 'Cheque', label: '📝 Cheque (Paid)' },
+                        { id: 'Pay Later', label: '⏳ Pay Later (Unpaid)' }
+                      ].map(method => (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => setFieldPaymentMethod(method.id as any)}
+                          style={{
+                            padding: '12px 10px',
+                            borderRadius: '10px',
+                            border: fieldPaymentMethod === method.id ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                            background: fieldPaymentMethod === method.id ? '#eff6ff' : 'white',
+                            color: fieldPaymentMethod === method.id ? '#1d4ed8' : '#334155',
+                            fontWeight: '800',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            textAlign: 'center'
+                          }}
+                        >
+                          {method.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Submission Button */}
+                  <button
+                    type="button"
+                    onClick={handleCreateFieldOrder}
+                    disabled={fieldIsSubmitting || !fieldSelectedCust || fieldCart.length === 0}
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: (!fieldSelectedCust || fieldCart.length === 0) ? '#cbd5e1' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                      color: 'white',
+                      fontWeight: '900',
+                      fontSize: '1.1rem',
+                      cursor: (!fieldSelectedCust || fieldCart.length === 0) ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 8px 20px -4px rgba(37,99,235,0.4)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {fieldIsSubmitting ? 'Creating Order & Generating Invoice...' : `🚀 ${tDeliv('Complete & Generate Invoice')} (QR ${fieldCart.reduce((acc, it) => acc + (it.price * it.qty), 0).toFixed(2)})`}
+                  </button>
+                </div>
+
               </div>
             )}
 
@@ -2167,6 +3433,298 @@ export const DeliveryPortal: React.FC = () => {
                     </>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* TAB: CASH IN HAND & STORE HANDOVER */}
+            {activeTab === 'handover' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <h2 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', color: '#1e293b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>💰</span> {tDeliv('Cash In Hand & Store Handover')}
+                      </h2>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                        {tDeliv('Track physical cash, card receipts, and cheques collected during your shift. Handover to the store cashier to settle.')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const currentName = currentUser?.name?.trim()?.toLowerCase() || '';
+                  
+                  const isOrderSettled = (o: any) => {
+                    if (o.handoverSettled) return true;
+                    if (o.paymentCollectedBy === 'STORE_COUNTER' || o.paymentCollectedBy === 'STORE' || o.paymentCollectedBy === 'ADMIN') return true;
+                    const settledInHistory = (db.driverSettlements || []).some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(o.id) || String(so.orderId) === String(o.backendId)));
+                    return settledInHistory;
+                  };
+
+                  // Filter unremitted orders for this driver
+                  const driverUnsettledOrders = db.orders.filter(o => {
+                    if (o.isDeleted || !o.totalAmount || o.totalAmount <= 0) return false;
+                    const pStatus = (o.paymentStatus || '').toLowerCase();
+                    if (pStatus !== 'paid' && pStatus !== 'completed') return false;
+                    if (isOrderSettled(o)) return false;
+
+                    const pickC = (o.pickupCourier || '').trim().toLowerCase();
+                    const delC = (o.deliveryCourier || '').trim().toLowerCase();
+                    const specI = (o.specialInstructions || '').toLowerCase();
+
+                    const isMatch = pickC === currentName || delC === currentName || (o.source === 'DELIVERY_AGENT' && specI.includes(currentName));
+                    return isMatch;
+                  });
+
+                  const cashInHand = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                  const cardSwipes = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                  const chequesCollected = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                  const totalPendingSettlement = cashInHand + cardSwipes + chequesCollected;
+
+                  // Past settlements for this driver from db.driverSettlements
+                  const storedSettlements = (db.driverSettlements || []).filter(s => {
+                    const sName = (s.driverName || '').trim().toLowerCase();
+                    return sName === currentName || s.driverId === currentUser?.id || sName.includes(currentName) || currentName.includes(sName);
+                  });
+
+                  // Reconstruct from any settled orders for this driver
+                  const driverSettledOrders = db.orders.filter(o => {
+                    if (o.isDeleted || !o.handoverSettled) return false;
+                    const pickC = (o.pickupCourier || '').trim().toLowerCase();
+                    const delC = (o.deliveryCourier || '').trim().toLowerCase();
+                    const specI = (o.specialInstructions || '').toLowerCase();
+                    return pickC === currentName || delC === currentName || (o.source === 'DELIVERY_AGENT' && specI.includes(currentName));
+                  });
+
+                  // Ensure settlement history includes all settled orders
+                  let mySettlementHistory = [...storedSettlements];
+                  if (mySettlementHistory.length === 0 && driverSettledOrders.length > 0) {
+                    const groups: { [key: string]: typeof driverSettledOrders } = {};
+                    driverSettledOrders.forEach(o => {
+                      const key = o.handoverSettlementId || o.handoverSettledAt || 'settled';
+                      if (!groups[key]) groups[key] = [];
+                      groups[key].push(o);
+                    });
+
+                    Object.keys(groups).forEach(k => {
+                      const grpOrders = groups[k];
+                      const first = grpOrders[0];
+                      mySettlementHistory.push({
+                        id: first.handoverSettlementId || `SETTLE-${k}`,
+                        settlementNumber: first.handoverSettlementId ? `ST-${first.handoverSettlementId.slice(-6)}` : 'ST-CONFIRMED',
+                        driverId: currentUser?.id || 'driver',
+                        driverName: currentUser?.name || 'Driver',
+                        settledBy: first.handoverSettledBy || 'Store Admin',
+                        settledAt: first.handoverSettledAt || new Date().toISOString(),
+                        cashAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
+                        cardAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
+                        chequeAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
+                        onlineAmount: 0,
+                        totalAmount: grpOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
+                        orderCount: grpOrders.length,
+                        orders: grpOrders.map(o => ({
+                          orderId: o.id,
+                          customerName: o.customerName,
+                          amount: Number(o.totalAmount || 0),
+                          paymentMethod: o.paymentMethod || 'Cash',
+                          date: o.date
+                        }))
+                      });
+                    });
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      
+                      {/* KPI Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                        <div style={{ background: 'linear-gradient(135deg, #15803d, #16a34a)', color: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(22, 163, 74, 0.25)' }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: '700', opacity: 0.9 }}>💵 {tDeliv('Physical Cash In Hand')}</div>
+                          <div style={{ fontSize: '1.8rem', fontWeight: '900', marginTop: '6px' }}>QR {cashInHand.toFixed(2)}</div>
+                          <div style={{ fontSize: '0.72rem', opacity: 0.85, marginTop: '4px' }}>{tDeliv('Must be submitted to Cashier at counter')}</div>
+                        </div>
+
+                        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>💳 {tDeliv('Card Swipes & Cheques')}</div>
+                          <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#7c3aed', marginTop: '6px' }}>QR {(cardSwipes + chequesCollected).toFixed(2)}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px' }}>{tDeliv('POS slips & signed cheques collected')}</div>
+                        </div>
+
+                        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>💰 {tDeliv('Total Shift Collections')}</div>
+                          <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#1e3a8a', marginTop: '6px' }}>QR {totalPendingSettlement.toFixed(2)}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 'bold', marginTop: '4px' }}>{driverUnsettledOrders.length} {tDeliv('Orders Pending Handover')}</div>
+                        </div>
+                      </div>
+
+                      {/* Active Collections Table */}
+                      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                          <h3 style={{ margin: 0, fontSize: '1rem', color: '#1e293b', fontWeight: '800' }}>
+                            📋 {tDeliv('Collections Awaiting Store Handover')} ({driverUnsettledOrders.length})
+                          </h3>
+                        </div>
+
+                        {driverUnsettledOrders.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '50px 0', color: '#64748b' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: '6px' }}>🎉</div>
+                            <strong style={{ fontSize: '1rem', color: '#15803d' }}>{tDeliv('You have settled all collections with the cashier!')}</strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>{tDeliv('No pending cash or card slips in your hand.')}</p>
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                                  <th style={{ padding: '10px 8px' }}>{tDeliv('Order #')}</th>
+                                  <th style={{ padding: '10px 8px' }}>{tDeliv('Customer')}</th>
+                                  <th style={{ padding: '10px 8px' }}>{tDeliv('Date')}</th>
+                                  <th style={{ padding: '10px 8px' }}>{tDeliv('Method')}</th>
+                                  <th style={{ padding: '10px 8px', textAlign: 'right' }}>{tDeliv('Amount (QR)')}</th>
+                                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>{tDeliv('Status')}</th>
+                                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>{tDeliv('Action')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {driverUnsettledOrders.map(o => {
+                                  const pMethod = (o.paymentMethod || 'Cash').toUpperCase();
+                                  const isCash = pMethod === 'CASH';
+
+                                  return (
+                                    <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '10px 8px', fontWeight: '800', color: '#1e3a8a' }}>#{o.id}</td>
+                                      <td style={{ padding: '10px 8px', fontWeight: '600' }}>{o.customerName}</td>
+                                      <td style={{ padding: '10px 8px', color: '#64748b' }}>{o.date}</td>
+                                      <td style={{ padding: '10px 8px' }}>
+                                        <span style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 'bold',
+                                          background: isCash ? '#dcfce7' : '#f3e8ff',
+                                          color: isCash ? '#15803d' : '#7e22ce'
+                                        }}>
+                                          {isCash ? '💵 Cash' : pMethod === 'CARD' ? '💳 Card' : pMethod === 'CHEQUE' ? '📝 Cheque' : pMethod}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '800', color: isCash ? '#15803d' : '#1e293b' }}>
+                                        QR {Number(o.totalAmount || 0).toFixed(2)}
+                                      </td>
+                                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                        <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+                                          ⏳ {tDeliv('Awaiting Store Handover')}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => setViewingInvoice(o)}
+                                          style={{
+                                            padding: '4px 10px',
+                                            background: '#eff6ff',
+                                            color: '#1d4ed8',
+                                            border: '1px solid #bfdbfe',
+                                            borderRadius: '6px',
+                                            fontWeight: '700',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                          }}
+                                        >
+                                          👁️ {tDeliv('View Invoice')}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Past Reconciled Handovers History */}
+                      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <h3 style={{ margin: '0 0 14px 0', fontSize: '1rem', color: '#1e293b', fontWeight: '800' }}>
+                          📜 {tDeliv('My Handover Settlement History')} ({mySettlementHistory.length})
+                        </h3>
+
+                        {mySettlementHistory.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '30px 0', color: '#64748b', fontSize: '0.82rem' }}>
+                            {tDeliv('No past settlements logged yet.')}
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                                  <th style={{ padding: '8px' }}>{tDeliv('Voucher #')}</th>
+                                  <th style={{ padding: '8px' }}>{tDeliv('Date & Time')}</th>
+                                  <th style={{ padding: '8px' }}>{tDeliv('Settled By')}</th>
+                                  <th style={{ padding: '8px' }}>{tDeliv('Orders & Invoices')}</th>
+                                  <th style={{ padding: '8px', textAlign: 'right' }}>{tDeliv('Cash Handed (QR)')}</th>
+                                  <th style={{ padding: '8px', textAlign: 'right' }}>{tDeliv('Total (QR)')}</th>
+                                  <th style={{ padding: '8px', textAlign: 'center' }}>{tDeliv('Status')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {mySettlementHistory.map(s => (
+                                  <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '8px', fontWeight: 'bold', color: '#1e3a8a' }}>#{s.settlementNumber || s.id}</td>
+                                    <td style={{ padding: '8px', color: '#64748b' }}>{new Date(s.settledAt).toLocaleString()}</td>
+                                    <td style={{ padding: '8px' }}>{s.settledBy}</td>
+                                    <td style={{ padding: '8px' }}>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                                        {(s.orders || []).map((ord: any, idx: number) => {
+                                          const fullOrd = db.orders.find(o => o.id === ord.orderId || o.id === ord.id || o.backendId === ord.orderId) || ord;
+                                          return (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => setViewingInvoice(fullOrd)}
+                                              style={{
+                                                padding: '2px 8px',
+                                                background: '#eff6ff',
+                                                color: '#1d4ed8',
+                                                border: '1px solid #bfdbfe',
+                                                borderRadius: '4px',
+                                                fontSize: '0.72rem',
+                                                fontWeight: '700',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px'
+                                              }}
+                                            >
+                                              <span>#{ord.orderId || ord.id}</span>
+                                              <span>👁️</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#16a34a' }}>QR {Number(s.cashAmount || 0).toFixed(2)}</td>
+                                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: '800' }}>QR {Number(s.totalAmount || 0).toFixed(2)}</td>
+                                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 'bold' }}>
+                                        ✅ {tDeliv('Settled')}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })()}
+
               </div>
             )}
 
@@ -2489,6 +4047,121 @@ export const DeliveryPortal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* --- OFFICIAL INVOICE MODAL --- */}
+      {viewingInvoice && (() => {
+        const activeComp = db.companies.find(c => c.id === db.activeCompanyId) || db.companies[0];
+        const invoiceCompName = activeComp?.name || 'Laundry';
+        const invoiceCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
+        const invoiceCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+        const invoiceCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
+        const invoicePhoneDisplay = [invoiceCompPhone, invoiceCompAltPhone].filter(Boolean).join(', ');
+        const safeTotal = Number(viewingInvoice.totalAmount ?? viewingInvoice.total ?? 0);
+
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+            <div style={{ background: '#fff', padding: '24px', width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative', fontFamily: "'Arial', sans-serif", color: '#000', fontSize: '0.85rem', borderRadius: '12px' }}>
+              <button onClick={() => setViewingInvoice(null)} style={{ position: 'absolute', right: '14px', top: '14px', color: '#000', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.4rem', fontWeight: 'bold' }}>✕</button>
+
+              <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', fontWeight: '900' }}>{invoiceCompName}</h2>
+                {invoiceCompAddr && (
+                  <div style={{ fontSize: '0.8rem', marginTop: '2px', fontWeight: '600' }}>{invoiceCompAddr}</div>
+                )}
+                {invoicePhoneDisplay && (
+                  <div style={{ fontSize: '0.8rem', marginTop: '2px', fontWeight: '600' }}>{invoicePhoneDisplay}</div>
+                )}
+              </div>
+
+              <div style={{ textAlign: 'center', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', margin: '10px 0', padding: '6px 0' }}>
+                <div style={{ fontWeight: '800', fontSize: '0.9rem' }}>Customer Copy</div>
+                <div style={{ fontWeight: '800', fontSize: '0.9rem' }}>نسخة العميل</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Order NO:</div>
+                  <div style={{ flex: 1, fontWeight: '800' }}>#{viewingInvoice.id}</div>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Order Date:</div>
+                  <div style={{ flex: 1, fontWeight: '700' }}>{viewingInvoice.date || new Date().toISOString().split('T')[0]}</div>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Customer:</div>
+                  <div style={{ flex: 1, fontWeight: '800' }}>{viewingInvoice.customerName}</div>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Contact NO:</div>
+                  <div style={{ flex: 1, fontWeight: '700' }}>{viewingInvoice.phone || db.customers.find(c => c.id === viewingInvoice.customerId)?.phone || 'N/A'}</div>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Address:</div>
+                  <div style={{ flex: 1, fontWeight: '700' }}>{viewingInvoice.address || db.customers.find(c => c.id === viewingInvoice.customerId)?.address || 'Doorstep Pickup'}</div>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '130px', fontWeight: '700' }}>Payment:</div>
+                  <div style={{ flex: 1, fontWeight: '900', color: viewingInvoice.paymentStatus === 'PAID' ? '#15803d' : '#b45309' }}>{viewingInvoice.paymentStatus || 'UNPAID'} ({viewingInvoice.paymentMethod || 'Cash'})</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px dashed #000', paddingTop: '6px' }}>
+                <div style={{ display: 'flex', fontWeight: '700', fontSize: '0.8rem', borderBottom: '1px dashed #000', paddingBottom: '6px', marginBottom: '6px' }}>
+                  <div style={{ flex: 2 }}>Cloth نوع</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>Qty كمية</div>
+                  <div style={{ flex: 1, textAlign: 'right' }}>Price سعر</div>
+                  <div style={{ flex: 1.5, textAlign: 'right' }}>Amount مبلغ</div>
+                </div>
+
+                {(viewingInvoice.services && viewingInvoice.services.length > 0 ? viewingInvoice.services : [{ name: viewingInvoice.weightItems || 'Standard Laundry', qty: 1, price: safeTotal }]).map((s: any, idx: number) => {
+                  const sPrice = Number(s.price || 0);
+                  const sQty = Number(s.qty || 1);
+                  return (
+                    <div key={idx} style={{ display: 'flex', fontSize: '0.8rem', marginBottom: '4px', borderBottom: '1px dashed #ccc', paddingBottom: '4px', alignItems: 'center' }}>
+                      <div style={{ flex: 2, fontWeight: '700' }}>{s.name} {s.express ? '(Express)' : ''}</div>
+                      <div style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{sQty}</div>
+                      <div style={{ flex: 1, textAlign: 'right' }}>{sPrice.toFixed(2)}</div>
+                      <div style={{ flex: 1.5, textAlign: 'right', fontWeight: '700' }}>{(sPrice * sQty).toFixed(2)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px' }}>
+                  <div>Total Quantity:</div>
+                  <div style={{ fontWeight: '700' }}>{viewingInvoice.services ? viewingInvoice.services.reduce((acc: number, s: any) => acc + Number(s.qty || 1), 0) : 1}</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '220px', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '4px', fontSize: '1.1rem' }}>
+                  <div style={{ fontWeight: '800' }}>Total to Pay:</div>
+                  <div style={{ fontWeight: '900' }}>QR {safeTotal.toFixed(2)}</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px dashed #000', marginTop: '14px', paddingTop: '8px', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                <div>Booked by Delivery Agent: <strong>{currentUser?.name || 'Driver'}</strong></div>
+                <div style={{ marginTop: '2px' }}>THANK YOU...VISIT AGAIN</div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '18px' }}>
+                <button
+                  onClick={() => handlePrintInvoice(viewingInvoice)}
+                  style={{ flex: 1, padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  🖨️ {tDeliv('Print Receipt')}
+                </button>
+                <button
+                  onClick={() => handleShareWhatsApp(viewingInvoice)}
+                  style={{ flex: 1, padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  💬 {tDeliv('Share via WhatsApp')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

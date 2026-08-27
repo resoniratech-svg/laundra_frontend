@@ -143,6 +143,34 @@ export interface Order {
     item_status?: string;
     itemStatus?: string;
   }[];
+  handoverSettled?: boolean;
+  handoverSettledAt?: string;
+  handoverSettledBy?: string;
+  handoverSettlementId?: string;
+  paymentCollectedBy?: 'DRIVER' | 'STORE_COUNTER' | 'ONLINE' | string;
+}
+
+export interface DriverSettlement {
+  id: string;
+  settlementNumber: string;
+  driverId: string;
+  driverName: string;
+  settledBy: string;
+  settledAt: string;
+  cashAmount: number;
+  cardAmount: number;
+  chequeAmount: number;
+  onlineAmount: number;
+  totalAmount: number;
+  orderCount: number;
+  orders: {
+    orderId: string;
+    customerName: string;
+    amount: number;
+    paymentMethod: string;
+    date: string;
+  }[];
+  notes?: string;
 }
 
 export interface Expense {
@@ -652,6 +680,15 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [currentDeliveryBoy, setCurrentDeliveryBoyState] = useState<string | null>(null);
   const [announcements, setAnnouncementsState] = useState<Announcement[]>([]);
   const [leaveRequests, setLeaveRequestsState] = useState<LeaveRequest[]>([]);
+  const [driverSettlements, setDriverSettlementsState] = useState<DriverSettlement[]>(() => {
+    try {
+      const compId = localStorage.getItem('ll_active_company_id') || 'comp-default';
+      const saved = localStorage.getItem(`ll_${compId}_driver_settlements`) || localStorage.getItem('ll_driver_settlements');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem('ll_auth_token'));
 
   const setToken = (newToken: string | null) => {
@@ -783,6 +820,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setLeaveRequests = (newVal: LeaveRequest[]) => {
     setLeaveRequestsState(newVal);
     localStorage.setItem(`ll_${activeCompanyIdRef.current}_leaveRequests`, JSON.stringify(newVal));
+  };
+
+  const setDriverSettlements = (newVal: DriverSettlement[]) => {
+    setDriverSettlementsState(newVal);
+    localStorage.setItem(`ll_${activeCompanyIdRef.current}_driver_settlements`, JSON.stringify(newVal));
+    localStorage.setItem('ll_driver_settlements', JSON.stringify(newVal));
   };
 
   // Helper to load company data (with migration support for comp-default)
@@ -1155,6 +1198,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (fields.currentDeliveryBoy !== undefined) setCurrentDeliveryBoy(fields.currentDeliveryBoy);
     if (fields.announcements !== undefined) setAnnouncements(fields.announcements);
     if (fields.leaveRequests !== undefined) setLeaveRequests(fields.leaveRequests);
+    if (fields.driverSettlements !== undefined) setDriverSettlements(fields.driverSettlements);
     if (fields.unreadReviewsCount !== undefined) setUnreadReviewsCount(fields.unreadReviewsCount);
     if (fields.unresolvedSupportCount !== undefined) setUnresolvedSupportCount(fields.unresolvedSupportCount);
   };
@@ -1182,6 +1226,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     activeCompanyId,
     announcements,
     leaveRequests,
+    driverSettlements,
     unreadReviewsCount,
     unresolvedSupportCount
   };
