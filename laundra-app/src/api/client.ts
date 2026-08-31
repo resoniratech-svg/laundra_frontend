@@ -9,21 +9,8 @@ const getBaseUrl = (): string => {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // 2. Web browser
-  if (Platform.OS === 'web') {
-    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    return `http://${host}:8000`;
-  }
-
-  // 3. Localhost Development on Phone via Expo Go
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:8000`;
-  }
-
-  // 4. Default fallback to machine local network IP
-  return 'http://192.168.1.16:8000';
+  // 2. Production Backend URL (Easypanel)
+  return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
 };
 
 export const API_BASE_URL = getBaseUrl();
