@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Avatar } from '../components/Avatar';
 import { LoadingView } from '../components/LoadingView';
@@ -48,6 +49,16 @@ export const DashboardScreen = () => {
     refetchTasks();
     refetchNotifications();
   }, [refetch, refetchTasks, refetchNotifications]);
+
+  useFocusEffect(
+    useCallback(() => {
+      onRefresh();
+      const interval = setInterval(() => {
+        onRefresh();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [onRefresh])
+  );
 
   if (isLoading) return <LoadingView message="Loading delivery dashboard..." />;
   if (error) return <ErrorView message="Failed to connect to operations server." onRetry={refetch} />;

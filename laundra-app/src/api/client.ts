@@ -4,25 +4,26 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const getBaseUrl = (): string => {
-  // 1. Explicit environment variable (Production / QA)
+  // 1. Explicit environment variable (Production / QA override)
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // 2. Web
+  // 2. Web browser
   if (Platform.OS === 'web') {
-    const host = window.location.hostname;
-    const protocol = window.location.protocol;
-    return `${protocol}//${host}:8000`;
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    return `http://${host}:8000`;
   }
 
-  // 3. Standalone Android / Physical Device Production Backend HTTPS
-  if (Platform.OS === 'android') {
-    return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
+  // 3. Localhost Development on Phone via Expo Go
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:8000`;
   }
 
-  // 4. iOS Simulator / Desktop Production Backend HTTPS
-  return 'https://laundry-project-laundry-backend.cocjl5.easypanel.host';
+  // 4. Default fallback to machine local network IP
+  return 'http://192.168.1.16:8000';
 };
 
 export const API_BASE_URL = getBaseUrl();

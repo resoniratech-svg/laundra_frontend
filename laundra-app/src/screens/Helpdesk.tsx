@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Alert } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { HelpdeskService, Ticket } from '../services/HelpdeskService';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { radius } from '../theme/radius';
 import { useAuthStore } from '../store/authStore';
 import { tApp } from '../utils/i18n';
@@ -17,10 +17,16 @@ export const HelpdeskScreen = () => {
 
   const [adminContact, setAdminContact] = useState({ email: 'kanikarapub@gmail.com', phone: '9638527411' });
 
-  useEffect(() => {
-    loadTickets();
-    loadAdminContact();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadTickets();
+      loadAdminContact();
+      const interval = setInterval(() => {
+        loadTickets();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   const loadAdminContact = async () => {
     const contact = await HelpdeskService.fetchAdminContact();

@@ -323,6 +323,7 @@ export const DeliveryPortal: React.FC = () => {
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMsg, setSupportMsg] = useState('');
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  const [backendSettlements, setBackendSettlements] = useState<any[]>([]);
 
   const fetchSupportTickets = async () => {
     try {
@@ -340,8 +341,25 @@ export const DeliveryPortal: React.FC = () => {
     }
   };
 
+  const fetchBackendSettlements = async () => {
+    try {
+      const token = localStorage.getItem('ll_auth_token') || localStorage.getItem('saas_token') || localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${BASE_URL}/api/v1/deliveries/settlements`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackendSettlements(data);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch settlements from backend', error);
+    }
+  };
+
   useEffect(() => {
     fetchSupportTickets();
+    fetchBackendSettlements();
   }, []);
 
   // ─── Field Order & Customer Registration State ─────────────────────────────
@@ -565,7 +583,8 @@ export const DeliveryPortal: React.FC = () => {
       payment_status: isPaid ? 'PAID' : 'UNPAID',
       payment_method: fieldPaymentMethod === 'Card' ? 'CARD' : fieldPaymentMethod === 'Cheque' ? 'CHEQUE' : 'CASH',
       paid_amount: paidAmount,
-      order_number: orderNumber
+      order_number: orderNumber,
+      pickup_staff_id: currentUser?.id || undefined
     };
 
     let serverOrderId = orderNumber;
@@ -1577,6 +1596,12 @@ export const DeliveryPortal: React.FC = () => {
                 deliveryCourier: d.type === 'DELIVERY' ? currentUser.name : null,
                 courier: currentUser.name,
                 taskType: d.type,
+                specialInstructions: orderData.special_instructions || '',
+                source: orderData.source || 'DELIVERY_AGENT',
+                handoverSettled: orderData.handover_settled || false,
+                handoverSettledAt: orderData.handover_settled_at || null,
+                handoverSettledBy: orderData.handover_settled_by || null,
+                handoverSettlementId: orderData.handover_settlement_id || null,
                 pickupCommission: d.pickup_commission !== undefined && d.pickup_commission !== null && Number(d.pickup_commission) > 0 
                   ? Number(d.pickup_commission) 
                   : (orderData.pickup_commission ? Number(orderData.pickup_commission) : 0),
@@ -2935,184 +2960,194 @@ export const DeliveryPortal: React.FC = () => {
                     }
 
                     return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px' }}>
-                        {uniqueItemNames.map((itemName: any) => {
-                          const service = fieldSelectedCategory === 'All'
-                            ? activeServices.find((s: any) => s.name === itemName)
-                            : activeServices.find((s: any) => s.name === itemName && s.category === fieldSelectedCategory);
-                          
-                          const hasNormal = service && service.price !== null && service.price !== undefined;
-                          const hasExpress = service && service.express_price !== null && service.express_price !== undefined;
+                      <div
+                        style={{
+                          maxHeight: '380px',
+                          overflowY: 'auto',
+                          paddingRight: '6px',
+                          paddingBottom: '6px',
+                          scrollbarWidth: 'thin'
+                        }}
+                      >
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px' }}>
+                          {uniqueItemNames.map((itemName: any) => {
+                            const service = fieldSelectedCategory === 'All'
+                              ? activeServices.find((s: any) => s.name === itemName)
+                              : activeServices.find((s: any) => s.name === itemName && s.category === fieldSelectedCategory);
+                            
+                            const hasNormal = service && service.price !== null && service.price !== undefined;
+                            const hasExpress = service && service.express_price !== null && service.express_price !== undefined;
 
-                          const normalVariantId = `normal_${service?.id || itemName}`;
-                          const expressVariantId = `express_${service?.id || itemName}`;
+                            const normalVariantId = `normal_${service?.id || itemName}`;
+                            const expressVariantId = `express_${service?.id || itemName}`;
 
-                          const normalInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === normalVariantId);
-                          const expressInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === expressVariantId);
+                            const normalInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === normalVariantId);
+                            const expressInCart = fieldCart.find(i => i.serviceId === (service?.id || itemName) && i.variantId === expressVariantId);
 
-                          const normalQty = normalInCart ? normalInCart.qty : 0;
-                          const expressQty = expressInCart ? expressInCart.qty : 0;
+                            const normalQty = normalInCart ? normalInCart.qty : 0;
+                            const expressQty = expressInCart ? expressInCart.qty : 0;
 
-                          return (
-                            <div
-                              key={itemName}
-                              style={{
-                                padding: '10px 6px',
-                                border: (normalQty > 0 || expressQty > 0) ? '1.5px solid #2563eb' : '1.5px solid #cbd5e1',
-                                borderRadius: '12px',
-                                background: (normalQty > 0 || expressQty > 0) ? '#f0f9ff' : 'white',
-                                textAlign: 'center',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                                position: 'relative'
-                              }}
-                            >
-                              <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
-                              <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>
-                                {itemName}
-                              </div>
+                            return (
+                              <div
+                                key={itemName}
+                                style={{
+                                  padding: '10px 6px',
+                                  border: (normalQty > 0 || expressQty > 0) ? '1.5px solid #2563eb' : '1.5px solid #cbd5e1',
+                                  borderRadius: '12px',
+                                  background: (normalQty > 0 || expressQty > 0) ? '#f0f9ff' : 'white',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                  position: 'relative'
+                                }}
+                              >
+                                <div style={{ fontSize: '1.8rem' }}>{getEmojiForService(itemName)}</div>
+                                <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#0f172a', marginBottom: '2px', wordBreak: 'break-word', padding: '0 2px' }}>
+                                  {itemName}
+                                </div>
 
-                              <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
-                                {/* Normal Button */}
-                                {hasNormal ? (
-                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (normalQty === 0) {
-                                          setFieldCart(prev => [...prev, {
-                                            serviceId: service.id,
-                                            itemId: service.id,
-                                            variantId: normalVariantId,
-                                            variantName: 'Normal',
-                                            name: `${service.name} (Normal)`,
-                                            price: Number(service.price),
-                                            qty: 1,
-                                            category: service.category,
-                                            express: false
-                                          }]);
-                                        } else {
-                                          setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty + 1 } : i));
-                                        }
-                                      }}
-                                      style={{
-                                        padding: '4px 2px',
-                                        background: normalQty > 0 ? '#dbeafe' : '#eff6ff',
-                                        color: '#2563eb',
-                                        border: normalQty > 0 ? '1.5px solid #2563eb' : '1px solid #bfdbfe',
-                                        borderRadius: '6px',
-                                        fontSize: '0.68rem',
-                                        fontWeight: '700',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      Normal<br/>QR {Number(service.price).toFixed(1)}
-                                    </button>
-                                    {normalQty > 0 && (
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            if (normalQty <= 1) {
-                                              setFieldCart(prev => prev.filter(i => i.variantId !== normalVariantId));
-                                            } else {
-                                              setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty - 1 } : i));
-                                            }
-                                          }}
-                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
-                                        >
-                                          -
-                                        </button>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#1e3a8a' }}>{normalQty}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
+                                <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: 'auto' }}>
+                                  {/* Normal Button */}
+                                  {hasNormal ? (
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (normalQty === 0) {
+                                            setFieldCart(prev => [...prev, {
+                                              serviceId: service.id,
+                                              itemId: service.id,
+                                              variantId: normalVariantId,
+                                              variantName: 'Normal',
+                                              name: `${service.name} (Normal)`,
+                                              price: Number(service.price),
+                                              qty: 1,
+                                              category: service.category,
+                                              express: false
+                                            }]);
+                                          } else {
                                             setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty + 1 } : i));
-                                          }}
-                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
-                                )}
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '4px 2px',
+                                          background: normalQty > 0 ? '#dbeafe' : '#eff6ff',
+                                          color: '#2563eb',
+                                          border: normalQty > 0 ? '1.5px solid #2563eb' : '1px solid #bfdbfe',
+                                          borderRadius: '6px',
+                                          fontSize: '0.68rem',
+                                          fontWeight: '700',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Normal<br/>QR {Number(service.price).toFixed(1)}
+                                      </button>
+                                      {normalQty > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (normalQty <= 1) {
+                                                setFieldCart(prev => prev.filter(i => i.variantId !== normalVariantId));
+                                              } else {
+                                                setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty - 1 } : i));
+                                              }
+                                            }}
+                                            style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                          >
+                                            -
+                                          </button>
+                                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#1e3a8a' }}>{normalQty}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setFieldCart(prev => prev.map(i => i.variantId === normalVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                            }}
+                                            style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                                  )}
 
-                                {/* Express Button */}
-                                {hasExpress ? (
-                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (expressQty === 0) {
-                                          setFieldCart(prev => [...prev, {
-                                            serviceId: service.id,
-                                            itemId: service.id,
-                                            variantId: expressVariantId,
-                                            variantName: 'Express',
-                                            name: `${service.name} (Express)`,
-                                            price: Number(service.express_price),
-                                            qty: 1,
-                                            category: service.category,
-                                            express: true
-                                          }]);
-                                        } else {
-                                          setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty + 1 } : i));
-                                        }
-                                      }}
-                                      style={{
-                                        padding: '4px 2px',
-                                        background: expressQty > 0 ? '#fef3c7' : '#fffbeb',
-                                        color: '#b45309',
-                                        border: expressQty > 0 ? '1.5px solid #d97706' : '1px solid #fde68a',
-                                        borderRadius: '6px',
-                                        fontSize: '0.68rem',
-                                        fontWeight: '700',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      Express<br/>QR {Number(service.express_price).toFixed(1)}
-                                    </button>
-                                    {expressQty > 0 && (
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            if (expressQty <= 1) {
-                                              setFieldCart(prev => prev.filter(i => i.variantId !== expressVariantId));
-                                            } else {
-                                              setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty - 1 } : i));
-                                            }
-                                          }}
-                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
-                                        >
-                                          -
-                                        </button>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#b45309' }}>{expressQty}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
+                                  {/* Express Button */}
+                                  {hasExpress ? (
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (expressQty === 0) {
+                                            setFieldCart(prev => [...prev, {
+                                              serviceId: service.id,
+                                              itemId: service.id,
+                                              variantId: expressVariantId,
+                                              variantName: 'Express',
+                                              name: `${service.name} (Express)`,
+                                              price: Number(service.express_price),
+                                              qty: 1,
+                                              category: service.category,
+                                              express: true
+                                            }]);
+                                          } else {
                                             setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty + 1 } : i));
-                                          }}
-                                          style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
-                                )}
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '4px 2px',
+                                          background: expressQty > 0 ? '#fef3c7' : '#fffbeb',
+                                          color: '#b45309',
+                                          border: expressQty > 0 ? '1.5px solid #f59e0b' : '1px solid #fde68a',
+                                          borderRadius: '6px',
+                                          fontSize: '0.68rem',
+                                          fontWeight: '700',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Express<br/>QR {Number(service.express_price).toFixed(1)}
+                                      </button>
+                                      {expressQty > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (expressQty <= 1) {
+                                                setFieldCart(prev => prev.filter(i => i.variantId !== expressVariantId));
+                                              } else {
+                                                setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty - 1 } : i));
+                                              }
+                                            }}
+                                            style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                          >
+                                            -
+                                          </button>
+                                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#b45309' }}>{expressQty}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setFieldCart(prev => prev.map(i => i.variantId === expressVariantId ? { ...i, qty: i.qty + 1 } : i));
+                                            }}
+                                            style={{ padding: '0 4px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div style={{ flex: 1, padding: '4px 2px', background: '#f1f5f9', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })()}
@@ -3153,17 +3188,6 @@ export const DeliveryPortal: React.FC = () => {
                       </div>
                     </div>
                   )}
-
-                  <div style={{ marginTop: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Special Instructions / Notes</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Handle with care, stains on shirt cuffs, etc."
-                      value={fieldSpecialInstructions}
-                      onChange={(e) => setFieldSpecialInstructions(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.88rem' }}
-                    />
-                  </div>
                 </div>
 
                 {/* STEP 3: PAYMENT COLLECTION & ORDER SUBMISSION */}
@@ -3458,12 +3482,33 @@ export const DeliveryPortal: React.FC = () => {
                   const isOrderSettled = (o: any) => {
                     if (o.handoverSettled) return true;
                     if (o.paymentCollectedBy === 'STORE_COUNTER' || o.paymentCollectedBy === 'STORE' || o.paymentCollectedBy === 'ADMIN') return true;
-                    const settledInHistory = (db.driverSettlements || []).some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(o.id) || String(so.orderId) === String(o.backendId)));
+                    const settleList = (backendSettlements && backendSettlements.length > 0) ? backendSettlements : (db.driverSettlements || []);
+                    const settledInHistory = settleList.some(s => (s.orders || []).some((so: any) => String(so.orderId) === String(o.id) || String(so.orderId) === String(o.backendId) || String(so.id) === String(o.id)));
                     return settledInHistory;
                   };
 
+                  // Combine apiTasks and db.orders with apiTasks as primary truth
+                  const allTargetOrders: any[] = [];
+                  const seenOrderIds = new Set<string>();
+
+                  (apiTasks || []).forEach((t: any) => {
+                    const idStr = String(t.id || t.backendId);
+                    if (!seenOrderIds.has(idStr)) {
+                      seenOrderIds.add(idStr);
+                      allTargetOrders.push(t);
+                    }
+                  });
+
+                  (db.orders || []).forEach((o: any) => {
+                    const idStr = String(o.id || o.backendId);
+                    if (!seenOrderIds.has(idStr)) {
+                      seenOrderIds.add(idStr);
+                      allTargetOrders.push(o);
+                    }
+                  });
+
                   // Filter unremitted orders for this driver
-                  const driverUnsettledOrders = db.orders.filter(o => {
+                  const driverUnsettledOrders = allTargetOrders.filter(o => {
                     if (o.isDeleted || !o.totalAmount || o.totalAmount <= 0) return false;
                     const pStatus = (o.paymentStatus || '').toLowerCase();
                     if (pStatus !== 'paid' && pStatus !== 'completed') return false;
@@ -3472,67 +3517,24 @@ export const DeliveryPortal: React.FC = () => {
                     const pickC = (o.pickupCourier || '').trim().toLowerCase();
                     const delC = (o.deliveryCourier || '').trim().toLowerCase();
                     const specI = (o.specialInstructions || '').toLowerCase();
+                    const courierName = (o.courier || '').trim().toLowerCase();
 
-                    const isMatch = pickC === currentName || delC === currentName || (o.source === 'DELIVERY_AGENT' && specI.includes(currentName));
+                    const isMatch = !currentName || pickC === currentName || delC === currentName || courierName === currentName || specI.includes(currentName) || (o.source === 'DELIVERY_AGENT');
                     return isMatch;
                   });
 
                   const cashInHand = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
                   const cardSwipes = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-                  const chequesCollected = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                  const chequesCollected = driverUnsettledOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque' || (o.paymentMethod || 'Cash').toLowerCase() === 'check').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
                   const totalPendingSettlement = cashInHand + cardSwipes + chequesCollected;
 
-                  // Past settlements for this driver from db.driverSettlements
-                  const storedSettlements = (db.driverSettlements || []).filter(s => {
-                    const sName = (s.driverName || '').trim().toLowerCase();
-                    return sName === currentName || s.driverId === currentUser?.id || sName.includes(currentName) || currentName.includes(sName);
-                  });
-
-                  // Reconstruct from any settled orders for this driver
-                  const driverSettledOrders = db.orders.filter(o => {
-                    if (o.isDeleted || !o.handoverSettled) return false;
-                    const pickC = (o.pickupCourier || '').trim().toLowerCase();
-                    const delC = (o.deliveryCourier || '').trim().toLowerCase();
-                    const specI = (o.specialInstructions || '').toLowerCase();
-                    return pickC === currentName || delC === currentName || (o.source === 'DELIVERY_AGENT' && specI.includes(currentName));
-                  });
-
-                  // Ensure settlement history includes all settled orders
-                  let mySettlementHistory = [...storedSettlements];
-                  if (mySettlementHistory.length === 0 && driverSettledOrders.length > 0) {
-                    const groups: { [key: string]: typeof driverSettledOrders } = {};
-                    driverSettledOrders.forEach(o => {
-                      const key = o.handoverSettlementId || o.handoverSettledAt || 'settled';
-                      if (!groups[key]) groups[key] = [];
-                      groups[key].push(o);
-                    });
-
-                    Object.keys(groups).forEach(k => {
-                      const grpOrders = groups[k];
-                      const first = grpOrders[0];
-                      mySettlementHistory.push({
-                        id: first.handoverSettlementId || `SETTLE-${k}`,
-                        settlementNumber: first.handoverSettlementId ? `ST-${first.handoverSettlementId.slice(-6)}` : 'ST-CONFIRMED',
-                        driverId: currentUser?.id || 'driver',
-                        driverName: currentUser?.name || 'Driver',
-                        settledBy: first.handoverSettledBy || 'Store Admin',
-                        settledAt: first.handoverSettledAt || new Date().toISOString(),
-                        cashAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
-                        cardAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
-                        chequeAmount: grpOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
-                        onlineAmount: 0,
-                        totalAmount: grpOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0),
-                        orderCount: grpOrders.length,
-                        orders: grpOrders.map(o => ({
-                          orderId: o.id,
-                          customerName: o.customerName,
-                          amount: Number(o.totalAmount || 0),
-                          paymentMethod: o.paymentMethod || 'Cash',
-                          date: o.date
-                        }))
+                  // Past settlements for this driver directly from PostgreSQL backend
+                  const mySettlementHistory = backendSettlements && backendSettlements.length > 0
+                    ? backendSettlements
+                    : (db.driverSettlements || []).filter(s => {
+                        const sName = (s.driverName || '').trim().toLowerCase();
+                        return sName === currentName || s.driverId === currentUser?.id || sName.includes(currentName) || currentName.includes(sName);
                       });
-                    });
-                  }
 
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

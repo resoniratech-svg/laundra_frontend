@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Linking, RefreshControl, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Header } from '../components/Header';
 import { TaskCard } from '../components/TaskCard';
@@ -23,6 +24,16 @@ export const TasksScreen = () => {
   const [activeTab, setActiveTab] = useState<'pickups' | 'deliveries'>('pickups');
   const [selectedOtpOrder, setSelectedOtpOrder] = useState<Order | null>(null);
   const [selectedQtyOrder, setSelectedQtyOrder] = useState<Order | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      const interval = setInterval(() => {
+        refetch();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [refetch])
+  );
 
   const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
 

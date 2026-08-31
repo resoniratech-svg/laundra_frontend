@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { useEarnings } from '../hooks/useEarnings';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { radius } from '../theme/radius';
 import { useAuthStore } from '../store/authStore';
 import { tApp } from '../utils/i18n';
@@ -26,6 +26,16 @@ export const EarningsScreen = () => {
   const navigation = useNavigation();
   const earnings = useEarnings();
   const language = useAuthStore((state) => state.language);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (earnings.refetch) earnings.refetch();
+      const interval = setInterval(() => {
+        if (earnings.refetch) earnings.refetch();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [earnings.refetch])
+  );
 
   const pendingAmount = earnings.pendingEarnings || 0;
   const paidAmount = earnings.paidEarnings || 0;

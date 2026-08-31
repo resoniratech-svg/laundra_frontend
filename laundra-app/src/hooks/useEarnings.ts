@@ -5,12 +5,15 @@ import { EarningService } from '../services/EarningService';
 
 export const useEarnings = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
-  const { data: orders = [] } = useTasks();
+  const { data: orders = [], refetch } = useTasks();
 
   const earnings = useMemo(() => {
     const driverName = currentUser?.name || '';
     return EarningService.calculateEarnings(orders, driverName);
   }, [orders, currentUser]);
 
-  return earnings;
+  return {
+    ...earnings,
+    refetch
+  };
 };

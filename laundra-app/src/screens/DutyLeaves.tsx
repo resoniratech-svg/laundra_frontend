@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { useAttendance } from '../hooks/useAttendance';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LeaveService } from '../services/LeaveService';
 import { LeaveRequest } from '../types/leave';
 import { radius } from '../theme/radius';
@@ -33,9 +33,15 @@ export const DutyLeavesScreen = () => {
     }
   };
 
-  useEffect(() => {
-    loadLeaves();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadLeaves();
+      const interval = setInterval(() => {
+        loadLeaves();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   const handleBack = () => {
     if (navigation.canGoBack()) {

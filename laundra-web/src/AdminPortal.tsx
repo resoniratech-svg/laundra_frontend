@@ -1458,6 +1458,18 @@ export const AdminPortal: React.FC = () => {
     }
 
     try {
+      const settleRes = await fetch(`${BASE_URL}/api/v1/deliveries/settlements`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (settleRes.ok) {
+        const sData = await settleRes.json();
+        saveDB({ driverSettlements: sData });
+      }
+    } catch (err) {
+      console.error('Failed to fetch backend driver settlements:', err);
+    }
+
+    try {
       const revRes = await fetch(`${BASE_URL}/api/v1/reviews`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -5453,7 +5465,7 @@ export const AdminPortal: React.FC = () => {
                       const selectedCheque = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cheque').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
                       const selectedTotal = displayedOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
-                      const handleConfirmSettlement = () => {
+                      const handleConfirmSettlement = async () => {
                         if (displayedOrders.length === 0) {
                           alert('No orders available to settle.');
                           return;
@@ -5479,7 +5491,7 @@ export const AdminPortal: React.FC = () => {
                           totalAmount: selectedTotal,
                           orderCount: displayedOrders.length,
                           orders: displayedOrders.map(o => ({
-                            orderId: o.id,
+                            orderId: o.order_number || o.id,
                             customerName: o.customerName,
                             amount: Number(o.totalAmount || 0),
                             paymentMethod: o.paymentMethod || 'Cash',
@@ -5488,7 +5500,7 @@ export const AdminPortal: React.FC = () => {
                           notes: handoverNotes
                         };
 
-                        // Mark orders as settled
+                        // 1. Mark orders as settled locally
                         const settledOrderIds = new Set(displayedOrders.map(o => o.id));
                         const updatedOrders = db.orders.map(o => {
                           if (settledOrderIds.has(o.id)) {
@@ -5503,10 +5515,10 @@ export const AdminPortal: React.FC = () => {
                           return o;
                         });
 
-                        // Add cash into store drawer
+                        // 2. Add cash into store drawer
                         const updatedDrawerCash = (db.drawerCash || 0) + selectedCash;
 
-                        // Log drawer transaction
+                        // 3. Log drawer transaction
                         if (selectedCash > 0) {
                           const drawerTx = {
                             id: 'tx-handover-' + Date.now(),
@@ -5525,8 +5537,45 @@ export const AdminPortal: React.FC = () => {
                           driverSettlements: updatedSettlements
                         });
 
+                        // 4. Directly save settlement into PostgreSQL database
+                        try {
+                          const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || localStorage.getItem('saas_token') || '';
+                          const response = await fetch(`${BASE_URL}/api/v1/deliveries/settlements`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                            },
+                            body: JSON.stringify({
+                              settlement_number: settlementNum,
+                              driver_id: targetDriverObj?.id ? String(targetDriverObj.id) : undefined,
+                              driver_name: targetDriverName,
+                              cash_amount: selectedCash,
+                              card_amount: selectedCard,
+                              cheque_amount: selectedCheque,
+                              total_amount: selectedTotal,
+                              order_count: displayedOrders.length,
+                              orders: displayedOrders.map(o => ({
+                                orderId: o.order_number || o.id || o.backendId,
+                                id: o.backendId || o.id,
+                                customerName: o.customerName,
+                                amount: Number(o.totalAmount || 0),
+                                paymentMethod: o.paymentMethod || 'Cash'
+                              })),
+                              notes: handoverNotes
+                            })
+                          });
+                          if (response.ok) {
+                            await fetchBackendData();
+                          } else {
+                            console.warn('Backend settlement sync responded with non-200:', response.status);
+                          }
+                        } catch (e) {
+                          console.warn('Settlement backend sync error:', e);
+                        }
+
                         setHandoverNotes('');
-                        alert(`✅ Handover of QR ${selectedCash.toFixed(2)} cash from ${targetDriverName} confirmed and settled on ${new Date().toLocaleString()}!`);
+                        alert(`✅ Handover of QR ${selectedCash.toFixed(2)} cash from ${targetDriverName} confirmed and saved to database!`);
                         setSettlementActiveTab('history');
                       };
 

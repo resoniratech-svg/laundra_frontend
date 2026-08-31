@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Header } from '../components/Header';
 import { AnnouncementCard } from '../components/AnnouncementCard';
 import { EmptyState } from '../components/EmptyState';
 import { Announcement } from '../types/announcement';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AnnouncementService } from '../services/AnnouncementService';
 import { useAuthStore } from '../store/authStore';
 import { tApp } from '../utils/i18n';
@@ -17,7 +17,6 @@ export const AnnouncementsScreen = () => {
   const [loading, setLoading] = useState(true);
 
   const loadAnnouncements = async () => {
-    setLoading(true);
     const data = await AnnouncementService.fetchAnnouncements();
     if (Array.isArray(data)) {
       setAnnouncements(data);
@@ -25,9 +24,15 @@ export const AnnouncementsScreen = () => {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadAnnouncements();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadAnnouncements();
+      const interval = setInterval(() => {
+        loadAnnouncements();
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   return (
     <ScreenContainer>

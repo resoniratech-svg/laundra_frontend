@@ -19,11 +19,11 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, showBack, onBac
     <View style={styles.header}>
       <View style={styles.leftContainer}>
         {showBack && (
-          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-            <Text style={styles.backText}>‹</Text>
+          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
         )}
-        <View>
+        <View style={{ flexShrink: 1 }}>
           <Text style={styles.title}>{tApp(title, language)}</Text>
           {subtitle && <Text style={styles.subtitle}>{tApp(subtitle, language)}</Text>}
         </View>
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -48,15 +48,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   backBtn: {
-    paddingRight: 8,
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.primary,
-    lineHeight: 28,
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0f172a',
+    lineHeight: 22,
   },
   title: {
     fontSize: 18,
