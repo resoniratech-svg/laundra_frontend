@@ -416,8 +416,12 @@ export const DeliveryPortal: React.FC = () => {
       alert('Please enter customer mobile phone number.');
       return;
     }
+    if (!newCustEmail.trim()) {
+      alert('Please enter customer email address.');
+      return;
+    }
     setNewCustIsSendingOtp(true);
-    const targetEmail = newCustEmail.trim() || `${newCustPhone.trim().replace(/\D/g, '')}@laundrycustomer.com`;
+    const targetEmail = newCustEmail.trim();
     const token = localStorage.getItem('ll_auth_token');
 
     try {
@@ -2763,9 +2767,10 @@ export const DeliveryPortal: React.FC = () => {
                           </div>
 
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Email Address (Optional)</label>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>Email Address *</label>
                             <input
                               type="email"
+                              required
                               placeholder="e.g. customer@example.com"
                               value={newCustEmail}
                               onChange={(e) => setNewCustEmail(e.target.value)}

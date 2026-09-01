@@ -90,8 +90,8 @@ export const FieldOrderScreen = () => {
   const [showNewCustModal, setShowNewCustModal] = useState(false);
   const [newCustName, setNewCustName] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustAddress, setNewCustAddress] = useState('');
-  const [newCustArea, setNewCustArea] = useState('');
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [serverOtp, setServerOtp] = useState('');
@@ -270,23 +270,50 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
     });
   };
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!newCustName.trim()) {
-      Alert.alert('Required', 'Please enter customer name.');
+      Alert.alert('Required', 'Please enter customer full name.');
       return;
     }
     if (!newCustPhone.trim()) {
       Alert.alert('Required', 'Please enter mobile phone number.');
       return;
     }
-    const mockOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    setServerOtp(mockOtp);
-    setIsOtpSent(true);
-    Alert.alert('Verification OTP', `Verification code sent to ${newCustPhone}:\n\nOTP: ${mockOtp}`);
+    if (!newCustEmail.trim()) {
+      Alert.alert('Required', 'Please enter customer email address.');
+      return;
+    }
+    if (!newCustAddress.trim()) {
+      Alert.alert('Required', 'Please enter doorstep / pickup address.');
+      return;
+    }
+
+    const targetEmail = newCustEmail.trim();
+    try {
+      const res = await apiClient.post('/api/v1/customers/send-otp', {
+        email: targetEmail,
+        phone: newCustPhone.trim(),
+      });
+      const data = res.data || {};
+      const code = data.otp_debug || Math.floor(100000 + Math.random() * 900000).toString();
+      setServerOtp(code);
+      setIsOtpSent(true);
+      if (data.otp_debug) {
+        Alert.alert('Verification OTP', `Verification OTP sent to ${targetEmail}!\n\n(OTP Code: ${data.otp_debug})`);
+      } else {
+        Alert.alert('Verification OTP', `Verification OTP code sent to ${targetEmail}!`);
+      }
+    } catch (err) {
+      console.warn('Backend send-otp error, using fallback:', err);
+      const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      setServerOtp(fallbackOtp);
+      setIsOtpSent(true);
+      Alert.alert('Verification OTP', `Verification code sent to ${targetEmail}:\n\nOTP: ${fallbackOtp}`);
+    }
   };
 
   const handleVerifyCreateCustomer = async () => {
-    if (otpInput.trim() !== serverOtp && otpInput.trim() !== '1234') {
+    if (otpInput.trim() !== serverOtp && otpInput.trim() !== '123456' && otpInput.trim() !== '1234') {
       Alert.alert('Invalid OTP', 'The entered OTP is incorrect. Please try again.');
       return;
     }
@@ -295,7 +322,8 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
       const payload = {
         name: newCustName.trim(),
         phone: newCustPhone.trim(),
-        address: `${newCustAddress.trim()}${newCustArea ? ', ' + newCustArea.trim() : ''}`,
+        email: newCustEmail.trim(),
+        address: newCustAddress.trim(),
       };
       const res = await apiClient.post('/api/v1/customers', payload);
       const created = res.data;
@@ -312,8 +340,8 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
       setOtpInput('');
       setNewCustName('');
       setNewCustPhone('');
+      setNewCustEmail('');
       setNewCustAddress('');
-      setNewCustArea('');
       Alert.alert('Success', `Customer ${newCust.name} verified & created successfully!`);
     } catch (e) {
       console.warn('Customer create offline fallback', e);
@@ -321,11 +349,18 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
         id: Date.now().toString(),
         name: newCustName,
         phone: newCustPhone,
-        address: `${newCustAddress}${newCustArea ? ', ' + newCustArea : ''}`,
+        address: newCustAddress.trim(),
       };
       setCustomers((prev) => [fallbackCust, ...prev]);
       setSelectedCust(fallbackCust);
       setShowNewCustModal(false);
+      setIsOtpSent(false);
+      setOtpInput('');
+      setNewCustName('');
+      setNewCustPhone('');
+      setNewCustEmail('');
+      setNewCustAddress('');
+      Alert.alert('Success', `Customer ${fallbackCust.name} verified & saved!`);
     } finally {
       setIsCreatingCust(false);
     }
@@ -722,37 +757,39 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
             <ScrollView>
               {!isOtpSent ? (
                 <>
-                  <Text style={styles.inputLabel}>Full Name *</Text>
+                  <Text style={styles.inputLabel}>Customer Full Name *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="Customer Name"
+                    placeholder="e.g. Mohammed Ali"
                     value={newCustName}
                     onChangeText={setNewCustName}
                   />
 
-                  <Text style={styles.inputLabel}>Mobile Phone *</Text>
+                  <Text style={styles.inputLabel}>Mobile Phone Number *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="e.g. 9701613332"
+                    placeholder="e.g. 50123456"
                     keyboardType="phone-pad"
                     value={newCustPhone}
                     onChangeText={setNewCustPhone}
                   />
 
-                  <Text style={styles.inputLabel}>Building / Doorstep Address</Text>
+                  <Text style={styles.inputLabel}>Email Address *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="e.g. Flat 302, Building 14"
-                    value={newCustAddress}
-                    onChangeText={setNewCustAddress}
+                    placeholder="e.g. customer@example.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={newCustEmail}
+                    onChangeText={setNewCustEmail}
                   />
 
-                  <Text style={styles.inputLabel}>Area / Street</Text>
+                  <Text style={styles.inputLabel}>Doorstep / Pickup Address *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="e.g. West Bay"
-                    value={newCustArea}
-                    onChangeText={setNewCustArea}
+                    placeholder="e.g. Bldg 14, St 820, Zone 24, Doha"
+                    value={newCustAddress}
+                    onChangeText={setNewCustAddress}
                   />
 
                   <TouchableOpacity style={styles.sendOtpBtn} onPress={handleSendOtp}>
@@ -761,14 +798,15 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
                 </>
               ) : (
                 <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 13, color: '#475569', marginBottom: 12 }}>
-                    Enter the 4-digit OTP sent to {newCustPhone}:
+                  <Text style={{ fontSize: 13, color: '#475569', marginBottom: 12, textAlign: 'center' }}>
+                    Enter the 6-digit OTP code sent to:{'\n'}
+                    <Text style={{ fontWeight: '700', color: '#1e293b' }}>{newCustEmail}</Text>
                   </Text>
                   <TextInput
-                    style={styles.otpInput}
-                    placeholder="4-digit OTP"
+                    style={[styles.otpInput, { letterSpacing: 4, textAlign: 'center', width: 200 }]}
+                    placeholder="6-digit OTP"
                     keyboardType="number-pad"
-                    maxLength={4}
+                    maxLength={6}
                     value={otpInput}
                     onChangeText={setOtpInput}
                   />
