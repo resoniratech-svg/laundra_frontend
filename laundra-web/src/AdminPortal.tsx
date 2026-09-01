@@ -4539,7 +4539,14 @@ export const AdminPortal: React.FC = () => {
             const posRevenue = activeOrders.filter(o => !o.assignedPickupCourier && !o.pickupCourier && !o.courier).reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
             const jobCardsRevenue = totalRevenue - posRevenue;
 
-            const activeExpenses = (db.expenses || []).filter(e => 
+            const allExpensesList: any[] = [...backendExpenses];
+            (db.expenses || []).forEach((de: any) => {
+              if (!allExpensesList.some((be: any) => be.id === de.id)) {
+                allExpensesList.push(de);
+              }
+            });
+
+            const activeExpenses = allExpensesList.filter(e => 
               (e.date || '').split('T')[0] >= startDate && 
               (e.date || '').split('T')[0] <= endDate
             );
