@@ -562,8 +562,8 @@ export const LandingPage: React.FC = () => {
             display: none !important;
           }
           .landing-logo-img {
-            height: 32px !important;
-            max-width: 100px !important;
+            height: 36px !important;
+            max-width: 140px !important;
           }
           .hero-split {
             flex-direction: column !important;
@@ -605,7 +605,7 @@ export const LandingPage: React.FC = () => {
         boxSizing: 'border-box'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flexShrink: 0 }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <img className="landing-logo-img" src="/qubexe.logo.png" alt="Qubexe Logo" style={{ height: '38px', objectFit: 'contain' }} />
+          <img className="landing-logo-img" src="/qubexe.logo.png" alt="Qubexe Logo" style={{ height: '46px', maxWidth: '180px', objectFit: 'contain' }} />
         </div>
 
         {/* Center links for quick navigation - Desktop Only */}
