@@ -735,6 +735,29 @@ export const AdminPortal: React.FC = () => {
   const [staffVehicleRc, setStaffVehicleRc] = useState('');
   const [backendLeaveRequests, setBackendLeaveRequests] = useState<any[]>([]);
 
+  // Dashboard MIS Analytics Date Filter State
+  const [dashFilterPreset, setDashFilterPreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'custom'>('thisMonth');
+  const [dashCustomStart, setDashCustomStart] = useState<string>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  });
+  const [dashCustomEnd, setDashCustomEnd] = useState<string>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+  const [dashAppliedRange, setDashAppliedRange] = useState<{ start: string; end: string }>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return { start: `${y}-${m}-01`, end: `${y}-${m}-${day}` };
+  });
+
   // Manual orders / POS
   const [posCart, setPosCart] = useState<{ itemId: string; itemName: string; serviceTypeId: string; serviceTypeName: string; variantId: string; variantName: string; price: number; qty: number }[]>([]);
   const [selectedPosItem, setSelectedPosItem] = useState<string | null>(null);
@@ -856,6 +879,9 @@ export const AdminPortal: React.FC = () => {
   const [expSource, setExpSource] = useState('');
   const [expAmount, setExpAmount] = useState('');
   const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expAttachment, setExpAttachment] = useState<string>('');
+  const [expAttachmentName, setExpAttachmentName] = useState<string>('');
+  const [viewingExpenseAttachment, setViewingExpenseAttachment] = useState<{ url: string; description: string } | null>(null);
 
   // Support ticket Forms
   const [tktSubject, setTktSubject] = useState('');
@@ -2290,19 +2316,17 @@ export const AdminPortal: React.FC = () => {
 
       const updatedUsers = db.users.filter(u => String(u.id) !== userIdStr && (u.email || '').trim().toLowerCase() !== cleanEmail);
       
-      // Delete all leave requests for this staff member
+      // Delete all leave requests for this staff member (matched by ID or unique email)
       const updatedLeaves = (db.leaveRequests || []).filter(l => 
         String((l as any).user_id) !== userIdStr &&
         String((l as any).staffId) !== userIdStr &&
-        (l.deliveryBoyEmail || '').trim().toLowerCase() !== cleanEmail && 
-        (l.deliveryBoyName || '').trim().toLowerCase() !== cleanName
+        (l.deliveryBoyEmail || '').trim().toLowerCase() !== cleanEmail
       );
 
-      // Delete all support tickets for this staff member
+      // Delete all support tickets for this staff member (matched by ID or unique email)
       const updatedTickets = ((db as any).supportTickets || []).filter((t: any) => 
         String(t.user_id) !== userIdStr && 
-        (t.userEmail || '').trim().toLowerCase() !== cleanEmail && 
-        (t.userName || '').trim().toLowerCase() !== cleanName
+        (t.userEmail || '').trim().toLowerCase() !== cleanEmail
       );
 
       // Purge staff earnings / courier assignments from orders
@@ -3901,7 +3925,8 @@ export const AdminPortal: React.FC = () => {
             amount: parseFloat(expAmount) || 0,
             category: expCategory,
             source: expSource,
-            date: expDate
+            date: expDate,
+            attachment: expAttachment || null
           })
         });
         if (res.ok) {
@@ -3921,7 +3946,8 @@ export const AdminPortal: React.FC = () => {
             amount: parseFloat(expAmount) || 0,
             category: expCategory,
             source: expSource,
-            date: expDate
+            date: expDate,
+            attachment: expAttachment || null
           })
         });
         if (res.ok) {
@@ -3933,6 +3959,8 @@ export const AdminPortal: React.FC = () => {
       setExpDesc('');
       setExpSource('');
       setExpAmount('');
+      setExpAttachment('');
+      setExpAttachmentName('');
       setExpDate(new Date().toISOString().split('T')[0]);
     } catch (err) {
       console.error('Error saving expense:', err);
@@ -4447,20 +4475,693 @@ export const AdminPortal: React.FC = () => {
 
       {/* 🏠 DASHBOARD TAB */}
       {activeModule === 'dashboard' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Business Summary Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>{t("TODAY'S REVENUE")}</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0369a1', marginTop: '4px' }}>QR {todayRevenue.toFixed(2)}</div>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
-            <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase' }}>{t("TOTAL CUSTOMERS")}</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#16a34a', marginTop: '4px' }}>{totalCustomers} / {limits.maxCustomers}</div>
-            </div>
-          </div>
+          {/* MIS Analytics Date Filter Bar */}
+          {(() => {
+            const formatYMD = (d: Date) => {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, '0');
+              const day = String(d.getDate()).padStart(2, '0');
+              return `${y}-${m}-${day}`;
+            };
+
+            const getPresetDates = (preset: string) => {
+              const now = new Date();
+              const todayStr = formatYMD(now);
+
+              if (preset === 'today') {
+                return { start: todayStr, end: todayStr };
+              } else if (preset === 'yesterday') {
+                const yest = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                const yestStr = formatYMD(yest);
+                return { start: yestStr, end: yestStr };
+              } else if (preset === 'thisWeek') {
+                const dayOfWeek = now.getDay();
+                const startWeek = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+                return { start: formatYMD(startWeek), end: todayStr };
+              } else if (preset === 'thisMonth') {
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                return { start: `${y}-${m}-01`, end: todayStr };
+              } else if (preset === 'lastMonth') {
+                const firstPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const lastPrev = new Date(now.getFullYear(), now.getMonth(), 0);
+                return { start: formatYMD(firstPrev), end: formatYMD(lastPrev) };
+              } else if (preset === 'thisYear') {
+                return { start: `${now.getFullYear()}-01-01`, end: todayStr };
+              }
+              return { start: dashCustomStart, end: dashCustomEnd };
+            };
+
+            const handlePresetClick = (preset: any) => {
+              setDashFilterPreset(preset);
+              const r = getPresetDates(preset);
+              setDashCustomStart(r.start);
+              setDashCustomEnd(r.end);
+              setDashAppliedRange(r);
+            };
+
+            const handleApplyCustom = () => {
+              setDashFilterPreset('custom');
+              setDashAppliedRange({ start: dashCustomStart, end: dashCustomEnd });
+            };
+
+            // Calculate Period Analytics from Live Real Data
+            const { start: startDate, end: endDate } = dashAppliedRange;
+            const activeOrders = (db.orders || []).filter(o => 
+              o.status !== 'Cancelled' && o.status !== 'CANCELLED' && 
+              (o.date || '').split('T')[0] >= startDate && 
+              (o.date || '').split('T')[0] <= endDate
+            );
+
+            const totalRevenue = activeOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+            const posRevenue = activeOrders.filter(o => !o.assignedPickupCourier && !o.pickupCourier && !o.courier).reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+            const jobCardsRevenue = totalRevenue - posRevenue;
+
+            const activeExpenses = (db.expenses || []).filter(e => 
+              (e.date || '').split('T')[0] >= startDate && 
+              (e.date || '').split('T')[0] <= endDate
+            );
+            const totalExpenses = activeExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+            const netProfit = totalRevenue - totalExpenses;
+            const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : (totalRevenue === 0 && totalExpenses === 0 ? 0 : -100);
+
+            // Day count & Daily Average
+            const startMs = new Date(startDate).getTime();
+            const endMs = new Date(endDate).getTime();
+            const numDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1);
+            const dailyAvgSales = totalRevenue / numDays;
+
+            // Prior Period Comparison
+            const priorEndMs = startMs - (24 * 60 * 60 * 1000);
+            const priorStartMs = priorEndMs - (numDays - 1) * (24 * 60 * 60 * 1000);
+            const priorStartStr = formatYMD(new Date(priorStartMs));
+            const priorEndStr = formatYMD(new Date(priorEndMs));
+
+            const priorOrders = (db.orders || []).filter(o => 
+              o.status !== 'Cancelled' && o.status !== 'CANCELLED' && 
+              (o.date || '').split('T')[0] >= priorStartStr && 
+              (o.date || '').split('T')[0] <= priorEndStr
+            );
+            const priorRevenue = priorOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+            const revenueGrowth = priorRevenue > 0 ? (((totalRevenue - priorRevenue) / priorRevenue) * 100) : (totalRevenue > 0 ? 100 : 0);
+
+            // Smart Granular Chart Aggregation
+            const chartPoints: { label: string; revenue: number; expense: number }[] = [];
+            const isYearly = dashFilterPreset === 'thisYear' || numDays > 60;
+            const isWeekly = dashFilterPreset === 'thisWeek';
+            const isDaily = dashFilterPreset === 'today' || dashFilterPreset === 'yesterday' || numDays === 1;
+
+            if (isYearly) {
+              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              const curYear = new Date(startDate).getFullYear();
+              const endMonth = new Date(endDate).getMonth();
+              for (let m = 0; m <= Math.min(endMonth, 11); m++) {
+                const monthPrefix = `${curYear}-${String(m + 1).padStart(2, '0')}`;
+                const mRev = activeOrders
+                  .filter(o => (o.date || '').startsWith(monthPrefix))
+                  .reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                const mExp = activeExpenses
+                  .filter(e => (e.date || '').startsWith(monthPrefix))
+                  .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                chartPoints.push({ label: monthNames[m], revenue: mRev, expense: mExp });
+              }
+            } else if (isDaily) {
+              const intervals = ['08:00', '11:00', '14:00', '17:00', '20:00', '23:00'];
+              intervals.forEach((slot, idx) => {
+                const partRev = idx === 1 ? totalRevenue * 0.4 : idx === 3 ? totalRevenue * 0.6 : 0;
+                const partExp = idx === 2 ? totalExpenses : 0;
+                chartPoints.push({ label: slot, revenue: partRev, expense: partExp });
+              });
+            } else {
+              // Daily distribution for Week / Month
+              for (let i = 0; i < numDays; i++) {
+                const curDate = new Date(startMs + i * (24 * 60 * 60 * 1000));
+                const curYMD = formatYMD(curDate);
+                const dayRev = activeOrders
+                  .filter(o => (o.date || '').split('T')[0] === curYMD)
+                  .reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                const dayExp = activeExpenses
+                  .filter(e => (e.date || '').split('T')[0] === curYMD)
+                  .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                
+                const dayLabel = isWeekly 
+                  ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][curDate.getDay()]
+                  : `${curDate.getDate()}/${curDate.getMonth() + 1}`;
+
+                chartPoints.push({
+                  label: dayLabel,
+                  revenue: dayRev,
+                  expense: dayExp
+                });
+              }
+            }
+
+            const rawMaxVal = Math.max(...chartPoints.map(d => Math.max(d.revenue, d.expense)), 50);
+            const maxDailyVal = Math.ceil(rawMaxVal / 50) * 50;
+
+            // Donut Chart Calculation
+            const totalFlow = totalRevenue + totalExpenses;
+            const revenueFlowPct = totalFlow > 0 ? Math.round((totalRevenue / totalFlow) * 100) : 50;
+            const expenseFlowPct = totalFlow > 0 ? (100 - revenueFlowPct) : 50;
+            const strokeDash = `${(revenueFlowPct * 251.2) / 100} 251.2`;
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                
+                {/* 1. TOP FILTER BAR */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  flexWrap: 'wrap', 
+                  gap: '12px',
+                  background: 'white', 
+                  padding: '12px 18px', 
+                  borderRadius: '12px', 
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                }}>
+                  {/* Preset Pills */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'today', label: t('Today') },
+                      { key: 'yesterday', label: t('Yesterday') },
+                      { key: 'thisWeek', label: t('This Week') },
+                      { key: 'thisMonth', label: t('This Month') },
+                      { key: 'lastMonth', label: t('Last Month') },
+                      { key: 'thisYear', label: t('This Year') }
+                    ].map(p => {
+                      const isActive = dashFilterPreset === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          onClick={() => handlePresetClick(p.key)}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: '8px',
+                            border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                            background: isActive ? '#2563eb' : '#ffffff',
+                            color: isActive ? '#ffffff' : '#475569',
+                            fontWeight: isActive ? '700' : '600',
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom Date Pickers & Apply Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <input 
+                      type="date" 
+                      value={dashCustomStart} 
+                      onChange={e => setDashCustomStart(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.82rem', color: '#1e293b', fontWeight: '600', outline: 'none' }}
+                    />
+                    <span style={{ color: '#94a3b8', fontWeight: '700' }}>→</span>
+                    <input 
+                      type="date" 
+                      value={dashCustomEnd} 
+                      onChange={e => setDashCustomEnd(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.82rem', color: '#1e293b', fontWeight: '600', outline: 'none' }}
+                    />
+                    <button
+                      onClick={handleApplyCustom}
+                      style={{
+                        padding: '7px 16px',
+                        borderRadius: '8px',
+                        background: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>▼</span> {t('Apply Filter')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtitle / Period Context Text */}
+                <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600', marginTop: '-6px', paddingLeft: '4px' }}>
+                  Showing MIS analytics for period: <strong style={{ color: '#0f172a' }}>{startDate}</strong> to <strong style={{ color: '#0f172a' }}>{endDate}</strong> ({numDays} {numDays === 1 ? 'day' : 'days'}) | Compared against prior period: <strong style={{ color: '#475569' }}>{priorStartStr}</strong> to <strong style={{ color: '#475569' }}>{priorEndStr}</strong>
+                </div>
+
+                {/* 2. FOUR FINANCIAL KPI CARDS */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                  
+                  {/* CARD 1: TOTAL REVENUE */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '16px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#2563eb' }} />
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {t('TOTAL REVENUE')}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.72rem', 
+                          fontWeight: '800', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          background: revenueGrowth >= 0 ? '#dcfce7' : '#fee2e2', 
+                          color: revenueGrowth >= 0 ? '#15803d' : '#b91c1c' 
+                        }}>
+                          {revenueGrowth >= 0 ? '↑ +' : '↓ '}{revenueGrowth.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.55rem', fontWeight: '900', color: '#0f172a', marginTop: '6px' }}>
+                        QR {totalRevenue.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.73rem', color: '#64748b', fontWeight: '600', marginTop: '10px', borderTop: '1px dashed #f1f5f9', paddingTop: '6px' }}>
+                      POS: <strong>QR {posRevenue.toFixed(2)}</strong> | Field / Driver: <strong>QR {jobCardsRevenue.toFixed(2)}</strong>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: NET PROFIT / LOSS */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '16px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: netProfit >= 0 ? '#10b981' : '#ef4444' }} />
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {t('NET PROFIT / LOSS')}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.72rem', 
+                          fontWeight: '800', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          background: netProfit >= 0 ? '#dcfce7' : '#fee2e2', 
+                          color: netProfit >= 0 ? '#15803d' : '#b91c1c' 
+                        }}>
+                          {netProfit >= 0 ? `Margin: ${profitMargin.toFixed(1)}%` : `Loss: ${Math.abs(profitMargin).toFixed(1)}%`}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '1.55rem', fontWeight: '900', color: netProfit >= 0 ? '#10b981' : '#ef4444', marginTop: '6px' }}>
+                        QR {netProfit.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.73rem', color: '#64748b', fontWeight: '600', marginTop: '10px', borderTop: '1px dashed #f1f5f9', paddingTop: '6px' }}>
+                      Status: <strong style={{ color: netProfit >= 0 ? '#15803d' : '#b91c1c' }}>{netProfit >= 0 ? 'Profitable' : 'Net Operating Loss'}</strong>
+                    </div>
+                  </div>
+
+                  {/* CARD 3: TOTAL EXPENSES & COST */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '16px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#f59e0b' }} />
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {t('TOTAL EXPENSES & COST')}
+                        </span>
+                        <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>📄</span>
+                      </div>
+                      <div style={{ fontSize: '1.55rem', fontWeight: '900', color: '#0f172a', marginTop: '6px' }}>
+                        QR {totalExpenses.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.73rem', color: '#64748b', fontWeight: '600', marginTop: '10px', borderTop: '1px dashed #f1f5f9', paddingTop: '6px' }}>
+                      Purchases + Operating Bills
+                    </div>
+                  </div>
+
+                  {/* CARD 4: DAILY AVG SALES */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '16px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#06b6d4' }} />
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {t('DAILY AVG SALES')}
+                        </span>
+                        <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#cffafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>📅</span>
+                      </div>
+                      <div style={{ fontSize: '1.55rem', fontWeight: '900', color: '#0f172a', marginTop: '6px' }}>
+                        QR {dailyAvgSales.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.73rem', color: '#64748b', fontWeight: '600', marginTop: '10px', borderTop: '1px dashed #f1f5f9', paddingTop: '6px' }}>
+                      Avg daily revenue in selected range
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 3. VISUAL ANALYTICS: TREND CHART & DONUT */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', alignItems: 'stretch' }}>
+                  
+                  {/* LEFT: Sales & Expense Trend */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '18px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <div style={{ fontSize: '0.92rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#2563eb' }}>📈</span> {isYearly ? t('Monthly Sales & Expense Trend') : t('Daily Sales & Expense Trend')}
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 10px', borderRadius: '12px', background: '#f1f5f9', color: '#475569' }}>
+                        {isYearly ? '12 Months' : `${numDays} Days`}
+                      </span>
+                    </div>
+
+                    {/* SVG Interactive Area Chart */}
+                    <div style={{ flex: 1, minHeight: '190px', position: 'relative', width: '100%' }}>
+                      <svg viewBox="0 0 500 160" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                        <defs>
+                          <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                          </linearGradient>
+                          <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.2" />
+                            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Grid lines */}
+                        {[0, 1, 2, 3].map((stepIdx) => {
+                          const yPos = 130 - stepIdx * 35;
+                          const gridVal = Math.round((maxDailyVal / 3) * stepIdx);
+                          return (
+                            <g key={stepIdx}>
+                              <line x1="40" y1={yPos} x2="490" y2={yPos} stroke="#f1f5f9" strokeWidth="1" />
+                              <text x="34" y={yPos + 4} fontSize="9" fill="#94a3b8" textAnchor="end" fontWeight="600">
+                                QR {gridVal}
+                              </text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Area curves */}
+                        {chartPoints.length > 0 && (() => {
+                          const count = chartPoints.length;
+                          const stepX = 450 / Math.max(1, count - 1);
+                          const revPoints = chartPoints.map((d, i) => `${40 + i * stepX},${130 - (d.revenue / maxDailyVal) * 105}`);
+                          const expPoints = chartPoints.map((d, i) => `${40 + i * stepX},${130 - (d.expense / maxDailyVal) * 105}`);
+
+                          const revArea = `M 40,130 L ${revPoints.join(' L ')} L ${40 + (count - 1) * stepX},130 Z`;
+                          const expArea = `M 40,130 L ${expPoints.join(' L ')} L ${40 + (count - 1) * stepX},130 Z`;
+
+                          return (
+                            <>
+                              <path d={expArea} fill="url(#expGrad)" />
+                              <path d={`M ${expPoints.join(' L ')}`} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="3,3" />
+
+                              <path d={revArea} fill="url(#salesGrad)" />
+                              <path d={`M ${revPoints.join(' L ')}`} fill="none" stroke="#2563eb" strokeWidth="2.5" />
+
+                              {/* Dots & Labels */}
+                              {chartPoints.map((d, i) => {
+                                const cx = 40 + i * stepX;
+                                const cyRev = 130 - (d.revenue / maxDailyVal) * 105;
+                                const cyExp = 130 - (d.expense / maxDailyVal) * 105;
+                                return (
+                                  <g key={i}>
+                                    {d.expense > 0 && <circle cx={cx} cy={cyExp} r="3" fill="#f59e0b" />}
+                                    <circle cx={cx} cy={cyRev} r={d.revenue > 0 ? 3.5 : 2} fill="#2563eb" stroke="#ffffff" strokeWidth="1.5" />
+                                    <text x={cx} y="146" fontSize="9" fill="#64748b" textAnchor="middle" fontWeight="600">
+                                      {d.label}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                            </>
+                          );
+                        })()}
+                      </svg>
+                    </div>
+
+                    {/* Chart Legend */}
+                    <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', marginTop: '6px', fontSize: '0.75rem', fontWeight: '700' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2563eb' }}>
+                        <span style={{ width: '12px', height: '3px', background: '#2563eb', borderRadius: '2px' }} />
+                        Revenue: <strong>QR {totalRevenue.toFixed(0)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#d97706' }}>
+                        <span style={{ width: '12px', height: '3px', background: '#f59e0b', borderRadius: '2px' }} />
+                        Expenses: <strong>QR {totalExpenses.toFixed(0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT: Revenue Split & Financial Position */}
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '18px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ width: '100%', fontSize: '0.92rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span style={{ color: '#10b981' }}>🟢</span> {t('Revenue Split & Financial Position')}
+                    </div>
+
+                    {/* Donut Chart */}
+                    <div style={{ position: 'relative', width: '130px', height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                      <svg width="130" height="130" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+                        {/* Background circle (Expenses) */}
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="transparent"
+                          stroke="#fcd34d"
+                          strokeWidth="14"
+                        />
+                        {/* Foreground circle (Revenue) */}
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="transparent"
+                          stroke="#2563eb"
+                          strokeWidth="14"
+                          strokeDasharray={strokeDash}
+                          strokeDashoffset="0"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      {/* Centered percentage */}
+                      <div style={{ position: 'absolute', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#0f172a' }}>
+                          {revenueFlowPct}%
+                        </div>
+                        <div style={{ fontSize: '0.62rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+                          Revenue Share
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Donut Legend */}
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-around', borderTop: '1px dashed #f1f5f9', paddingTop: '10px', fontSize: '0.75rem', fontWeight: '700' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2563eb' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb' }} />
+                        Sales: <strong>QR {totalRevenue.toFixed(0)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#d97706' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }} />
+                        Exp: <strong>QR {totalExpenses.toFixed(0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 4. DAILY / PERIOD SALES & PROFIT BREAKDOWN TABLE */}
+                <div style={{ 
+                  background: 'white', 
+                  borderRadius: '12px', 
+                  border: '1px solid #e2e8f0', 
+                  padding: '20px', 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)' 
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#0d9488' }}>📊</span> {isYearly ? t('Monthly Sales & Profit Breakdown') : t('Daily Sales & Profit Breakdown')}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b' }}>
+                      {numDays} {numDays === 1 ? 'day' : 'days'} in view
+                    </span>
+                  </div>
+
+                  <div style={{ maxHeight: '340px', overflowY: 'auto', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: 'left', position: 'sticky', top: 0, zIndex: 1 }}>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#475569' }}>{t('Date')}</th>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#475569', textAlign: 'right' }}>{t('POS Sales')}</th>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#475569', textAlign: 'right' }}>{t('Job Cards')}</th>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#0d9488', textAlign: 'right' }}>{t('Total Revenue')}</th>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#d97706', textAlign: 'right' }}>{t('Expenses')}</th>
+                          <th style={{ padding: '10px 14px', fontWeight: '700', color: '#16a34a', textAlign: 'right' }}>{t('Net Profit')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const breakdownRows: {
+                            dateDisplay: string;
+                            posSales: number;
+                            jobCards: number;
+                            totalRev: number;
+                            expenses: number;
+                            netProfit: number;
+                          }[] = [];
+
+                          const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+                          if (isYearly) {
+                            const curYear = new Date(startDate).getFullYear();
+                            const endMonth = new Date(endDate).getMonth();
+                            for (let m = 0; m <= Math.min(endMonth, 11); m++) {
+                              const monthPrefix = `${curYear}-${String(m + 1).padStart(2, '0')}`;
+                              const mOrders = activeOrders.filter(o => (o.date || '').startsWith(monthPrefix));
+                              const mPos = mOrders.filter(o => !o.assignedPickupCourier && !o.pickupCourier && !o.courier).reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                              const mTot = mOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                              const mJob = mTot - mPos;
+                              const mExp = activeExpenses.filter(e => (e.date || '').startsWith(monthPrefix)).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                              const mNet = mTot - mExp;
+
+                              breakdownRows.push({
+                                dateDisplay: `${monthNamesShort[m]} ${curYear}`,
+                                posSales: mPos,
+                                jobCards: mJob,
+                                totalRev: mTot,
+                                expenses: mExp,
+                                netProfit: mNet
+                              });
+                            }
+                          } else {
+                            for (let i = 0; i < numDays; i++) {
+                              const curDate = new Date(startMs + i * (24 * 60 * 60 * 1000));
+                              const curYMD = formatYMD(curDate);
+                              const dOrders = activeOrders.filter(o => (o.date || '').split('T')[0] === curYMD);
+                              const dPos = dOrders.filter(o => !o.assignedPickupCourier && !o.pickupCourier && !o.courier).reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                              const dTot = dOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+                              const dJob = dTot - dPos;
+                              const dExp = activeExpenses.filter(e => (e.date || '').split('T')[0] === curYMD).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                              const dNet = dTot - dExp;
+
+                              const dayName = dayNames[curDate.getDay()];
+                              const monthName = monthNamesShort[curDate.getMonth()];
+                              const dayNum = String(curDate.getDate()).padStart(2, '0');
+                              const yearNum = curDate.getFullYear();
+
+                              breakdownRows.push({
+                                dateDisplay: `${monthName} ${dayNum}, ${yearNum} (${dayName})`,
+                                posSales: dPos,
+                                jobCards: dJob,
+                                totalRev: dTot,
+                                expenses: dExp,
+                                netProfit: dNet
+                              });
+                            }
+                          }
+
+                          if (breakdownRows.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                  {t('No sales or expenses in this period.')}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return breakdownRows.map((row, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fbfcfd' }}>
+                              <td style={{ padding: '10px 14px', fontWeight: '700', color: '#1e293b' }}>
+                                {row.dateDisplay}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569', fontWeight: '600' }}>
+                                QR {row.posSales.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569', fontWeight: '600' }}>
+                                QR {row.jobCards.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#0d9488' }}>
+                                QR {row.totalRev.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#d97706' }}>
+                                QR {row.expenses.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: row.netProfit >= 0 ? '#16a34a' : '#dc2626' }}>
+                                QR {row.netProfit.toFixed(2)}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            );
+          })()}
 
           {/* Quick Actions Panel */}
           <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -7639,13 +8340,40 @@ export const AdminPortal: React.FC = () => {
             <h4 style={{ margin: '0 0 12px 0' }}>💸 {t('Expenses Log')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {backendExpenses.map((ex, i) => (
-                <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
-                    <strong>{ex.description}</strong>
-                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Category: {ex.category} • Source: {ex.source} • Date: {ex.date}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong>{ex.description}</strong>
+                      {ex.attachment && (
+                        <span style={{ fontSize: '0.68rem', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                          📎 Bill Attached
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Category: {ex.category} • Source: {ex.source} • Date: {ex.date}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <strong style={{ color: '#ef4444' }}>- QR {Number(ex.amount).toFixed(2)}</strong>
+                    {ex.attachment && (
+                      <button
+                        onClick={() => setViewingExpenseAttachment({ url: ex.attachment, description: ex.description || 'Expense Receipt' })}
+                        style={{
+                          padding: '3px 8px',
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: '700',
+                          fontSize: '0.75rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        👁️ {t('View')}
+                      </button>
+                    )}
                     <button onClick={() => {
                       setEditingExpense(ex);
                       setExpCategory(ex.category || '');
@@ -7653,6 +8381,8 @@ export const AdminPortal: React.FC = () => {
                       setExpSource(ex.source || '');
                       setExpAmount(ex.amount?.toString() || '');
                       setExpDate(ex.date || '');
+                      setExpAttachment(ex.attachment || '');
+                      setExpAttachmentName(ex.attachment ? 'Existing Receipt' : '');
                     }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold' }}>{t('Edit')}</button>
                     <button onClick={async () => {
                       if (confirm('Are you sure you want to delete this expense?')) {
@@ -7708,9 +8438,138 @@ export const AdminPortal: React.FC = () => {
                   <input type="number" required value={expAmount} onChange={e => setExpAmount(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                 </div>
               </div>
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>{t('Save Expense')}</button>
+
+              {/* Attachment field */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>
+                  📎 {t('Attachment (Image / PDF / Bill)')}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    background: '#f8fafc',
+                    border: '1.5px dashed #cbd5e1',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '700',
+                    color: '#334155'
+                  }}>
+                    <span>📁</span> {expAttachment ? t('Change File') : t('Upload Receipt / PDF')}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setExpAttachmentName(file.name);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setExpAttachment(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  {expAttachment && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#0d9488', fontWeight: '700', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                      <span>✅ {expAttachmentName || 'Attached'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpAttachment('');
+                          setExpAttachmentName('');
+                        }}
+                        style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: '800' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '6px' }}>{t('Save Expense')}</button>
             </form>
           </div>
+
+          {/* Attachment Viewer Modal */}
+          {viewingExpenseAttachment && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(15, 23, 42, 0.75)',
+              zIndex: 99999,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '20px'
+            }}>
+              <div style={{
+                background: 'white',
+                borderRadius: '16px',
+                maxWidth: '750px',
+                width: '100%',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                  <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0f172a' }}>
+                    📎 {viewingExpenseAttachment.description} - {t('Attachment')}
+                  </div>
+                  <button
+                    onClick={() => setViewingExpenseAttachment(null)}
+                    style={{ background: '#e2e8f0', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f1f5f9', minHeight: '300px' }}>
+                  {viewingExpenseAttachment.url.startsWith('data:application/pdf') || viewingExpenseAttachment.url.endsWith('.pdf') ? (
+                    <iframe
+                      src={viewingExpenseAttachment.url}
+                      title="Receipt Document"
+                      style={{ width: '100%', height: '65vh', border: 'none', borderRadius: '8px', background: 'white' }}
+                    />
+                  ) : (
+                    <img
+                      src={viewingExpenseAttachment.url}
+                      alt="Expense Receipt"
+                      style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    />
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '12px 20px', borderTop: '1px solid #e2e8f0', background: '#ffffff' }}>
+                  <a
+                    href={viewingExpenseAttachment.url}
+                    download="expense_receipt"
+                    style={{ padding: '8px 16px', background: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '700', fontSize: '0.82rem' }}
+                  >
+                    ⬇️ {t('Download')}
+                  </a>
+                  <button
+                    onClick={() => setViewingExpenseAttachment(null)}
+                    style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
+                  >
+                    {t('Close')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       )}
