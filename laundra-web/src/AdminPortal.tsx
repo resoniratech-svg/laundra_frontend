@@ -5407,10 +5407,10 @@ export const AdminPortal: React.FC = () => {
                 const totalAll = totalCashAll + totalNonCashAll;
 
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
                     
                     {/* KPI Top Bar */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
                       <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #2563eb)', color: 'white', padding: '18px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.2)' }}>
                         <div style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: '700' }}>💵 {t('Total Physical Cash To Collect')}</div>
                         <div style={{ fontSize: '1.7rem', fontWeight: '900', marginTop: '6px' }}>QR {totalCashAll.toFixed(2)}</div>
@@ -5435,7 +5435,7 @@ export const AdminPortal: React.FC = () => {
                       const activeDriverUser = deliveryStaffUsers.find(u => String(u.id) === String(selectedHandoverDriver) || String(u.email).toLowerCase() === String(selectedHandoverDriver).toLowerCase()) || deliveryStaffUsers[0];
 
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
                           <button
                             type="button"
                             title="Scroll Left"
@@ -5467,7 +5467,9 @@ export const AdminPortal: React.FC = () => {
                               scrollBehavior: 'smooth',
                               scrollbarWidth: 'thin',
                               paddingBottom: '4px',
-                              flex: 1
+                              flex: 1,
+                              minWidth: 0,
+                              width: '100%'
                             }}
                           >
                             {deliveryStaffUsers.map(usr => {
@@ -5660,10 +5662,10 @@ export const AdminPortal: React.FC = () => {
                       };
 
                       return (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '20px', alignItems: 'start' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'start', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
                           
                           {/* Orders List Table */}
-                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <div style={{ flex: '1 1 500px', minWidth: 0, background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', boxSizing: 'border-box' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                               <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>
                                 📋 {t('Active Unsettled Orders')} ({displayedOrders.length})
@@ -5680,7 +5682,7 @@ export const AdminPortal: React.FC = () => {
                                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>{t('There are no pending cash or card remittances for this driver.')}</p>
                               </div>
                             ) : (
-                              <div style={{ overflowX: 'auto' }}>
+                              <div style={{ overflowX: 'auto', width: '100%' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                   <thead>
                                     <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
@@ -5754,7 +5756,7 @@ export const AdminPortal: React.FC = () => {
                           </div>
 
                           {/* Settlement Reconciliation Box - Sticky */}
-                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1.5px solid #bfdbfe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px', position: 'sticky', top: '20px' }}>
+                          <div style={{ width: '340px', flex: '0 0 340px', maxWidth: '100%', background: 'white', borderRadius: '12px', padding: '20px', border: '1.5px solid #bfdbfe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px', position: 'sticky', top: '20px', boxSizing: 'border-box' }}>
                             <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
                               <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span>🧾</span> {t('Settlement Summary')}
