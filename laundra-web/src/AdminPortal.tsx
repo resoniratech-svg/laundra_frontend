@@ -5430,109 +5430,63 @@ export const AdminPortal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Driver Filter Selector Tabs - With Smooth Left & Right Scroll Arrows */}
+                    {/* Driver Filter Selector Tabs - Pure Smooth Horizontal Scrolling */}
                     {(() => {
                       const activeDriverUser = deliveryStaffUsers.find(u => String(u.id) === String(selectedHandoverDriver) || String(u.email).toLowerCase() === String(selectedHandoverDriver).toLowerCase()) || deliveryStaffUsers[0];
 
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-                          <button
-                            type="button"
-                            title="Scroll Left"
-                            onClick={() => {
-                              const el = document.getElementById('handover-drivers-scroll-container');
-                              if (el) el.scrollBy({ left: -260, behavior: 'smooth' });
-                            }}
-                            style={{
-                              padding: '8px 12px',
-                              background: 'white',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              fontWeight: '900',
-                              color: '#1e293b',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                              flexShrink: 0
-                            }}
-                          >
-                            ◀
-                          </button>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '8px',
+                            overflowX: 'auto',
+                            scrollBehavior: 'smooth',
+                            scrollbarWidth: 'thin',
+                            paddingBottom: '8px',
+                            width: '100%',
+                            maxWidth: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          {deliveryStaffUsers.map(usr => {
+                            const driverOrders = getDriverUnsettledOrders(usr);
+                            const driverCash = driverOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                            const isSelected = String(activeDriverUser?.id) === String(usr.id);
+                            const isDuplicateName = deliveryStaffUsers.filter(u => String(u.name || '').trim().toLowerCase() === String(usr.name || '').trim().toLowerCase()).length > 1;
+                            const emailPrefix = usr.email ? usr.email.split('@')[0] : '';
 
-                          <div
-                            id="handover-drivers-scroll-container"
-                            style={{
-                              display: 'flex',
-                              gap: '8px',
-                              overflowX: 'auto',
-                              scrollBehavior: 'smooth',
-                              scrollbarWidth: 'thin',
-                              paddingBottom: '4px',
-                              flex: 1,
-                              minWidth: 0,
-                              width: '100%'
-                            }}
-                          >
-                            {deliveryStaffUsers.map(usr => {
-                              const driverOrders = getDriverUnsettledOrders(usr);
-                              const driverCash = driverOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-                              const isSelected = String(activeDriverUser?.id) === String(usr.id);
-                              const isDuplicateName = deliveryStaffUsers.filter(u => String(u.name || '').trim().toLowerCase() === String(usr.name || '').trim().toLowerCase()).length > 1;
-                              const emailPrefix = usr.email ? usr.email.split('@')[0] : '';
-
-                              return (
-                                <button
-                                  key={usr.id}
-                                  type="button"
-                                  onClick={() => setSelectedHandoverDriver(usr.id)}
-                                  style={{
-                                    padding: '10px 18px',
-                                    borderRadius: '8px',
-                                    border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                    background: isSelected ? '#eff6ff' : 'white',
-                                    color: isSelected ? '#1d4ed8' : '#334155',
-                                    fontWeight: '800',
-                                    fontSize: '0.82rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    whiteSpace: 'nowrap',
-                                    flexShrink: 0
-                                  }}
-                                >
-                                  <span>🛵 {usr.name}{isDuplicateName && emailPrefix ? ` (${emailPrefix})` : ''}</span>
-                                  <span style={{ color: driverCash > 0 ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>
-                                    QR {driverCash.toFixed(2)} Cash
-                                  </span>
-                                  <span style={{ background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem' }}>
-                                    {driverOrders.length}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <button
-                            type="button"
-                            title="Scroll Right"
-                            onClick={() => {
-                              const el = document.getElementById('handover-drivers-scroll-container');
-                              if (el) el.scrollBy({ left: 260, behavior: 'smooth' });
-                            }}
-                            style={{
-                              padding: '8px 12px',
-                              background: 'white',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              fontWeight: '900',
-                              color: '#1e293b',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                              flexShrink: 0
-                            }}
-                          >
-                            ▶
-                          </button>
+                            return (
+                              <button
+                                key={usr.id}
+                                type="button"
+                                onClick={() => setSelectedHandoverDriver(usr.id)}
+                                style={{
+                                  padding: '10px 18px',
+                                  borderRadius: '8px',
+                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  background: isSelected ? '#eff6ff' : 'white',
+                                  color: isSelected ? '#1d4ed8' : '#334155',
+                                  fontWeight: '800',
+                                  fontSize: '0.82rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <span>🛵 {usr.name}{isDuplicateName && emailPrefix ? ` (${emailPrefix})` : ''}</span>
+                                <span style={{ color: driverCash > 0 ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>
+                                  QR {driverCash.toFixed(2)} Cash
+                                </span>
+                                <span style={{ background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem' }}>
+                                  {driverOrders.length}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       );
                     })()}
