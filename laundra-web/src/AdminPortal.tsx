@@ -774,6 +774,8 @@ export const AdminPortal: React.FC = () => {
     setPosCustEmail(order.email || '');
     setPosCustAddress(order.address || '');
     setPosCustomerSearch(order.customerName || '');
+    setCustomPOSDiscount(order.discount ? String(order.discount) : '');
+    setPosPayMethod(order.paymentMethod || 'Cash');
 
     const servicesList = order.services || order.items || [];
     const mappedCart = servicesList.map((svc: any, idx: number) => {
@@ -2914,11 +2916,22 @@ export const AdminPortal: React.FC = () => {
 
       if (token && posEditingOrder.backendId) {
         try {
-          const itemsPayload = posCart.map(i => ({ service_id: i.variantId || i.itemId, quantity: i.qty }));
+          const itemsPayload = posCart.map(i => ({ 
+            service_id: i.variantId || i.itemId, 
+            quantity: i.qty,
+            price: i.price,
+            service_name: i.itemName
+          }));
           await fetch(`${BASE_URL}/api/v1/orders/${posEditingOrder.backendId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ items: itemsPayload, total_amount: total })
+            body: JSON.stringify({ 
+              items: itemsPayload, 
+              total_amount: total,
+              discount: finalDiscount,
+              paid_amount: total,
+              payment_status: posPayMethod === 'Pay Later' ? 'UNPAID' : 'PAID'
+            })
           });
         } catch (e) {
           console.error('Failed to update backend order:', e);
@@ -3111,6 +3124,8 @@ export const AdminPortal: React.FC = () => {
 
       if (targetBackendCustId) {
         try {
+          const finalDiscount = posDiscount + (parseFloat(customPOSDiscount) || 0);
+
           const itemsPayload = posCart.map(i => {
             let srvId = i.variantId || i.itemId || i.serviceId;
             const matchedService = (backendServices || []).find((bs: any) => 
@@ -3121,7 +3136,9 @@ export const AdminPortal: React.FC = () => {
             }
             return {
               service_id: srvId,
-              quantity: i.qty
+              quantity: i.qty,
+              price: i.price,
+              service_name: i.itemName
             };
           });
 
@@ -3144,7 +3161,10 @@ export const AdminPortal: React.FC = () => {
               pickup_address: posCustAddress || undefined,
               delivery_address: posCustAddress || undefined,
               payment_status: computedPaymentStatus,
+              payment_method: posPayMethod,
               paid_amount: computedPaidAmount,
+              total_amount: total,
+              discount: finalDiscount,
               special_instructions: ['Card', 'UPI', 'Wallet'].includes(posPayMethod) ? (posRemark ? `Payment Remark: ${posRemark}` : undefined) : undefined
             })
           });
