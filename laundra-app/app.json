@@ -7,7 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.laundra.deliveryapp",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.laundra.deliveryapp",
