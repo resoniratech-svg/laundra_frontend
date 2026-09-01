@@ -409,7 +409,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       )}
 
       {/* Content View */}
-        <main className="admin-main-content" style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '24px' }}>
+        <main className="admin-main-content" style={{ flex: 1, minWidth: 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', background: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '24px', boxSizing: 'border-box' }}>
           <div className="admin-content-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <h2 id="adminActiveModuleTitle" style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>

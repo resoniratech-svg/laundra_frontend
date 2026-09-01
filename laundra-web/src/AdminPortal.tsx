@@ -5284,7 +5284,7 @@ export const AdminPortal: React.FC = () => {
 
       {/* 🤝 DRIVER CASH HANDOVER & SETTLEMENT TAB */}
       {activeModule === 'driver-handover' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
           
           {/* Header & Sub-Tabs */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
