@@ -558,18 +558,29 @@ export const LandingPage: React.FC = () => {
           .landing-desktop-nav {
             display: none !important;
           }
+          .landing-desktop-install-btn {
+            display: none !important;
+          }
           .landing-logo-img {
             height: 32px !important;
-            max-width: 110px !important;
+            max-width: 100px !important;
           }
           .hero-split {
             flex-direction: column !important;
-            padding: 36px 16px !important;
+            padding: 32px 16px !important;
             gap: 28px !important;
           }
           .hero-image-container {
             width: 100% !important;
-            height: 220px !important;
+            height: 280px !important;
+            border-width: 4px !important;
+            border-radius: 16px !important;
+          }
+          .hero-dashboard-badge {
+            padding: 4px 8px !important;
+            font-size: 0.68rem !important;
+            bottom: 10px !important;
+            left: 10px !important;
           }
           .modules-section, .services-section {
             padding: 40px 16px !important;
@@ -627,7 +638,9 @@ export const LandingPage: React.FC = () => {
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
           <LanguageSwitcher />
-          <InstallAppButton />
+          <div className="landing-desktop-install-btn">
+            <InstallAppButton />
+          </div>
           <button 
             className="secondary-btn" 
             onClick={() => {
@@ -698,7 +711,7 @@ export const LandingPage: React.FC = () => {
             />
           ))}
           {/* Dashboard overlay tag */}
-          <div style={{ position: 'absolute', bottom: '16px', left: '16px', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', color: 'white', padding: '6px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: '700' }}>
+          <div className="hero-dashboard-badge" style={{ position: 'absolute', bottom: '16px', left: '16px', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', color: 'white', padding: '6px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: '700' }}>
             🟢 Live Operations Dashboard
           </div>
         </div>
