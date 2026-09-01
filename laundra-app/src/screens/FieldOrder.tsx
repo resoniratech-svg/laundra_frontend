@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Keyboard,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Header } from '../components/Header';
 import { apiClient } from '../api/client';
@@ -93,6 +94,7 @@ export const FieldOrderScreen = () => {
   const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustAddress, setNewCustAddress] = useState('');
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [serverOtp, setServerOtp] = useState('');
   const [isCreatingCust, setIsCreatingCust] = useState(false);
@@ -115,9 +117,11 @@ export const FieldOrderScreen = () => {
     phone: '96385274112',
   });
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchInitialData();
+    }, [])
+  );
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -271,6 +275,7 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
   };
 
   const handleSendOtp = async () => {
+    Keyboard.dismiss();
     if (!newCustName.trim()) {
       Alert.alert('Required', 'Please enter customer full name.');
       return;
@@ -288,6 +293,7 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
       return;
     }
 
+    setIsSendingOtp(true);
     const targetEmail = newCustEmail.trim();
     try {
       const res = await apiClient.post('/api/v1/customers/send-otp', {
@@ -295,30 +301,61 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
         phone: newCustPhone.trim(),
       });
       const data = res.data || {};
-      const code = data.otp_debug || Math.floor(100000 + Math.random() * 900000).toString();
+      const code = data.otp_debug || '';
       setServerOtp(code);
       setIsOtpSent(true);
       if (data.otp_debug) {
-        Alert.alert('Verification OTP', `Verification OTP sent to ${targetEmail}!\n\n(OTP Code: ${data.otp_debug})`);
+        Alert.alert('Verification OTP Sent', `Real OTP sent to ${targetEmail}!\n\n(Dev Code: ${data.otp_debug})`);
       } else {
-        Alert.alert('Verification OTP', `Verification OTP code sent to ${targetEmail}!`);
+        Alert.alert('Verification OTP Sent', `A 6-digit verification code has been sent to ${targetEmail}. Please check the customer's inbox/spam.`);
       }
-    } catch (err) {
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || err?.response?.data?.message;
+      if (errMsg) {
+        Alert.alert('Registration Note', errMsg);
+        return;
+      }
       console.warn('Backend send-otp error, using fallback:', err);
       const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
       setServerOtp(fallbackOtp);
       setIsOtpSent(true);
-      Alert.alert('Verification OTP', `Verification code sent to ${targetEmail}:\n\nOTP: ${fallbackOtp}`);
+      Alert.alert('Verification OTP', `Verification code for ${targetEmail}:\n\nOTP: ${fallbackOtp}`);
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
   const handleVerifyCreateCustomer = async () => {
-    if (otpInput.trim() !== serverOtp && otpInput.trim() !== '123456' && otpInput.trim() !== '1234') {
-      Alert.alert('Invalid OTP', 'The entered OTP is incorrect. Please try again.');
+    if (!otpInput.trim()) {
+      Alert.alert('Required', 'Please enter the 6-digit verification code.');
       return;
     }
     setIsCreatingCust(true);
+    const targetEmail = newCustEmail.trim();
+
     try {
+      // 1. Verify OTP with Backend or fallback
+      if (serverOtp) {
+        if (otpInput.trim() !== serverOtp && otpInput.trim() !== '123456') {
+          Alert.alert('Invalid OTP', 'The entered OTP is incorrect. Please check the code sent to your email and try again.');
+          setIsCreatingCust(false);
+          return;
+        }
+      } else {
+        try {
+          await apiClient.post('/api/v1/customers/verify-otp', {
+            email: targetEmail,
+            otp: otpInput.trim(),
+          });
+        } catch (verifyErr: any) {
+          const vMsg = verifyErr?.response?.data?.detail || verifyErr?.response?.data?.message || 'Invalid or expired OTP code';
+          Alert.alert('Verification Failed', vMsg);
+          setIsCreatingCust(false);
+          return;
+        }
+      }
+
+      // 2. Create customer in database
       const payload = {
         name: newCustName.trim(),
         phone: newCustPhone.trim(),
@@ -333,7 +370,7 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
         phone: created.phone || newCustPhone,
         address: created.address || payload.address,
       };
-      setCustomers((prev) => [newCust, ...prev]);
+      setCustomers((prev) => [newCust, ...prev.filter((c) => c.id !== newCust.id)]);
       setSelectedCust(newCust);
       setShowNewCustModal(false);
       setIsOtpSent(false);
@@ -343,24 +380,29 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
       setNewCustEmail('');
       setNewCustAddress('');
       Alert.alert('Success', `Customer ${newCust.name} verified & created successfully!`);
-    } catch (e) {
-      console.warn('Customer create offline fallback', e);
-      const fallbackCust: Customer = {
-        id: Date.now().toString(),
-        name: newCustName,
-        phone: newCustPhone,
-        address: newCustAddress.trim(),
-      };
-      setCustomers((prev) => [fallbackCust, ...prev]);
-      setSelectedCust(fallbackCust);
-      setShowNewCustModal(false);
-      setIsOtpSent(false);
-      setOtpInput('');
-      setNewCustName('');
-      setNewCustPhone('');
-      setNewCustEmail('');
-      setNewCustAddress('');
-      Alert.alert('Success', `Customer ${fallbackCust.name} verified & saved!`);
+    } catch (e: any) {
+      const createErrMsg = e?.response?.data?.detail || e?.response?.data?.message;
+      if (createErrMsg) {
+        Alert.alert('Registration Note', createErrMsg);
+      } else {
+        console.warn('Customer create fallback:', e);
+        const fallbackCust: Customer = {
+          id: Date.now().toString(),
+          name: newCustName,
+          phone: newCustPhone,
+          address: newCustAddress.trim(),
+        };
+        setCustomers((prev) => [fallbackCust, ...prev.filter((c) => c.id !== fallbackCust.id)]);
+        setSelectedCust(fallbackCust);
+        setShowNewCustModal(false);
+        setIsOtpSent(false);
+        setOtpInput('');
+        setNewCustName('');
+        setNewCustPhone('');
+        setNewCustEmail('');
+        setNewCustAddress('');
+        Alert.alert('Success', `Customer ${fallbackCust.name} verified & saved!`);
+      }
     } finally {
       setIsCreatingCust(false);
     }
@@ -392,7 +434,8 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
       is_express: cart.some((it) => it.express),
       pickup_address: selectedCust.address || 'Doorstep Pickup',
       delivery_address: selectedCust.address || 'Doorstep Pickup',
-      special_instructions: `Field Order created by Delivery Agent: ${currentUser?.name || 'Driver'}${
+      pickup_staff_id: currentUser?.id,
+      special_instructions: `Field Order created by Delivery Agent: ${currentUser?.name || 'Driver'}${currentUser?.email ? ` (${currentUser.email})` : ''}${
         specialInstructions ? ` | ${specialInstructions}` : ''
       }`,
       payment_status: isPaid ? 'PAID' : 'UNPAID',
@@ -754,7 +797,7 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
               </TouchableOpacity>
             </View>
 
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {!isOtpSent ? (
                 <>
                   <Text style={styles.inputLabel}>Customer Full Name *</Text>
@@ -792,8 +835,16 @@ Booked by Delivery Agent: ${currentUser?.name || 'nandu'}
                     onChangeText={setNewCustAddress}
                   />
 
-                  <TouchableOpacity style={styles.sendOtpBtn} onPress={handleSendOtp}>
-                    <Text style={styles.sendOtpBtnText}>📱 Send Verification OTP</Text>
+                  <TouchableOpacity
+                    style={[styles.sendOtpBtn, isSendingOtp && styles.btnDisabled]}
+                    disabled={isSendingOtp}
+                    onPress={handleSendOtp}
+                  >
+                    {isSendingOtp ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text style={styles.sendOtpBtnText}>📱 Send Verification OTP</Text>
+                    )}
                   </TouchableOpacity>
                 </>
               ) : (

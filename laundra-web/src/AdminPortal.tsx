@@ -1232,6 +1232,8 @@ export const AdminPortal: React.FC = () => {
             courier: o.pickup_courier || o.delivery_courier || o.delivery_boy_name || null,
             pickupCourier: o.pickup_courier || o.delivery_boy_name || null,
             deliveryCourier: o.delivery_courier || null,
+            pickupStaffId: o.pickup_staff_id || null,
+            deliveryStaffId: o.delivery_staff_id || null,
             assignedPickupCourier: o.pickup_courier || o.delivery_boy_name || null,
             assignedDeliveryCourier: o.delivery_courier || null,
             pickupCommission: parseFloat(o.pickup_commission || '0') || 0,
@@ -5350,20 +5352,43 @@ export const AdminPortal: React.FC = () => {
                   return settledInHistory;
                 };
 
-                const getDriverUnsettledOrders = (driverName: string) => {
-                  const dName = driverName.trim().toLowerCase();
+                const getDriverUnsettledOrders = (driverUser: any) => {
+                  if (!driverUser) return [];
+                  const dId = String(driverUser.id || '').trim().toLowerCase();
+                  const dEmail = String(driverUser.email || '').trim().toLowerCase();
+                  const dName = String(driverUser.name || '').trim().toLowerCase();
+
                   return db.orders.filter(o => {
                     if (o.isDeleted || !o.totalAmount || o.totalAmount <= 0) return false;
                     const pStatus = (o.paymentStatus || '').toLowerCase();
                     if (pStatus !== 'paid' && pStatus !== 'completed') return false;
                     if (isOrderSettled(o)) return false;
 
+                    const pStaffId = String(o.pickupStaffId || o.pickup_staff_id || '').trim().toLowerCase();
+                    const dStaffId = String(o.deliveryStaffId || o.delivery_staff_id || '').trim().toLowerCase();
                     const pickC = (o.pickupCourier || '').trim().toLowerCase();
                     const delC = (o.deliveryCourier || '').trim().toLowerCase();
                     const specI = (o.specialInstructions || '').toLowerCase();
 
-                    const isMatch = pickC === dName || delC === dName || (o.source === 'DELIVERY_AGENT' && specI.includes(dName));
-                    return isMatch;
+                    // 1. Exact Staff UUID match
+                    if (dId && (pStaffId === dId || dStaffId === dId)) return true;
+
+                    // 2. Exact Driver Email in order details
+                    if (dEmail && (specI.includes(dEmail) || (o.notes && o.notes.toLowerCase().includes(dEmail)))) return true;
+
+                    // 3. Match by name only if no other driver has this exact same name
+                    const sameNameDrivers = deliveryStaffUsers.filter(u => String(u.name || '').trim().toLowerCase() === dName);
+                    if (sameNameDrivers.length === 1) {
+                      const isMatch = pickC === dName || delC === dName || (o.source === 'DELIVERY_AGENT' && specI.includes(dName));
+                      return isMatch;
+                    }
+
+                    // 4. If duplicate names exist, only tie to this driver if it has their specific ID/email
+                    if (!pStaffId && !dStaffId) {
+                      if (sameNameDrivers[0]?.id === driverUser.id && (pickC === dName || delC === dName)) return true;
+                    }
+
+                    return false;
                   });
                 };
 
@@ -5405,60 +5430,115 @@ export const AdminPortal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Driver Filter Selector Tabs - Only Individual Drivers */}
+                    {/* Driver Filter Selector Tabs - With Smooth Left & Right Scroll Arrows */}
                     {(() => {
-                      const activeDriverKey = (selectedHandoverDriver && deliveryStaffUsers.some(u => u.name.toLowerCase() === selectedHandoverDriver.toLowerCase()))
-                        ? selectedHandoverDriver.toLowerCase()
-                        : (deliveryStaffUsers[0]?.name.toLowerCase() || '');
+                      const activeDriverUser = deliveryStaffUsers.find(u => String(u.id) === String(selectedHandoverDriver) || String(u.email).toLowerCase() === String(selectedHandoverDriver).toLowerCase()) || deliveryStaffUsers[0];
 
                       return (
-                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                          {deliveryStaffUsers.map(usr => {
-                            const driverOrders = getDriverUnsettledOrders(usr.name);
-                            const driverCash = driverOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-                            const isSelected = activeDriverKey === usr.name.toLowerCase();
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                          <button
+                            type="button"
+                            title="Scroll Left"
+                            onClick={() => {
+                              const el = document.getElementById('handover-drivers-scroll-container');
+                              if (el) el.scrollBy({ left: -260, behavior: 'smooth' });
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              background: 'white',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontWeight: '900',
+                              color: '#1e293b',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                              flexShrink: 0
+                            }}
+                          >
+                            ◀
+                          </button>
 
-                            return (
-                              <button
-                                key={usr.id}
-                                type="button"
-                                onClick={() => setSelectedHandoverDriver(usr.name.toLowerCase())}
-                                style={{
-                                  padding: '10px 18px',
-                                  borderRadius: '8px',
-                                  border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#eff6ff' : 'white',
-                                  color: isSelected ? '#1d4ed8' : '#334155',
-                                  fontWeight: '800',
-                                  fontSize: '0.82rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '8px',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                <span>🛵 {usr.name}</span>
-                                <span style={{ color: driverCash > 0 ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>
-                                  QR {driverCash.toFixed(2)} Cash
-                                </span>
-                                <span style={{ background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem' }}>
-                                  {driverOrders.length}
-                                </span>
-                              </button>
-                            );
-                          })}
+                          <div
+                            id="handover-drivers-scroll-container"
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              overflowX: 'auto',
+                              scrollBehavior: 'smooth',
+                              scrollbarWidth: 'thin',
+                              paddingBottom: '4px',
+                              flex: 1
+                            }}
+                          >
+                            {deliveryStaffUsers.map(usr => {
+                              const driverOrders = getDriverUnsettledOrders(usr);
+                              const driverCash = driverOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+                              const isSelected = String(activeDriverUser?.id) === String(usr.id);
+                              const isDuplicateName = deliveryStaffUsers.filter(u => String(u.name || '').trim().toLowerCase() === String(usr.name || '').trim().toLowerCase()).length > 1;
+                              const emailPrefix = usr.email ? usr.email.split('@')[0] : '';
+
+                              return (
+                                <button
+                                  key={usr.id}
+                                  type="button"
+                                  onClick={() => setSelectedHandoverDriver(usr.id)}
+                                  style={{
+                                    padding: '10px 18px',
+                                    borderRadius: '8px',
+                                    border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                    background: isSelected ? '#eff6ff' : 'white',
+                                    color: isSelected ? '#1d4ed8' : '#334155',
+                                    fontWeight: '800',
+                                    fontSize: '0.82rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  <span>🛵 {usr.name}{isDuplicateName && emailPrefix ? ` (${emailPrefix})` : ''}</span>
+                                  <span style={{ color: driverCash > 0 ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>
+                                    QR {driverCash.toFixed(2)} Cash
+                                  </span>
+                                  <span style={{ background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem' }}>
+                                    {driverOrders.length}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            type="button"
+                            title="Scroll Right"
+                            onClick={() => {
+                              const el = document.getElementById('handover-drivers-scroll-container');
+                              if (el) el.scrollBy({ left: 260, behavior: 'smooth' });
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              background: 'white',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontWeight: '900',
+                              color: '#1e293b',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                              flexShrink: 0
+                            }}
+                          >
+                            ▶
+                          </button>
                         </div>
                       );
                     })()}
 
                     {/* Settlement Table & Action Box */}
                     {(() => {
-                      const activeDriverKey = (selectedHandoverDriver && deliveryStaffUsers.some(u => u.name.toLowerCase() === selectedHandoverDriver.toLowerCase()))
-                        ? selectedHandoverDriver.toLowerCase()
-                        : (deliveryStaffUsers[0]?.name.toLowerCase() || '');
-
-                      const displayedOrders = getDriverUnsettledOrders(activeDriverKey);
+                      const activeDriverUser = deliveryStaffUsers.find(u => String(u.id) === String(selectedHandoverDriver) || String(u.email).toLowerCase() === String(selectedHandoverDriver).toLowerCase()) || deliveryStaffUsers[0];
+                      const displayedOrders = getDriverUnsettledOrders(activeDriverUser);
 
                       const selectedCash = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'cash').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
                       const selectedCard = displayedOrders.filter(o => (o.paymentMethod || 'Cash').toLowerCase() === 'card').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
@@ -5471,8 +5551,8 @@ export const AdminPortal: React.FC = () => {
                           return;
                         }
 
-                        const targetDriverObj = deliveryStaffUsers.find(u => u.name.toLowerCase() === activeDriverKey) || deliveryStaffUsers[0];
-                        const targetDriverName = targetDriverObj?.name || activeDriverKey;
+                        const targetDriverObj = activeDriverUser || deliveryStaffUsers[0];
+                        const targetDriverName = targetDriverObj?.name || 'Driver';
 
                         const settlementId = `SETTLE-${Date.now().toString().slice(-6)}`;
                         const settlementNum = `ST-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -5580,7 +5660,7 @@ export const AdminPortal: React.FC = () => {
                       };
 
                       return (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '20px', alignItems: 'start' }}>
                           
                           {/* Orders List Table */}
                           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -5589,7 +5669,7 @@ export const AdminPortal: React.FC = () => {
                                 📋 {t('Active Unsettled Orders')} ({displayedOrders.length})
                               </h4>
                               <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                Driver: <strong>{selectedHandoverDriver === 'all' ? 'All Staff' : selectedHandoverDriver}</strong>
+                                Driver: <strong>{activeDriverUser?.name || 'Driver'}{activeDriverUser?.email ? ` (${activeDriverUser.email})` : ''}</strong>
                               </span>
                             </div>
 
@@ -5673,8 +5753,8 @@ export const AdminPortal: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Settlement Reconciliation Box */}
-                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1.5px solid #bfdbfe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          {/* Settlement Reconciliation Box - Sticky */}
+                          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1.5px solid #bfdbfe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)', display: 'flex', flexDirection: 'column', gap: '14px', position: 'sticky', top: '20px' }}>
                             <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
                               <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span>🧾</span> {t('Settlement Summary')}
