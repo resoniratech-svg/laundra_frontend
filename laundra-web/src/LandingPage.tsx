@@ -549,28 +549,56 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="landing-container" style={{ minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="landing-container" style={{ minHeight: '100vh', background: '#f8fafc', overflowX: 'hidden' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .main-header {
+            padding: 10px 14px !important;
+          }
+          .landing-desktop-nav {
+            display: none !important;
+          }
+          .landing-logo-img {
+            height: 32px !important;
+            max-width: 110px !important;
+          }
+          .hero-split {
+            flex-direction: column !important;
+            padding: 36px 16px !important;
+            gap: 28px !important;
+          }
+          .hero-image-container {
+            width: 100% !important;
+            height: 220px !important;
+          }
+          .modules-section, .services-section {
+            padding: 40px 16px !important;
+          }
+        }
+      `}</style>
       
       {/* Landing Header */}
       <header className="main-header" style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        padding: '16px 8%', 
-        background: 'rgba(255, 255, 255, 0.85)', 
+        padding: '14px 6%', 
+        background: 'rgba(255, 255, 255, 0.95)', 
         backdropFilter: 'blur(12px)',
         position: 'sticky',
         top: 0,
         zIndex: 999,
         borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.03)'
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
+        width: '100%',
+        boxSizing: 'border-box'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <img src="/qubexe.logo.png" alt="Qubexe Logo" style={{ height: '50px', transform: 'scale(2.8)', transformOrigin: 'left center', objectFit: 'contain' }} />
+        <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flexShrink: 0 }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <img className="landing-logo-img" src="/qubexe.logo.png" alt="Qubexe Logo" style={{ height: '38px', objectFit: 'contain' }} />
         </div>
 
-        {/* Center links for quick navigation */}
-        <div className="nav-links" style={{ display: 'flex', gap: '28px' }}>
+        {/* Center links for quick navigation - Desktop Only */}
+        <div className="nav-links landing-desktop-nav" style={{ display: 'flex', gap: '24px' }}>
           {[
             { label: t('nav.home', 'Home'), action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
             { label: t('nav.features', 'Features'), target: 'modules' },
@@ -588,7 +616,7 @@ export const LandingPage: React.FC = () => {
                   document.getElementById(lnk.target)?.scrollIntoView({ behavior: 'smooth' });
                 }
               }}
-              style={{ color: '#475569', fontWeight: '600', fontSize: '0.92rem', textDecoration: 'none', cursor: 'pointer', transition: 'color 0.2s' }}
+              style={{ color: '#475569', fontWeight: '600', fontSize: '0.9rem', textDecoration: 'none', cursor: 'pointer', transition: 'color 0.2s' }}
               onMouseOver={(e) => (e.currentTarget.style.color = '#2563eb')}
               onMouseOut={(e) => (e.currentTarget.style.color = '#475569')}
             >
@@ -597,7 +625,7 @@ export const LandingPage: React.FC = () => {
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
           <LanguageSwitcher />
           <InstallAppButton />
           <button 
@@ -606,38 +634,38 @@ export const LandingPage: React.FC = () => {
               setLoginRole('admin');
               setShowLogIn(true);
             }} 
-            style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
+            style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', whiteSpace: 'nowrap' }}
           >
             👤 {t('nav.login', 'Login')}
           </button>
-
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="hero-section hero-split" style={{ 
         display: 'flex', 
-        gap: '60px', 
-        padding: '100px 8%', 
+        gap: '48px', 
+        padding: '80px 6%', 
         alignItems: 'center',
-        background: 'radial-gradient(circle at 10% 20%, rgba(239, 246, 255, 0.7) 0%, rgba(255, 255, 255, 1) 90%)'
+        background: 'radial-gradient(circle at 10% 20%, rgba(239, 246, 255, 0.7) 0%, rgba(255, 255, 255, 1) 90%)',
+        boxSizing: 'border-box'
       }}>
         <div className="hero-left" style={{ flex: 1.2 }}>
           <span style={{ 
             display: 'inline-block', 
             background: '#dbeafe', 
             color: '#1e40af', 
-            fontSize: '0.8rem', 
+            fontSize: '0.78rem', 
             fontWeight: '800', 
-            padding: '6px 16px', 
+            padding: '5px 14px', 
             borderRadius: '20px', 
             textTransform: 'uppercase', 
-            letterSpacing: '1px', 
-            marginBottom: '20px' 
+            letterSpacing: '0.8px', 
+            marginBottom: '16px' 
           }}>
             ⚡ {t('landing.badge', 'Pure Care, Same-day Delivery')}
           </span>
-          <h1 style={{ fontSize: '3.4rem', fontWeight: '900', lineHeight: 1.1, marginBottom: '20px', color: '#0f172a', letterSpacing: '-1.5px' }}>
+          <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: '900', lineHeight: 1.15, marginBottom: '18px', color: '#0f172a', letterSpacing: '-1px' }}>
             {t('landing.heroTitle', 'The operating system for modern garment care.')}
           </h1>
           <p style={{ fontSize: '1.1rem', color: '#475569', lineHeight: 1.6, marginBottom: '36px', fontWeight: '500' }}>
