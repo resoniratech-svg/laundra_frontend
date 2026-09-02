@@ -19,19 +19,25 @@ import { tApp } from '../utils/i18n';
 export const TasksScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
   const language = useAuthStore((state) => state.language);
-  const { data: orders = [], isLoading, refetch, isRefetching, updateStatus } = useTasks();
+  const { data: orders = [], isLoading, refetch, updateStatus } = useTasks();
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'pickups' | 'deliveries'>('pickups');
   const [selectedOtpOrder, setSelectedOtpOrder] = useState<Order | null>(null);
   const [selectedQtyOrder, setSelectedQtyOrder] = useState<Order | null>(null);
 
+  const onRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setManualRefreshing(false);
+    }
+  }, [refetch]);
+
   useFocusEffect(
     useCallback(() => {
       refetch();
-      const interval = setInterval(() => {
-        refetch();
-      }, 15000);
-      return () => clearInterval(interval);
     }, [refetch])
   );
 
@@ -170,7 +176,7 @@ export const TasksScreen = () => {
           />
         )}
         contentContainerStyle={currentList.length === 0 ? styles.emptyContainer : styles.listContent}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={['#6366f1']} />}
+        refreshControl={<RefreshControl refreshing={manualRefreshing} onRefresh={onRefresh} colors={['#6366f1']} tintColor="#6366f1" />}
         ListEmptyComponent={
           <View style={styles.emptyStateBox}>
             <View style={styles.illustrationCircle}>

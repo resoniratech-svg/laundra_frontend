@@ -22,9 +22,10 @@ export const DashboardScreen = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
   const language = useAuthStore((state) => state.language);
   const setLanguage = useAuthStore((state) => state.setLanguage);
-  const { data, isLoading, error, refetch, isRefetching } = useDashboard();
+  const { data, isLoading, error, refetch } = useDashboard();
   const { data: orders = [], refetch: refetchTasks } = useTasks();
   const { notifications, refetchNotifications } = useNotifications();
+  const [manualRefreshing, setManualRefreshing] = React.useState(false);
 
   const pickupStatuses = ['created', 'accepted', 'pickup assigned', 'pending pickup', 'courier on the way', 'reached customer'];
   
@@ -44,20 +45,26 @@ export const DashboardScreen = () => {
     return orders.filter(isDeliveryOrderActive);
   }, [orders, currentUser]);
 
-  const onRefresh = useCallback(() => {
-    refetch();
-    refetchTasks();
-    refetchNotifications();
+  const onRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    try {
+      await Promise.allSettled([
+        refetch(),
+        refetchTasks(),
+        refetchNotifications()
+      ]);
+    } finally {
+      setManualRefreshing(false);
+    }
   }, [refetch, refetchTasks, refetchNotifications]);
 
   useFocusEffect(
     useCallback(() => {
-      onRefresh();
-      const interval = setInterval(() => {
-        onRefresh();
-      }, 15000);
-      return () => clearInterval(interval);
-    }, [onRefresh])
+      // Silent refresh upon entering the screen
+      refetch();
+      refetchTasks();
+      refetchNotifications();
+    }, [refetch, refetchTasks, refetchNotifications])
   );
 
   if (isLoading) return <LoadingView message="Loading delivery dashboard..." />;
@@ -77,7 +84,7 @@ export const DashboardScreen = () => {
     <ScreenContainer style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} colors={[colors.primary]} />}
+        refreshControl={<RefreshControl refreshing={manualRefreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Header Bar matching exact mockup */}
