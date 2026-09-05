@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useDatabase, isPackageCustomerActive, type Order, type Service, type Customer, type User, type Expense, type Promo, type Announcement } from './DatabaseContext';
@@ -775,6 +775,7 @@ export const AdminPortal: React.FC = () => {
   const [posCustomerSearch, setPosCustomerSearch] = useState('');
   const [showCustDropdown, setShowCustDropdown] = useState(false);
   const [showGuestFields, setShowGuestFields] = useState(false);
+  const [showGuestPhoneDropdown, setShowGuestPhoneDropdown] = useState(false);
   const [posCouponCode, setPosCouponCode] = useState('');
   const [posCouponApplied, setPosCouponApplied] = useState(false);
   const [posPrepaidQRToken, setPosPrepaidQRToken] = useState('');
@@ -788,6 +789,19 @@ export const AdminPortal: React.FC = () => {
   const [historyModalStaff, setHistoryModalStaff] = useState<any>(null);
   const [historySearch, setHistorySearch] = useState('');
   const [historyFilter, setHistoryFilter] = useState('All');
+
+  // Live Matching existing customers when typing in Guest Phone Number field
+  const guestPhoneMatches = useMemo(() => {
+    const q = (posCustPhone || '').trim();
+    if (!q || q.length < 1) return [];
+    const cleanQ = q.replace(/\D/g, '');
+    return db.customers.filter(c => {
+      if (!c.phone) return false;
+      const cleanPhone = String(c.phone).replace(/\D/g, '');
+      const rawPhone = String(c.phone).toLowerCase();
+      return (cleanQ && cleanPhone.startsWith(cleanQ)) || rawPhone.startsWith(q.toLowerCase()) || (cleanQ && cleanPhone.includes(cleanQ));
+    }).slice(0, 8);
+  }, [db.customers, posCustPhone]);
 
   const handleStartEditOrder = (order: Order) => {
     setPosEditingOrder(order);
@@ -825,10 +839,14 @@ export const AdminPortal: React.FC = () => {
   };
 
   const custDropdownRef = useRef<HTMLDivElement>(null);
+  const guestPhoneDropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (custDropdownRef.current && !custDropdownRef.current.contains(event.target as Node)) {
         setShowCustDropdown(false);
+      }
+      if (guestPhoneDropdownRef.current && !guestPhoneDropdownRef.current.contains(event.target as Node)) {
+        setShowGuestPhoneDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -9348,9 +9366,125 @@ export const AdminPortal: React.FC = () => {
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Customer Name')}</label>
                             <input type="text" maxLength={20} value={posCustName} onChange={e => setPosCustName(e.target.value)} placeholder="Enter Guest name..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
                           </div>
-                          <div>
+                          <div ref={guestPhoneDropdownRef} style={{ position: 'relative' }}>
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Phone Number')}</label>
-                            <input type="text" value={posCustPhone} maxLength={15} onChange={e => setPosCustPhone(e.target.value.replace(/[a-zA-Z]/g, ''))} placeholder="Enter guest phone..." style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
+                            <input 
+                              type="text" 
+                              value={posCustPhone} 
+                              maxLength={15} 
+                              autoComplete="off"
+                              onChange={e => {
+                                const val = e.target.value.replace(/[a-zA-Z]/g, '');
+                                setPosCustPhone(val);
+                                if (val.trim().length > 0) {
+                                  setShowGuestPhoneDropdown(true);
+                                } else {
+                                  setShowGuestPhoneDropdown(false);
+                                }
+                              }} 
+                              onFocus={() => {
+                                if (posCustPhone.trim().length > 0) {
+                                  setShowGuestPhoneDropdown(true);
+                                }
+                              }}
+                              placeholder="Enter guest phone..." 
+                              style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} 
+                            />
+
+                            {/* Live Matching Existing Customers Dropdown */}
+                            {showGuestPhoneDropdown && guestPhoneMatches.length > 0 && (
+                              <div style={{
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: '100%',
+                                background: 'white',
+                                border: '1.5px solid #93c5fd',
+                                borderRadius: '8px',
+                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                                zIndex: 1000,
+                                maxHeight: '240px',
+                                overflowY: 'auto',
+                                marginTop: '4px'
+                              }}>
+                                <div style={{
+                                  padding: '7px 12px',
+                                  background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                                  borderBottom: '1px solid #bfdbfe',
+                                  fontSize: '0.74rem',
+                                  fontWeight: '800',
+                                  color: '#1e40af',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}>
+                                  <span>👥 {t('Existing Customers Found')} ({guestPhoneMatches.length})</span>
+                                  <span style={{ fontSize: '0.68rem', color: '#3b82f6', fontWeight: '600' }}>{t('Click to auto-fill')}</span>
+                                </div>
+
+                                {guestPhoneMatches.map(c => (
+                                  <div
+                                    key={c.id}
+                                    onClick={() => {
+                                      setPosCustId(c.id);
+                                      setPosCustName(c.name);
+                                      setPosCustPhone(c.phone || '');
+                                      setPosCustEmail(c.email || '');
+                                      setPosCustAddress(c.address || '');
+                                      setPosCustomerSearch(`${tName(c.name)} (${c.phone || 'No Phone'})`);
+                                      setShowGuestPhoneDropdown(false);
+                                      setShowGuestFields(false);
+                                    }}
+                                    style={{
+                                      padding: '9px 12px',
+                                      borderBottom: '1px solid #f1f5f9',
+                                      cursor: 'pointer',
+                                      fontSize: '0.82rem',
+                                      transition: 'background 0.15s ease'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#f0f9ff'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontWeight: '800', color: '#0f172a' }}>👤 {tName(c.name)}</span>
+                                      <span style={{ fontWeight: '800', color: '#2563eb', fontSize: '0.8rem', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 7px', borderRadius: '5px' }}>
+                                        📞 {c.phone}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', fontSize: '0.72rem', color: '#64748b', marginTop: '3px', flexWrap: 'wrap' }}>
+                                      {c.email && <span>✉️ {c.email}</span>}
+                                      {c.address && <span>📍 {c.address}</span>}
+                                      {(c.loyalty_points || 0) > 0 && (
+                                        <span style={{ color: '#d97706', fontWeight: '800' }}>🏆 {c.loyalty_points} pts</span>
+                                      )}
+                                      {(c.packageStatus === 'ACTIVE' || c.activePackageName) && (
+                                        <span style={{ color: '#15803d', fontWeight: '800', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+                                          📦 {c.activePackageName || 'Package Active'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                <div
+                                  onClick={() => setShowGuestPhoneDropdown(false)}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#fafafa',
+                                    borderTop: '1px dashed #cbd5e1',
+                                    fontSize: '0.73rem',
+                                    color: '#475569',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    textAlign: 'center'
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                                  onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
+                                >
+                                  ➕ {t('Continue creating new Guest with')} "{posCustPhone}"
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Guest Email Address')}</label>
