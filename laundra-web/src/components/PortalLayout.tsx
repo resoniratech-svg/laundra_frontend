@@ -85,7 +85,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
   };
 
   // Sidebar brand name based on role
-  const brandName = role === 'Admin' ? 'Manager Desk' : role === 'Delivery Staff' ? 'Delivery Portal' : `${role} Desk`;
+  const isCashier = role === 'Cashier' || role === 'cashier' || db.activeRole === 'Cashier' || db.activeRole === 'cashier';
+  const brandName = isCashier ? 'Cashier Desk' : role === 'Admin' ? 'Manager Desk' : role === 'Delivery Staff' ? 'Delivery Portal' : `${role} Desk`;
 
   // Get active company context for feature checking
   const activeComp = db.companies.find(c => c.id === db.activeCompanyId);
@@ -113,6 +114,15 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
       } catch (e) {}
     }
 
+    // Load Company Admin delegation overrides
+    let adminPerms = (activeComp as any)?.adminPortalPermissions;
+    if (!adminPerms) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_admin_permissions`);
+        if (raw) adminPerms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
     if (perms?.adminPortal) {
       if (perms.adminPortal.enabled === false) return false;
       if (moduleId === 'dashboard' && perms.adminPortal.dashboard === false) return false;
@@ -136,14 +146,82 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
 
     // Role-based restrictions
     if (role === 'Delivery Staff' || role === 'Delivery Boy') {
+      if (perms?.deliveryPortal && perms.deliveryPortal.enabled === false) return false;
+      if (adminPerms?.deliveryPortal && adminPerms.deliveryPortal.enabled === false) return false;
       return ['orders', 'announcements'].includes(moduleId);
     }
+
     if (db.activeRole === 'Cashier' || db.activeRole === 'cashier') {
-      return ['dashboard', 'pos', 'customers', 'orders', 'order-history', 'delivery-staff', 'delivery-payment', 'driver-handover', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'announcements', 'reviews'].includes(moduleId);
+      if (moduleId === 'role-permissions') return false;
+      
+      // Dual-tier check: Must be allowed by Super Admin AND allowed by Company Admin
+      const isSuperDenied = perms?.cashierPortal?.enabled === false;
+      const isAdminDenied = adminPerms?.cashierPortal?.enabled === false;
+      if (isSuperDenied || isAdminDenied) return false;
+
+      const checkMod = (superFlag: any, adminFlag: any) => {
+        if (superFlag === false) return false;
+        if (adminFlag === false) return false;
+        return true;
+      };
+
+      if (moduleId === 'dashboard' && !checkMod(perms?.cashierPortal?.dashboard, adminPerms?.cashierPortal?.dashboard)) return false;
+      if (moduleId === 'pos' && !checkMod(perms?.cashierPortal?.posCashier, adminPerms?.cashierPortal?.posCashier)) return false;
+      if ((moduleId === 'orders' || moduleId === 'order-history') && !checkMod(perms?.cashierPortal?.orders, adminPerms?.cashierPortal?.orders)) return false;
+      if (moduleId === 'customers' && !checkMod(perms?.cashierPortal?.customers, adminPerms?.cashierPortal?.customers)) return false;
+      if (moduleId === 'expenses' && !checkMod(perms?.cashierPortal?.expenses, adminPerms?.cashierPortal?.expenses)) return false;
+      if ((moduleId === 'delivery-staff' || moduleId === 'delivery-payment' || moduleId === 'driver-handover') && !checkMod(perms?.cashierPortal?.deliveries, adminPerms?.cashierPortal?.deliveries)) return false;
+      if (moduleId === 'prepaid-packages' && !checkMod(perms?.cashierPortal?.prepaidPackages, adminPerms?.cashierPortal?.prepaidPackages)) return false;
+      if (moduleId === 'wallet-loyalty' && !checkMod(perms?.cashierPortal?.loyalty, adminPerms?.cashierPortal?.loyalty)) return false;
+      if (moduleId === 'services' && !checkMod(perms?.cashierPortal?.services, adminPerms?.cashierPortal?.services)) return false;
+      if (moduleId === 'coupons' && !checkMod(perms?.cashierPortal?.coupons, adminPerms?.cashierPortal?.coupons)) return false;
+      if (moduleId === 'announcements' && !checkMod(perms?.cashierPortal?.announcements, adminPerms?.cashierPortal?.announcements)) return false;
+      if (moduleId === 'reviews' && !checkMod(perms?.cashierPortal?.reviews, adminPerms?.cashierPortal?.reviews)) return false;
+
+      return ['dashboard', 'pos', 'customers', 'orders', 'order-history', 'expenses', 'delivery-staff', 'delivery-payment', 'driver-handover', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'announcements', 'reviews'].includes(moduleId);
     }
 
     return true;
   };
+
+  // Check if delivery is enabled
+  const isDeliveryEnabled = (() => {
+    const companyId = db.activeCompanyId || activeComp?.id;
+    let superPerms = activeComp?.portalPermissions;
+    if (!superPerms && companyId) {
+      try {
+        const mapRaw = localStorage.getItem('ll_company_permissions_map');
+        if (mapRaw) {
+          const map = JSON.parse(mapRaw);
+          if (map && map[companyId]) superPerms = map[companyId];
+        }
+      } catch (e) {}
+    }
+    if (!superPerms && companyId) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_permissions`);
+        if (raw) superPerms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    let adminPerms = (activeComp as any)?.adminPortalPermissions;
+    if (!adminPerms && companyId) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_admin_permissions`);
+        if (raw) adminPerms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    if (isCashier) {
+      const superOk = superPerms?.cashierPortal?.enabled !== false && superPerms?.cashierPortal?.deliveries !== false && superPerms?.deliveryPortal?.enabled !== false;
+      const adminOk = adminPerms?.cashierPortal?.enabled !== false && adminPerms?.cashierPortal?.deliveries !== false && adminPerms?.deliveryPortal?.enabled !== false;
+      return superOk && adminOk;
+    }
+
+    const superOk = superPerms?.deliveryPortal?.enabled !== false && superPerms?.adminPortal?.deliveries !== false;
+    const adminOk = adminPerms?.deliveryPortal?.enabled !== false;
+    return superOk && adminOk;
+  })();
 
   const titleMap: Record<string, string> = {
     'dashboard': 'Admin Dashboard',
@@ -162,13 +240,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     'reports': 'Business Reports Engine',
     'announcements': 'Company Announcements',
     'reviews': 'Customer Reviews',
+    'role-permissions': 'Portal Access Controls & Permissions',
     'settings': 'Company Settings',
-    'customer-support': 'Customer/Delivery Support',
+    'customer-support': isDeliveryEnabled ? 'Customer/Delivery Support' : 'Customer Support',
     'audit-logs': 'Audit Activity Logs',
     'support': 'Platform Help & Support'
   };
 
-  const currentTitle = titleMap[activeModule] || 'Manager Desk';
+  const currentTitle = isCashier && activeModule === 'dashboard' ? 'Cashier Operational Dashboard' : (titleMap[activeModule] || 'Manager Desk');
 
   // Sidebar tabs list matching exactly the required workflow
   const menuItems = [
@@ -189,7 +268,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({ children, activeModu
     { id: 'reports', label: t('menu.reports', 'Business Reports'), icon: '📊' },
     { id: 'announcements', label: t('menu.announcements', 'Announcements'), icon: '📢' },
     { id: 'reviews', label: t('menu.reviews', 'Customer Reviews'), icon: '⭐' },
-    { id: 'customer-support', label: t('menu.customerSupport', 'Customer/Delivery Support'), icon: '🎧' },
+    { id: 'role-permissions', label: t('menu.rolePermissions', 'Portal Permissions'), icon: '🔐' },
+    { id: 'customer-support', label: isDeliveryEnabled ? t('menu.customerSupport', 'Customer/Delivery Support') : t('menu.customerSupportOnly', 'Customer Support'), icon: '🎧' },
     { id: 'audit-logs', label: t('menu.auditLogs', 'Audit Activity Logs'), icon: '📜' },
     { id: 'support', label: t('menu.support', 'Help & Support'), icon: '🎫' }
   ];

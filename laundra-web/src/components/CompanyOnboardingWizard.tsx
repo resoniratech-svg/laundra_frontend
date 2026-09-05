@@ -104,6 +104,21 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
       auditLogs: true,
       settings: true
     },
+    cashierPortal: {
+      enabled: true,
+      dashboard: true,
+      posCashier: true,
+      orders: true,
+      customers: true,
+      expenses: true,
+      deliveries: true,
+      prepaidPackages: true,
+      loyalty: true,
+      services: true,
+      coupons: true,
+      announcements: true,
+      reviews: true
+    },
     customerPortal: {
       enabled: true,
       placeOrder: true,
@@ -124,7 +139,7 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
     }
   });
 
-  const [expandedPortal, setExpandedPortal] = useState<'admin' | 'customer' | 'delivery' | null>('admin');
+  const [expandedPortal, setExpandedPortal] = useState<'admin' | 'cashier' | 'customer' | 'delivery' | null>('admin');
 
   // Step 7 data
   const [file, setFile] = useState<File | null>(null);
@@ -335,7 +350,8 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
             portalPermissions,
             features: {
               ...c.features,
-              cashierModule: portalPermissions.adminPortal.posCashier,
+              cashierPortal: portalPermissions.cashierPortal?.enabled !== false,
+              cashierModule: (portalPermissions.cashierPortal?.posCashier !== false) || (portalPermissions.adminPortal.posCashier !== false),
               deliveryModule: portalPermissions.deliveryPortal.enabled,
               expenseModule: portalPermissions.adminPortal.expenses,
               reports: portalPermissions.adminPortal.reports,
@@ -358,9 +374,10 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
               portalPermissions,
               features: {
                 adminPortal: portalPermissions.adminPortal.enabled,
+                cashierPortal: portalPermissions.cashierPortal?.enabled !== false,
                 customerPortal: portalPermissions.customerPortal.enabled,
                 deliveryPortal: portalPermissions.deliveryPortal.enabled,
-                cashierModule: portalPermissions.adminPortal.posCashier,
+                cashierModule: (portalPermissions.cashierPortal?.posCashier !== false) || (portalPermissions.adminPortal.posCashier !== false),
                 expenseModule: portalPermissions.adminPortal.expenses,
                 coupons: portalPermissions.adminPortal.coupons,
                 wallet: portalPermissions.customerPortal.wallet
@@ -614,6 +631,68 @@ export default function CompanyOnboardingWizard({ token, onClose, onComplete, ad
                           onChange={e => setPortalPermissions({
                             ...portalPermissions,
                             adminPortal: { ...portalPermissions.adminPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 💵 CASHIER PORTAL */}
+              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#ffffff' }}>
+                <div style={{ padding: '16px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedPortal(expandedPortal === 'cashier' ? null : 'cashier')}>
+                    <span style={{ fontSize: '1.4rem' }}>💵</span>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0f172a' }}>Cashier Portal</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Front Counter Desk, POS Register, Invoices, Customer Lookup, Petty Cash Expenses</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={portalPermissions.cashierPortal?.enabled !== false} 
+                        onChange={e => setPortalPermissions({
+                          ...portalPermissions,
+                          cashierPortal: { ...(portalPermissions.cashierPortal || {}), enabled: e.target.checked }
+                        })}
+                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                      />
+                      {portalPermissions.cashierPortal?.enabled !== false ? 'Master Enabled' : 'Master Disabled'}
+                    </label>
+                    <button type="button" onClick={() => setExpandedPortal(expandedPortal === 'cashier' ? null : 'cashier')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
+                      {expandedPortal === 'cashier' ? '▲' : '▼'}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedPortal === 'cashier' && portalPermissions.cashierPortal?.enabled !== false && (
+                  <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', background: '#fafafa' }}>
+                    {[
+                      { key: 'dashboard', label: '📊 Cashier Operational Dashboard' },
+                      { key: 'posCashier', label: '🛒 POS & Cash Register Shift' },
+                      { key: 'orders', label: '📦 Orders & Invoices' },
+                      { key: 'customers', label: '👥 Customer Directory' },
+                      { key: 'expenses', label: '💸 Expenses Book (Cash Drawer)' },
+                      { key: 'deliveries', label: '🚚 Driver Cash Handovers' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages' },
+                      { key: 'loyalty', label: '⭐ Wallet & Loyalty' },
+                      { key: 'services', label: '🏷️ Service Catalog & Rates' },
+                      { key: 'coupons', label: '🎟️ Coupons & Promos' },
+                      { key: 'announcements', label: '📢 Announcements' },
+                      { key: 'reviews', label: '⭐ Customer Reviews' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(portalPermissions.cashierPortal as any)?.[mod.key] !== false} 
+                          onChange={e => setPortalPermissions({
+                            ...portalPermissions,
+                            cashierPortal: { ...(portalPermissions.cashierPortal || {}), [mod.key]: e.target.checked }
                           })}
                           style={{ accentColor: '#2563eb' }}
                         />

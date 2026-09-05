@@ -183,6 +183,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'menu.announcements': 'Announcements',
     'menu.reviews': 'Customer Reviews',
     'menu.customerSupport': 'Customer/Delivery Support',
+    'menu.customerSupportOnly': 'Customer Support',
     'menu.auditLogs': 'Audit Activity Logs',
     'menu.support': 'Help & Support',
 
@@ -710,6 +711,8 @@ export const translations: Record<Language, Record<string, string>> = {
     'Customer Reviews': 'Customer Reviews',
     'Company Settings': 'Company Settings',
     'Customer/Delivery Support': 'Customer/Delivery Support',
+    'Customer Support': 'Customer Support',
+    'Customer Support Desk': 'Customer Support Desk',
     'Audit Activity Logs': 'Audit Activity Logs',
     'Platform Help & Support': 'Platform Help & Support',
 
@@ -755,6 +758,10 @@ export const translations: Record<Language, Record<string, string>> = {
     // Expenses Manager Module
     'Expenses Log': 'Expenses Log',
     'Add Expense': 'Add Expense',
+    'Edit Expense': 'Edit Expense',
+    'Date of Expense': 'Date of Expense',
+    'Payment Type': 'Payment Type',
+    'Attachment': 'Attachment',
     'Date': 'Date',
     'Enter category': 'Enter category',
     'Description': 'Description',
@@ -762,6 +769,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'Source': 'Source',
     'Amount (QR)': 'Amount (QR)',
     'Save Expense': 'Save Expense',
+    'Cancel': 'Cancel',
+    'records': 'records',
+    'Total Expenses:': 'Total Expenses:',
+    'Print Receipt': 'Print Receipt',
 
     // Help & Support, Reviews & Announcements
     'Create Help & Support Ticket': 'Create Help & Support Ticket',
@@ -918,6 +929,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'menu.announcements': 'الإعلانات',
     'menu.reviews': 'تقييمات العملاء',
     'menu.customerSupport': 'الدعم الفني والعملاء',
+    'menu.customerSupportOnly': 'دعم العملاء',
     'menu.auditLogs': 'سجل التدقيق',
     'menu.support': 'المساعدة والدعم',
 
@@ -1464,6 +1476,8 @@ export const translations: Record<Language, Record<string, string>> = {
     'Customer Reviews': 'تقييمات العملاء',
     'Company Settings': 'إعدادات الشركة',
     'Customer/Delivery Support': 'الدعم والمساندة',
+    'Customer Support': 'دعم العملاء',
+    'Customer Support Desk': 'مكتب دعم العملاء',
     'Audit Activity Logs': 'سجلات تدقيق الأنشطة',
     'Platform Help & Support': 'مركز المساعدة والدعم',
 
@@ -1509,6 +1523,10 @@ export const translations: Record<Language, Record<string, string>> = {
     // Expenses Manager Module
     'Expenses Log': 'سجل المصروفات',
     'Add Expense': 'إضافة مصروف جديد',
+    'Edit Expense': 'تعديل المصروف',
+    'Date of Expense': 'تاريخ المصروف',
+    'Payment Type': 'طريقة الدفع',
+    'Attachment': 'المرفقات / الفاتورة',
     'Date': 'التاريخ',
     'Enter category': 'إدخال الفئة',
     'Description': 'الوصف',
@@ -1516,6 +1534,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'Source': 'حساب الدفع / المصدر',
     'Amount (QR)': 'المبلغ (ر.ق)',
     'Save Expense': 'حفظ المصروف',
+    'Cancel': 'إلغاء',
+    'records': 'سجلات',
+    'Total Expenses:': 'إجمالي المصروفات:',
+    'Print Receipt': 'طباعة الإيصال / السند',
 
     // Help & Support, Reviews & Announcements
     'Create Help & Support Ticket': 'إنشاء تذكرة مساعدة ودعم',

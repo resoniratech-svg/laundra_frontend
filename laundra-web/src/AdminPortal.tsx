@@ -874,6 +874,7 @@ export const AdminPortal: React.FC = () => {
   // Expense Forms
   const [backendExpenses, setBackendExpenses] = useState<any[]>([]);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
+  const [showExpenseModal, setShowExpenseModal] = useState<boolean>(false);
   const [expCategory, setExpCategory] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [expSource, setExpSource] = useState('');
@@ -882,6 +883,22 @@ export const AdminPortal: React.FC = () => {
   const [expAttachment, setExpAttachment] = useState<string>('');
   const [expAttachmentName, setExpAttachmentName] = useState<string>('');
   const [viewingExpenseAttachment, setViewingExpenseAttachment] = useState<{ url: string; description: string } | null>(null);
+  const [viewingExpenseInvoice, setViewingExpenseInvoice] = useState<any | null>(null);
+  const [expandedExpenseIds, setExpandedExpenseIds] = useState<Record<string, boolean>>({});
+
+  // Cashier Shifts & Drawer Float States
+  const [activeShift, setActiveShift] = useState<any | null>(null);
+  const [historicalShifts, setHistoricalShifts] = useState<any[]>([]);
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState<boolean>(false);
+  const [showCloseShiftModal, setShowCloseShiftModal] = useState<boolean>(false);
+  const [viewingShiftSummary, setViewingShiftSummary] = useState<any | null>(null);
+  const [openFloatAmount, setOpenFloatAmount] = useState<string>('100');
+  const [openShiftNotes, setOpenShiftNotes] = useState<string>('');
+  const [countedCashAmount, setCountedCashAmount] = useState<string>('');
+  const [closeShiftNotes, setCloseShiftNotes] = useState<string>('');
+  const [cashierSubTab, setCashierSubTab] = useState<'staff' | 'shifts'>('staff');
+  const [shiftFilterDate, setShiftFilterDate] = useState<string>('all');
+  const [shiftFilterCashier, setShiftFilterCashier] = useState<string>('all');
 
   // Support ticket Forms
   const [tktSubject, setTktSubject] = useState('');
@@ -926,7 +943,106 @@ export const AdminPortal: React.FC = () => {
   const limits = activeComp.limits || { maxAdmins: 3, maxCashiers: 5, maxDeliveryStaff: 10, maxCustomers: 5000, maxOrdersPerMonth: 2000 };
   const companyHeaderName = activeComp ? `${activeComp.name}${activeComp.address ? `, ${activeComp.address}` : ''}` : 'Laundry Desk';
 
-  // Auto-switch away if activeModule is disabled by Super Admin permissions
+  // Company Admin Portal & Role Permissions state
+  const [adminPermState, setAdminPermState] = useState<any>(() => {
+    const compId = db.activeCompanyId;
+    if (compId) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${compId}_admin_permissions`);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+    }
+    return {
+      cashierPortal: { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true },
+      deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true },
+      customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true }
+    };
+  });
+
+  // Keep adminPermState in sync when activeCompanyId changes
+  useEffect(() => {
+    const compId = db.activeCompanyId;
+    if (compId) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${compId}_admin_permissions`);
+        if (raw) {
+          setAdminPermState(JSON.parse(raw));
+          return;
+        }
+      } catch (e) {}
+      if ((activeComp as any)?.adminPortalPermissions) {
+        setAdminPermState((activeComp as any).adminPortalPermissions);
+        return;
+      }
+    }
+    setAdminPermState({
+      cashierPortal: { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true },
+      deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true },
+      customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true }
+    });
+  }, [db.activeCompanyId, activeComp]);
+
+  const handleSaveAdminPerms = () => {
+    const companyId = db.activeCompanyId || activeComp?.id;
+    if (!companyId) return;
+
+    localStorage.setItem(`ll_company_${companyId}_admin_permissions`, JSON.stringify(adminPermState));
+    
+    const updatedComps = db.companies.map(c => {
+      if (c.id === companyId) {
+        return { ...c, adminPortalPermissions: adminPermState };
+      }
+      return c;
+    });
+    saveDB({ companies: updatedComps });
+
+    try {
+      const token = localStorage.getItem('ll_auth_token');
+      if (token) {
+        fetch(`${BASE_URL}/api/v1/saas-admin/companies/${companyId}/admin-permissions`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminPortalPermissions: adminPermState })
+        }).catch(() => null);
+      }
+    } catch (e) {}
+
+    alert(t('Portal Access Controls saved successfully!'));
+  };
+
+  // Check if delivery portal is active based on Super Admin and Company Admin permissions
+  const isDeliveryEnabled = (() => {
+    const companyId = db.activeCompanyId || activeComp?.id;
+    let superPerms = activeComp?.portalPermissions;
+    if (!superPerms && companyId) {
+      try {
+        const mapRaw = localStorage.getItem('ll_company_permissions_map');
+        if (mapRaw) {
+          const map = JSON.parse(mapRaw);
+          if (map && map[companyId]) superPerms = map[companyId];
+        }
+      } catch (e) {}
+    }
+    if (!superPerms && companyId) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_permissions`);
+        if (raw) superPerms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    const isCashier = db.activeRole === 'Cashier' || db.activeRole === 'cashier';
+    if (isCashier) {
+      const superOk = superPerms?.cashierPortal?.enabled !== false && superPerms?.cashierPortal?.deliveries !== false && superPerms?.deliveryPortal?.enabled !== false;
+      const adminOk = adminPermState?.cashierPortal?.enabled !== false && adminPermState?.cashierPortal?.deliveries !== false && adminPermState?.deliveryPortal?.enabled !== false;
+      return superOk && adminOk;
+    }
+
+    const superOk = superPerms?.deliveryPortal?.enabled !== false && superPerms?.adminPortal?.deliveries !== false;
+    const adminOk = adminPermState?.deliveryPortal?.enabled !== false;
+    return superOk && adminOk;
+  })();
+
+  // Auto-switch away if activeModule is disabled by Super Admin or Company Admin permissions
   useEffect(() => {
     const companyId = db.activeCompanyId || activeComp?.id;
     if (!companyId) return;
@@ -939,8 +1055,53 @@ export const AdminPortal: React.FC = () => {
       } catch (e) {}
     }
 
-    if (perms?.adminPortal) {
+    let adminPerms = (activeComp as any)?.adminPortalPermissions;
+    if (!adminPerms) {
+      try {
+        const raw = localStorage.getItem(`ll_company_${companyId}_admin_permissions`);
+        if (raw) adminPerms = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    const isCashier = db.activeRole === 'Cashier' || db.activeRole === 'cashier';
+
+    if (isCashier) {
       const isAllowedMod = (mod: string) => {
+        if (mod === 'role-permissions') return false;
+        if (perms?.cashierPortal?.enabled === false) return false;
+        if (adminPerms?.cashierPortal?.enabled === false) return false;
+
+        const checkMod = (superFlag: any, adminFlag: any) => {
+          if (superFlag === false) return false;
+          if (adminFlag === false) return false;
+          return true;
+        };
+
+        if (mod === 'dashboard' && !checkMod(perms?.cashierPortal?.dashboard, adminPerms?.cashierPortal?.dashboard)) return false;
+        if (mod === 'pos' && !checkMod(perms?.cashierPortal?.posCashier, adminPerms?.cashierPortal?.posCashier)) return false;
+        if ((mod === 'orders' || mod === 'order-history') && !checkMod(perms?.cashierPortal?.orders, adminPerms?.cashierPortal?.orders)) return false;
+        if (mod === 'customers' && !checkMod(perms?.cashierPortal?.customers, adminPerms?.cashierPortal?.customers)) return false;
+        if (mod === 'expenses' && !checkMod(perms?.cashierPortal?.expenses, adminPerms?.cashierPortal?.expenses)) return false;
+        if ((mod === 'delivery-staff' || mod === 'delivery-payment' || mod === 'driver-handover') && !checkMod(perms?.cashierPortal?.deliveries, adminPerms?.cashierPortal?.deliveries)) return false;
+        if (mod === 'prepaid-packages' && !checkMod(perms?.cashierPortal?.prepaidPackages, adminPerms?.cashierPortal?.prepaidPackages)) return false;
+        if (mod === 'wallet-loyalty' && !checkMod(perms?.cashierPortal?.loyalty, adminPerms?.cashierPortal?.loyalty)) return false;
+        if (mod === 'services' && !checkMod(perms?.cashierPortal?.services, adminPerms?.cashierPortal?.services)) return false;
+        if (mod === 'coupons' && !checkMod(perms?.cashierPortal?.coupons, adminPerms?.cashierPortal?.coupons)) return false;
+        if (mod === 'announcements' && !checkMod(perms?.cashierPortal?.announcements, adminPerms?.cashierPortal?.announcements)) return false;
+        if (mod === 'reviews' && !checkMod(perms?.cashierPortal?.reviews, adminPerms?.cashierPortal?.reviews)) return false;
+        return true;
+      };
+
+      if (!isAllowedMod(activeModule)) {
+        const availableModules = ['dashboard', 'pos', 'orders', 'order-history', 'customers', 'expenses', 'delivery-staff', 'prepaid-packages', 'wallet-loyalty', 'services', 'coupons', 'announcements', 'reviews'];
+        const firstValid = availableModules.find(m => isAllowedMod(m));
+        if (firstValid && firstValid !== activeModule) {
+          setActiveModule(firstValid);
+        }
+      }
+    } else if (!isCashier && perms?.adminPortal) {
+      const isAllowedMod = (mod: string) => {
+        if (mod === 'role-permissions') return true;
         if (perms.adminPortal.enabled === false) return false;
         if (mod === 'dashboard' && perms.adminPortal.dashboard === false) return false;
         if ((mod === 'orders' || mod === 'order-history') && perms.adminPortal.orders === false) return false;
@@ -960,14 +1121,14 @@ export const AdminPortal: React.FC = () => {
       };
 
       if (!isAllowedMod(activeModule)) {
-        const availableModules = ['dashboard', 'pos', 'orders', 'order-history', 'customers', 'cashiers', 'delivery-staff', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'expenses', 'reports', 'settings'];
+        const availableModules = ['dashboard', 'pos', 'orders', 'order-history', 'customers', 'cashiers', 'delivery-staff', 'services', 'coupons', 'prepaid-packages', 'wallet-loyalty', 'expenses', 'reports', 'role-permissions', 'settings'];
         const firstValid = availableModules.find(m => isAllowedMod(m));
         if (firstValid && firstValid !== activeModule) {
           setActiveModule(firstValid);
         }
       }
     }
-  }, [db.activeCompanyId, activeComp, activeModule]);
+  }, [db.activeCompanyId, activeComp, activeModule, db.activeRole]);
 
   // Sync activities
   useEffect(() => {
@@ -1249,6 +1410,8 @@ export const AdminPortal: React.FC = () => {
             customerName: customerName,
             branch: 'Downtown HQ',
             date: o.created_at ? o.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            createdAt: o.created_at || (o.date ? `${o.date}T00:00:00` : new Date().toISOString()),
+            created_at: o.created_at || (o.date ? `${o.date}T00:00:00` : new Date().toISOString()),
             weightItems: `${totalQty} Items`,
             quantity: totalQty,
             planType: o.is_express ? 'Express' : 'One-time / Daily',
@@ -1497,6 +1660,32 @@ export const AdminPortal: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch backend driver settlements:', err);
+    }
+
+    try {
+      const shiftRes = await fetch(`${BASE_URL}/api/v1/cashier-shifts/current`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (shiftRes.ok) {
+        const currentShiftData = await shiftRes.json();
+        setActiveShift(currentShiftData);
+      } else {
+        setActiveShift(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch active cashier shift:', err);
+    }
+
+    try {
+      const allShiftsRes = await fetch(`${BASE_URL}/api/v1/cashier-shifts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (allShiftsRes.ok) {
+        const shiftsData = await allShiftsRes.json();
+        setHistoricalShifts(shiftsData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch historical cashier shifts:', err);
     }
 
     try {
@@ -3287,6 +3476,8 @@ export const AdminPortal: React.FC = () => {
       branch: db.activeBranch || 'Downtown HQ',
       customerName,
       date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       totalAmount: total,
       status: 'Created',
       paymentMethod: posPayMethod,
@@ -3933,6 +4124,9 @@ export const AdminPortal: React.FC = () => {
           addActivity('Payment', `Edited expense: ${expDesc}`);
           setEditingExpense(null);
           fetchBackendData();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(errData?.detail || 'Failed to update expense');
         }
       } else {
         const res = await fetch(`${BASE_URL}/api/v1/expenses`, {
@@ -3953,8 +4147,13 @@ export const AdminPortal: React.FC = () => {
         if (res.ok) {
           addActivity('Payment', `Added expense: ${expDesc}`);
           fetchBackendData();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(errData?.detail || 'Failed to add expense');
         }
       }
+      setShowExpenseModal(false);
+      setEditingExpense(null);
       setExpCategory('');
       setExpDesc('');
       setExpSource('');
@@ -3964,6 +4163,7 @@ export const AdminPortal: React.FC = () => {
       setExpDate(new Date().toISOString().split('T')[0]);
     } catch (err) {
       console.error('Error saving expense:', err);
+      alert('Error connecting to backend.');
     }
   };
 
@@ -4385,6 +4585,265 @@ export const AdminPortal: React.FC = () => {
   };
 
 
+  // Cashier Open Shift Action
+  const handleOpenShift = async () => {
+    const floatNum = parseFloat(openFloatAmount);
+    if (isNaN(floatNum) || floatNum < 0) {
+      alert('Please enter a valid opening float amount.');
+      return;
+    }
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/cashier-shifts/open`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          opening_cash: floatNum,
+          notes: openShiftNotes
+        })
+      });
+      if (res.ok) {
+        const newShift = await res.json();
+        setActiveShift(newShift);
+        setShowOpenShiftModal(false);
+        setOpenShiftNotes('');
+        addActivity('Cashier', `Opened cashier shift with float QR ${floatNum.toFixed(2)}`);
+        fetchBackendData();
+      } else {
+        alert('Failed to open shift. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error opening shift:', err);
+      alert('Network error opening shift');
+    }
+  };
+
+  // Helper to parse ISO UTC timestamps correctly into local user Date
+  const parseShiftDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (d instanceof Date) return d;
+    if (typeof d === 'string') {
+      if (d.includes('T') && !d.endsWith('Z') && !d.includes('+') && !d.slice(10).includes('-')) {
+        return new Date(`${d}Z`);
+      }
+    }
+    return new Date(d);
+  };
+
+  // Helper to calculate shift live drawer summary
+  const calculateShiftSummary = (shift: any) => {
+    if (!shift) {
+      return {
+        floatAmt: 0,
+        cashSalesTotal: 0,
+        cardSalesTotal: 0,
+        driverCashTotal: 0,
+        cashExpensesTotal: 0,
+        expectedTotal: 0
+      };
+    }
+    const shiftStart = parseShiftDate(shift.start_time).getTime();
+    const shiftStartDateStr = parseShiftDate(shift.start_time).toISOString().split('T')[0];
+
+    const isOrderInShift = (o: any) => {
+      if (o.isDeleted) return false;
+      const oTimeStr = o.createdAt || o.created_at;
+      if (oTimeStr) {
+        return new Date(oTimeStr).getTime() >= shiftStart;
+      }
+      if (o.date) {
+        return o.date.split('T')[0] === shiftStartDateStr;
+      }
+      return false;
+    };
+
+    const shiftCashOrders = (db.orders || []).filter((o: any) => {
+      const isCash = (o.paymentMethod || o.payment_method || '').toLowerCase() === 'cash';
+      return isCash && isOrderInShift(o);
+    });
+    const cashSalesTotal = shiftCashOrders.reduce((sum: number, o: any) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+
+    const shiftCardOrders = (db.orders || []).filter((o: any) => {
+      const isCash = (o.paymentMethod || o.payment_method || '').toLowerCase() === 'cash';
+      return !isCash && isOrderInShift(o);
+    });
+    const cardSalesTotal = shiftCardOrders.reduce((sum: number, o: any) => sum + (Number(o.totalAmount) || Number(o.total) || 0), 0);
+
+    const isSettlementInShift = (s: any) => {
+      if (s.status !== 'SETTLED' && s.status !== 'APPROVED') return false;
+      const sTimeStr = s.createdAt || s.created_at || s.settledAt || s.settled_at;
+      if (sTimeStr) {
+        return new Date(sTimeStr).getTime() >= shiftStart;
+      }
+      if (s.date) {
+        return s.date.split('T')[0] === shiftStartDateStr;
+      }
+      return false;
+    };
+    const shiftHandovers = (db.driverSettlements || []).filter(isSettlementInShift);
+    const driverCashTotal = shiftHandovers.reduce((sum: number, s: any) => sum + (Number(s.amount) || Number(s.collectedAmount) || 0), 0);
+
+    const isExpenseInShift = (e: any) => {
+      const isCash = (e.source || '').toLowerCase() === 'cash';
+      if (!isCash) return false;
+      const eTimeStr = e.created_at || e.createdAt;
+      if (eTimeStr) {
+        return new Date(eTimeStr).getTime() >= shiftStart;
+      }
+      if (e.date) {
+        return e.date.split('T')[0] === shiftStartDateStr;
+      }
+      return false;
+    };
+    const shiftExpenses = (backendExpenses || []).filter(isExpenseInShift);
+    const cashExpensesTotal = shiftExpenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+
+    const floatAmt = Number(shift.opening_cash) || 0;
+    const expectedTotal = floatAmt + cashSalesTotal + driverCashTotal - cashExpensesTotal;
+
+    return {
+      floatAmt,
+      cashSalesTotal,
+      cardSalesTotal,
+      driverCashTotal,
+      cashExpensesTotal,
+      expectedTotal
+    };
+  };
+
+  // Cashier Open Close Shift Modal with Auto-filled Calculated Cash
+  const handleStartCloseShift = () => {
+    if (!activeShift) return;
+    const { expectedTotal } = calculateShiftSummary(activeShift);
+    setCountedCashAmount(expectedTotal.toFixed(2));
+    setShowCloseShiftModal(true);
+  };
+
+  // Cashier Close Shift Action
+  const handleCloseShift = async () => {
+    const countedNum = parseFloat(countedCashAmount);
+    if (isNaN(countedNum) || countedNum < 0) {
+      alert('Please enter a valid actual cash count.');
+      return;
+    }
+    if (!activeShift) return;
+
+    const {
+      cashSalesTotal,
+      cardSalesTotal,
+      driverCashTotal,
+      cashExpensesTotal,
+      expectedTotal
+    } = calculateShiftSummary(activeShift);
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/cashier-shifts/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          closing_cash: countedNum,
+          cash_sales: cashSalesTotal,
+          card_sales: cardSalesTotal,
+          driver_handovers: driverCashTotal,
+          cash_expenses: cashExpensesTotal,
+          expected_cash: expectedTotal,
+          notes: closeShiftNotes
+        })
+      });
+      if (res.ok) {
+        const closedShift = await res.json();
+        setActiveShift(null);
+        setShowCloseShiftModal(false);
+        setCountedCashAmount('');
+        setCloseShiftNotes('');
+        setViewingShiftSummary(closedShift);
+        addActivity('Cashier', `Closed shift with counted cash QR ${countedNum.toFixed(2)} (Diff: QR ${(countedNum - expectedTotal).toFixed(2)})`);
+        fetchBackendData();
+      } else {
+        alert('Failed to close shift. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error closing shift:', err);
+      alert('Network error closing shift');
+    }
+  };
+
+  // Printing Shift Z-Report Receipt
+  const handlePrintShiftZReport = (shift: any) => {
+    const win = window.open('', '_blank', 'width=420,height=650');
+    if (!win) return;
+    const diff = Number(shift.difference || 0);
+    const diffStatus = diff === 0 ? 'BALANCED' : diff > 0 ? `+QR ${diff.toFixed(2)} (OVERAGE)` : `-QR ${Math.abs(diff).toFixed(2)} (SHORTAGE)`;
+    const diffColor = diff === 0 ? '#15803d' : diff > 0 ? '#1e40af' : '#b91c1c';
+
+    win.document.write(`
+      <html>
+      <head>
+        <title>Shift Z-Report - ${shift.cashier_name}</title>
+        <style>
+          body { font-family: 'Courier New', monospace; font-size: 13px; padding: 20px; line-height: 1.4; color: #000; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .divider { border-top: 1px dashed #000; margin: 10px 0; }
+          .double-divider { border-top: 2px dashed #000; margin: 12px 0; }
+          .row { display: flex; justify-content: space-between; margin: 3px 0; }
+          .sign-box { margin-top: 30px; display: flex; justify-content: space-between; }
+          .sign-line { border-top: 1px solid #000; width: 45%; text-align: center; font-size: 11px; padding-top: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="center bold" style="font-size: 16px;">${activeComp?.name || 'LAUNDRA OPERATIONS'}</div>
+        <div class="center" style="font-size: 12px;">CASH REGISTER SHIFT REPORT (Z-REPORT)</div>
+        <div class="divider"></div>
+
+        <div class="row"><span>Cashier:</span><span class="bold">${shift.cashier_name}</span></div>
+        <div class="row"><span>Status:</span><span class="bold">${shift.status}</span></div>
+        <div class="row"><span>Opened:</span><span>${parseShiftDate(shift.start_time).toLocaleString()}</span></div>
+        <div class="row"><span>Closed:</span><span>${shift.end_time ? parseShiftDate(shift.end_time).toLocaleString() : 'In Progress'}</span></div>
+        
+        <div class="divider"></div>
+        <div class="bold" style="margin-bottom: 4px;">CASH DRAWER RECONCILIATION</div>
+        <div class="row"><span>(+) Opening Float:</span><span>QR ${Number(shift.opening_cash || 0).toFixed(2)}</span></div>
+        <div class="row"><span>(+) Cash Sales:</span><span>QR ${Number(shift.cash_sales || 0).toFixed(2)}</span></div>
+        <div class="row"><span>(+) Driver Handovers:</span><span>QR ${Number(shift.driver_handovers || 0).toFixed(2)}</span></div>
+        <div class="row"><span>(-) Cash Expenses:</span><span>- QR ${Number(shift.cash_expenses || 0).toFixed(2)}</span></div>
+        <div class="divider"></div>
+        <div class="row bold" style="font-size: 14px;"><span>(=) Expected Cash:</span><span>QR ${Number(shift.expected_cash || shift.opening_cash || 0).toFixed(2)}</span></div>
+        <div class="row bold" style="font-size: 14px;"><span>(★) Actual Cash Counted:</span><span>QR ${Number(shift.closing_cash || 0).toFixed(2)}</span></div>
+        
+        <div class="divider"></div>
+        <div class="row bold" style="color: ${diffColor}; font-size: 14px;">
+          <span>Difference:</span>
+          <span>${diffStatus}</span>
+        </div>
+
+        <div class="divider"></div>
+        <div class="bold" style="margin-bottom: 4px;">ELECTRONIC / NON-CASH SALES</div>
+        <div class="row"><span>Card & Online Sales:</span><span>QR ${Number(shift.card_sales || 0).toFixed(2)}</span></div>
+        
+        ${shift.notes ? `<div class="divider"></div><div style="font-size: 11px;"><strong>Notes:</strong> ${shift.notes}</div>` : ''}
+
+        <div class="double-divider"></div>
+        <div class="sign-box">
+          <div class="sign-line">Cashier Signature</div>
+          <div class="sign-line">Manager Signature</div>
+        </div>
+        <div class="center" style="margin-top: 20px; font-size: 10px; color: #555;">Printed on ${new Date().toLocaleString()}</div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+    }, 400);
+  };
+
   // Drawer logging transaction
   const handleDrawerTx = () => {
     const amt = parseFloat(txAmount);
@@ -4475,11 +4934,294 @@ export const AdminPortal: React.FC = () => {
 
       {/* 🏠 DASHBOARD TAB */}
       {activeModule === 'dashboard' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+        (db.activeRole === 'Cashier' || db.activeRole === 'cashier') ? (
+          /* ═════════════════════════════════════════════════════════════════
+             💵 CASHIER OPERATIONAL DASHBOARD
+             ═════════════════════════════════════════════════════════════════ */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {(() => {
+              const summary = calculateShiftSummary(activeShift);
+              const todayStr = new Date().toISOString().split('T')[0];
+              const todayOrders = (db.orders || []).filter((o: any) => {
+                if (o.isDeleted) return false;
+                const oDate = (o.date || o.createdAt || o.created_at || '').split('T')[0];
+                return oDate === todayStr;
+              });
+              const todayOrdersCount = todayOrders.length;
 
-          {/* MIS Analytics Date Filter Bar */}
-          {(() => {
-            const formatYMD = (d: Date) => {
+              return (
+                <>
+                  {/* Top Live Register & Shift Status Banner */}
+                  <div style={{
+                    background: activeShift ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    color: 'white',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '16px',
+                    boxShadow: '0 10px 25px -5px rgba(15,23,42,0.3)'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.5rem' }}>{activeShift ? '🟢' : '🔴'}</span>
+                        <div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>
+                            {activeShift ? `${t('Active Shift')} — ${activeShift.cashier_name || 'Cashier'}` : t('Cashier Shift is Closed')}
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px' }}>
+                            {activeShift 
+                              ? `${t('Started')}: ${parseShiftDate(activeShift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${t('Opening Float')}: QR ${summary.floatAmt.toFixed(2)}`
+                              : t('Open your shift register to begin tracking cash drawer sales and handovers.')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      {activeShift ? (
+                        <>
+                          <div style={{ background: 'rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#cbd5e1', fontWeight: '600' }}>{t('Expected Cash in Drawer')}</div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#4ade80' }}>QR {summary.expectedTotal.toFixed(2)}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleStartCloseShift}
+                            style={{
+                              padding: '10px 18px',
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '10px',
+                              fontWeight: '700',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.4)'
+                            }}
+                          >
+                            <span>🔒</span> {t('Close Shift & Handover')}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowOpenShiftModal(true)}
+                          style={{
+                            padding: '10px 22px',
+                            background: '#16a34a',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            fontWeight: '800',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)'
+                          }}
+                        >
+                          <span>➕</span> {t('Open Shift / Enter Float')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Operational Action Shortcuts */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule('pos')}
+                      style={{ padding: '14px 18px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: '1.6rem', background: '#eff6ff', padding: '8px', borderRadius: '10px' }}>🛒</span>
+                      <div>
+                        <div style={{ fontWeight: '800', fontSize: '0.92rem', color: '#1e293b' }}>{t('New POS Order')}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{t('Take counter order')}</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule('customers')}
+                      style={{ padding: '14px 18px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: '1.6rem', background: '#f5f3ff', padding: '8px', borderRadius: '10px' }}>👥</span>
+                      <div>
+                        <div style={{ fontWeight: '800', fontSize: '0.92rem', color: '#1e293b' }}>{t('Customer Desk')}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{t('Search / add client')}</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule('expenses')}
+                      style={{ padding: '14px 18px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: '1.6rem', background: '#fef2f2', padding: '8px', borderRadius: '10px' }}>💸</span>
+                      <div>
+                        <div style={{ fontWeight: '800', fontSize: '0.92rem', color: '#1e293b' }}>{t('Expenses Book')}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{t('Record cash payout')}</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule('driver-handover')}
+                      style={{ padding: '14px 18px', background: 'white', border: '1.5px solid #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: '1.6rem', background: '#ecfdf5', padding: '8px', borderRadius: '10px' }}>🤝</span>
+                      <div>
+                        <div style={{ fontWeight: '800', fontSize: '0.92rem', color: '#1e293b' }}>{t('Driver Handover')}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{t('Receive courier cash')}</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Cashier KPI Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                    <div style={{ background: 'white', padding: '18px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>💵 {t('Shift Cash Sales')}</span>
+                        <span style={{ color: '#15803d', fontWeight: '800' }}>{t('Active Shift')}</span>
+                      </div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#15803d' }}>
+                        QR {summary.cashSalesTotal.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{t('Physical cash collected at counter')}</div>
+                    </div>
+
+                    <div style={{ background: 'white', padding: '18px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>💳 {t('Card & Online Sales')}</span>
+                        <span style={{ color: '#2563eb', fontWeight: '800' }}>POS</span>
+                      </div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#2563eb' }}>
+                        QR {summary.cardSalesTotal.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{t('Electronic card / UPI sales')}</div>
+                    </div>
+
+                    <div style={{ background: 'white', padding: '18px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>🚚 {t('Driver Cash Received')}</span>
+                        <span style={{ color: '#1e40af', fontWeight: '800' }}>{t('Settled')}</span>
+                      </div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#1e40af' }}>
+                        + QR {summary.driverCashTotal.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{t('Received from courier settlements')}</div>
+                    </div>
+
+                    <div style={{ background: 'white', padding: '18px', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>💸 {t('Cash Expenses Paid')}</span>
+                        <span style={{ color: '#dc2626', fontWeight: '800' }}>{t('Drawer Out')}</span>
+                      </div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#dc2626' }}>
+                        - QR {summary.cashExpensesTotal.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{t('Petty cash paid out of register')}</div>
+                    </div>
+                  </div>
+
+                  {/* Today's Counter Orders & Activity */}
+                  <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: '#0f172a' }}>
+                          📦 {t("Today's Counter Orders")} ({todayOrdersCount})
+                        </h4>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                          {t('Orders placed and processed at the register today')}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveModule('orders')}
+                        style={{ padding: '6px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '6px', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
+                      >
+                        {t('View All Orders')} ➔
+                      </button>
+                    </div>
+
+                    {todayOrders.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '0.88rem' }}>
+                        {t('No orders recorded yet today. Click "New POS Order" to create the first one!')}
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                              <th style={{ padding: '10px' }}>{t('Order ID')}</th>
+                              <th style={{ padding: '10px' }}>{t('Customer')}</th>
+                              <th style={{ padding: '10px' }}>{t('Phone')}</th>
+                              <th style={{ padding: '10px' }}>{t('Payment')}</th>
+                              <th style={{ padding: '10px', textAlign: 'right' }}>{t('Amount')}</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Status')}</th>
+                              <th style={{ padding: '10px', textAlign: 'center' }}>{t('Actions')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {todayOrders.slice(0, 10).map((o: any) => (
+                              <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '10px', fontWeight: '800', color: '#1e293b' }}>#{o.id}</td>
+                                <td style={{ padding: '10px', fontWeight: '600' }}>{tName(o.customerName)}</td>
+                                <td style={{ padding: '10px', color: '#64748b' }}>{o.phone || 'N/A'}</td>
+                                <td style={{ padding: '10px' }}>
+                                  <span style={{
+                                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '700',
+                                    background: (o.paymentMethod || '').toLowerCase() === 'cash' ? '#dcfce7' : '#eff6ff',
+                                    color: (o.paymentMethod || '').toLowerCase() === 'cash' ? '#15803d' : '#1d4ed8'
+                                  }}>
+                                    {o.paymentMethod || 'Cash'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800' }}>
+                                  QR {Number(o.totalAmount || o.total || 0).toFixed(2)}
+                                </td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '700',
+                                    background: o.status === 'Delivered' ? '#dcfce7' : '#fef3c7',
+                                    color: o.status === 'Delivered' ? '#15803d' : '#b45309'
+                                  }}>
+                                    {t(o.status || 'Created')}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                  <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                    <button onClick={() => handleOpenViewModal(o)} style={{ padding: '3px 8px', fontSize: '0.72rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: '700' }}>👁️ {t('View')}</button>
+                                    <button onClick={() => setViewingInvoice(o)} style={{ padding: '3px 8px', fontSize: '0.72rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: '700' }}>🧾 {t('Slip')}</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        ) : (
+          /* ═════════════════════════════════════════════════════════════════
+             🏢 ADMIN EXECUTIVE MIS ANALYTICS DASHBOARD
+             ═════════════════════════════════════════════════════════════════ */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+
+            {/* MIS Analytics Date Filter Bar */}
+            {(() => {
+              const formatYMD = (d: Date) => {
               const y = d.getFullYear();
               const m = String(d.getMonth() + 1).padStart(2, '0');
               const day = String(d.getDate()).padStart(2, '0');
@@ -5258,6 +6000,392 @@ export const AdminPortal: React.FC = () => {
           })()}
 
         </div>
+        )
+      )}
+
+      {/* 🔐 PORTAL & ROLE ACCESS CONTROLS (COMPANY ADMIN) */}
+      {activeModule === 'role-permissions' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Header Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%)',
+            borderRadius: '16px',
+            padding: '22px 26px',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.25)'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.6rem',
+              flexShrink: 0
+            }}>
+              🔐
+            </div>
+            <div>
+              <h2 style={{ margin: '0 0 4px 0', fontSize: '1.35rem', fontWeight: '800', color: 'white' }}>
+                {t('Sub-Portal Permissions & Access Controls')}
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#dbeafe', lineHeight: '1.4' }}>
+                {t('Configure operational module access for your Cashiers, Delivery Agents, and Customers. Modules permitted by your Super Admin plan can be enabled or disabled below.')}
+              </p>
+            </div>
+          </div>
+
+          {/* Body Cards */}
+          {(() => {
+            const companyId = db.activeCompanyId || activeComp?.id;
+            let superPerms = activeComp?.portalPermissions;
+            if (!superPerms) {
+              try {
+                const mapRaw = localStorage.getItem('ll_company_permissions_map');
+                if (mapRaw) {
+                  const map = JSON.parse(mapRaw);
+                  if (map && map[companyId]) superPerms = map[companyId];
+                }
+              } catch (e) {}
+            }
+            if (!superPerms) {
+              try {
+                const raw = localStorage.getItem(`ll_company_${companyId}_permissions`);
+                if (raw) superPerms = JSON.parse(raw);
+              } catch (e) {}
+            }
+
+            // Defaults if not set
+            const fallbackSuper = {
+              cashierPortal: { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true },
+              deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true },
+              customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true }
+            };
+
+            const sPerms = superPerms || fallbackSuper;
+
+            // Check which portals Super Admin enabled
+            const isCashierPortalAllowed = sPerms.cashierPortal?.enabled !== false;
+            const isDeliveryPortalAllowed = sPerms.deliveryPortal?.enabled !== false;
+            const isCustomerPortalAllowed = sPerms.customerPortal?.enabled !== false;
+
+            const allPortalsDisabled = !isCashierPortalAllowed && !isDeliveryPortalAllowed && !isCustomerPortalAllowed;
+
+            if (allPortalsDisabled) {
+              return (
+                <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🔒</div>
+                  <h3 style={{ margin: '0 0 8px 0', color: '#0f172a' }}>{t('No Sub-Portals Assigned by Super Admin')}</h3>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem', maxWidth: '500px', marginInline: 'auto' }}>
+                    {t('Your Super Admin has not activated any customer, cashier, or delivery portals for your company subscription plan. Contact support for plan upgrades.')}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 💵 CASHIER PORTAL */}
+                {isCashierPortalAllowed && (() => {
+                  const allCashierModules = [
+                    { key: 'dashboard', label: '📊 Cashier Operational Dashboard', desc: 'Front desk summary, shift drawer & recent orders feed' },
+                    { key: 'posCashier', label: '🛒 POS & Cash Register Shift', desc: 'Cashier checkout register and live shift management' },
+                    { key: 'orders', label: '📦 Orders & Invoices', desc: 'View orders and print customer receipts' },
+                    { key: 'customers', label: '👥 Customer Directory', desc: 'Search, register and manage store customers' },
+                    { key: 'expenses', label: '💸 Expenses Book (Cash Drawer)', desc: 'Record daily petty cash expenses directly from cash drawer' },
+                    { key: 'deliveries', label: '🚚 Driver Cash Handovers', desc: 'Receive cash collected by delivery drivers' },
+                    { key: 'prepaidPackages', label: '💳 Prepaid Packages', desc: 'Top up customer prepaid service packages' },
+                    { key: 'loyalty', label: '⭐ Wallet & Loyalty', desc: 'Check and redeem customer loyalty points' },
+                    { key: 'services', label: '🏷️ Service Catalog & Rates', desc: 'View laundry service prices & rate cards' },
+                    { key: 'coupons', label: '🎟️ Coupons & Promos', desc: 'Apply discounts and promotional codes' },
+                    { key: 'announcements', label: '📢 Announcements', desc: 'View internal company notices' },
+                    { key: 'reviews', label: '⭐ Customer Reviews', desc: 'View ratings from store customers' }
+                  ];
+
+                  // Filter ONLY modules allowed by Super Admin!
+                  const visibleModules = allCashierModules.filter(m => (sPerms.cashierPortal as any)?.[m.key] !== false);
+
+                  const isMasterOn = adminPermState.cashierPortal?.enabled !== false;
+
+                  return (
+                    <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                      <div style={{ padding: '18px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>💵</span> {t('Cashier Portal Modules')}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                            {t('Control which tools and registers are available to your front-desk cashiers')}
+                          </div>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={isMasterOn}
+                            onChange={e => setAdminPermState({
+                              ...adminPermState,
+                              cashierPortal: { ...(adminPermState.cashierPortal || {}), enabled: e.target.checked }
+                            })}
+                            style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                          />
+                          <span style={{ color: isMasterOn ? '#16a34a' : '#64748b' }}>
+                            {isMasterOn ? t('Master Active') : t('Master Deactivated')}
+                          </span>
+                        </label>
+                      </div>
+
+                      {isMasterOn ? (
+                        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+                          {visibleModules.map(mod => {
+                            const isChecked = (adminPermState.cashierPortal as any)?.[mod.key] !== false;
+                            return (
+                              <label key={mod.key} style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                padding: '12px 14px',
+                                background: isChecked ? '#f0fdf4' : '#f8fafc',
+                                border: isChecked ? '1px solid #86efac' : '1px solid #cbd5e1',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => setAdminPermState({
+                                    ...adminPermState,
+                                    cashierPortal: { ...(adminPermState.cashierPortal || {}), [mod.key]: e.target.checked }
+                                  })}
+                                  style={{ marginTop: '2px', accentColor: '#16a34a', width: '16px', height: '16px' }}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: '700', fontSize: '0.86rem', color: isChecked ? '#15803d' : '#475569' }}>
+                                    {t(mod.label)}
+                                  </div>
+                                  <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '2px', lineHeight: '1.3' }}>
+                                    {t(mod.desc)}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                          {t('Cashier portal is currently disabled. Toggle Master Active to enable individual modules.')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 🚚 DELIVERY PORTAL */}
+                {isDeliveryPortalAllowed && (() => {
+                  const allDeliveryModules = [
+                    { key: 'activeDeliveries', label: '📦 Active Deliveries', desc: 'Accept and update live order deliveries' },
+                    { key: 'pickups', label: '📍 Pickup Requests', desc: 'Accept customer doorstep pickup jobs' },
+                    { key: 'mapNavigation', label: '🗺️ Map & GPS Navigation', desc: 'Interactive customer route & navigation guidance' },
+                    { key: 'history', label: '📜 Delivery History', desc: 'Review completed delivery runs and daily stats' },
+                    { key: 'leaveRequests', label: '🏖️ Leave Requests', desc: 'Submit driver leave & absence applications' }
+                  ];
+
+                  const visibleModules = allDeliveryModules.filter(m => (sPerms.deliveryPortal as any)?.[m.key] !== false);
+                  const isMasterOn = adminPermState.deliveryPortal?.enabled !== false;
+
+                  return (
+                    <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                      <div style={{ padding: '18px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>🚚</span> {t('Delivery Portal Modules')}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                            {t('Control which tools are accessible to your driver app staff')}
+                          </div>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={isMasterOn}
+                            onChange={e => setAdminPermState({
+                              ...adminPermState,
+                              deliveryPortal: { ...(adminPermState.deliveryPortal || {}), enabled: e.target.checked }
+                            })}
+                            style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                          />
+                          <span style={{ color: isMasterOn ? '#16a34a' : '#64748b' }}>
+                            {isMasterOn ? t('Master Active') : t('Master Deactivated')}
+                          </span>
+                        </label>
+                      </div>
+
+                      {isMasterOn ? (
+                        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+                          {visibleModules.map(mod => {
+                            const isChecked = (adminPermState.deliveryPortal as any)?.[mod.key] !== false;
+                            return (
+                              <label key={mod.key} style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                padding: '12px 14px',
+                                background: isChecked ? '#eff6ff' : '#f8fafc',
+                                border: isChecked ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => setAdminPermState({
+                                    ...adminPermState,
+                                    deliveryPortal: { ...(adminPermState.deliveryPortal || {}), [mod.key]: e.target.checked }
+                                  })}
+                                  style={{ marginTop: '2px', accentColor: '#2563eb', width: '16px', height: '16px' }}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: '700', fontSize: '0.86rem', color: isChecked ? '#1d4ed8' : '#475569' }}>
+                                    {t(mod.label)}
+                                  </div>
+                                  <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '2px', lineHeight: '1.3' }}>
+                                    {t(mod.desc)}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                          {t('Delivery portal is currently disabled. Toggle Master Active to enable individual modules.')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 👤 CUSTOMER PORTAL */}
+                {isCustomerPortalAllowed && (() => {
+                  const allCustomerModules = [
+                    { key: 'placeOrder', label: '🧺 Self-Service Place Order', desc: 'Allow customers to schedule laundry bookings online' },
+                    { key: 'orderTracking', label: '🚚 Live Order Tracking', desc: 'Real-time order stage and driver location status' },
+                    { key: 'wallet', label: '💰 Digital Wallet & Recharge', desc: 'In-app wallet balance and top-up payments' },
+                    { key: 'prepaidPackages', label: '💳 Prepaid Package Store', desc: 'Purchase and manage discounted prepaid bundles' },
+                    { key: 'supportTickets', label: '💬 Support Tickets & Helpdesk', desc: 'Submit and track customer service inquiries' },
+                    { key: 'reviews', label: '⭐ Ratings & Reviews', desc: 'Submit feedback and star ratings on completed orders' },
+                    { key: 'offers', label: '🏷️ Promotions & Offers', desc: 'Browse available discounts and promo codes' }
+                  ];
+
+                  const visibleModules = allCustomerModules.filter(m => (sPerms.customerPortal as any)?.[m.key] !== false);
+                  const isMasterOn = adminPermState.customerPortal?.enabled !== false;
+
+                  return (
+                    <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                      <div style={{ padding: '18px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>👤</span> {t('Customer Portal Modules')}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                            {t('Configure features enabled on your public web customer portal & mobile app')}
+                          </div>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={isMasterOn}
+                            onChange={e => setAdminPermState({
+                              ...adminPermState,
+                              customerPortal: { ...(adminPermState.customerPortal || {}), enabled: e.target.checked }
+                            })}
+                            style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                          />
+                          <span style={{ color: isMasterOn ? '#16a34a' : '#64748b' }}>
+                            {isMasterOn ? t('Master Active') : t('Master Deactivated')}
+                          </span>
+                        </label>
+                      </div>
+
+                      {isMasterOn ? (
+                        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+                          {visibleModules.map(mod => {
+                            const isChecked = (adminPermState.customerPortal as any)?.[mod.key] !== false;
+                            return (
+                              <label key={mod.key} style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                padding: '12px 14px',
+                                background: isChecked ? '#faf5ff' : '#f8fafc',
+                                border: isChecked ? '1px solid #d8b4fe' : '1px solid #cbd5e1',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => setAdminPermState({
+                                    ...adminPermState,
+                                    customerPortal: { ...(adminPermState.customerPortal || {}), [mod.key]: e.target.checked }
+                                  })}
+                                  style={{ marginTop: '2px', accentColor: '#9333ea', width: '16px', height: '16px' }}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: '700', fontSize: '0.86rem', color: isChecked ? '#7e22ce' : '#475569' }}>
+                                    {t(mod.label)}
+                                  </div>
+                                  <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '2px', lineHeight: '1.3' }}>
+                                    {t(mod.desc)}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                          {t('Customer portal is currently disabled. Toggle Master Active to enable individual modules.')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Bottom Save Action */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <button
+                    onClick={handleSaveAdminPerms}
+                    style={{
+                      background: '#2563eb',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 28px',
+                      borderRadius: '10px',
+                      fontWeight: '800',
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                    }}
+                  >
+                    <span>💾</span> {t('Save Access Controls')}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* 👥 CUSTOMER MANAGEMENT TAB */}
@@ -5397,44 +6525,281 @@ export const AdminPortal: React.FC = () => {
       {/* 💳 CASHIER MANAGEMENT TAB */}
       {activeModule === 'cashiers' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => handleStartAddStaff('cashier')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('Create Cashier')}</button>
+          {/* Sub Navigation Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', background: '#e2e8f0', padding: '4px', borderRadius: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setCashierSubTab('staff')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: cashierSubTab === 'staff' ? '#ffffff' : 'transparent',
+                  color: cashierSubTab === 'staff' ? '#1e293b' : '#64748b',
+                  fontWeight: '800',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  boxShadow: cashierSubTab === 'staff' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                👥 {t('Cashier Staff Accounts')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCashierSubTab('shifts')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: cashierSubTab === 'shifts' ? '#ffffff' : 'transparent',
+                  color: cashierSubTab === 'shifts' ? '#1e293b' : '#64748b',
+                  fontWeight: '800',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  boxShadow: cashierSubTab === 'shifts' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                💵 {t('Cash Register & Shift Logs')}
+              </button>
+            </div>
+
+            {cashierSubTab === 'staff' ? (
+              <button onClick={() => handleStartAddStaff('cashier')} style={{ padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>➕ {t('Create Cashier')}</button>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select
+                  value={shiftFilterCashier}
+                  onChange={e => setShiftFilterCashier(e.target.value)}
+                  style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', background: 'white' }}
+                >
+                  <option value="all">{t('All Cashiers')}</option>
+                  {db.users.filter(u => u.role === 'cashier').map(u => (
+                    <option key={u.id} value={u.name}>{tName(u.name)}</option>
+                  ))}
+                </select>
+                <select
+                  value={shiftFilterDate}
+                  onChange={e => setShiftFilterDate(e.target.value)}
+                  style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', background: 'white' }}
+                >
+                  <option value="all">{t('All Dates')}</option>
+                  <option value="today">{t('Today')}</option>
+                  <option value="yesterday">{t('Yesterday')}</option>
+                  <option value="week">{t('This Week')}</option>
+                  <option value="month">{t('This Month')}</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                  <th style={{ padding: '12px' }}>{t('Name')}</th>
-                  <th style={{ padding: '12px' }}>{t('Email')}</th>
-                  <th style={{ padding: '12px' }}>{t('Phone')}</th>
-                  <th style={{ padding: '12px' }}>{t('Status')}</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {db.users.filter(u => u.role === 'cashier').map(u => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px', fontWeight: '700' }}>{tName(u.name)}</td>
-                    <td style={{ padding: '12px' }}>{u.email}</td>
-                    <td style={{ padding: '12px' }}>{u.phone || 'N/A'}</td>
-                    <td style={{ padding: '12px' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
-                        {t(u.status || 'Active')}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Toggle Suspend')}</button>
-                        <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Reset Pass')}</button>
-                        <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('action.delete')}</button>
-                      </div>
-                    </td>
+          {cashierSubTab === 'staff' ? (
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                    <th style={{ padding: '12px' }}>{t('Name')}</th>
+                    <th style={{ padding: '12px' }}>{t('Email')}</th>
+                    <th style={{ padding: '12px' }}>{t('Phone')}</th>
+                    <th style={{ padding: '12px' }}>{t('Status')}</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {db.users.filter(u => u.role === 'cashier').map(u => (
+                    <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px', fontWeight: '700' }}>{tName(u.name)}</td>
+                      <td style={{ padding: '12px' }}>{u.email}</td>
+                      <td style={{ padding: '12px' }}>{u.phone || 'N/A'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800', background: u.status === 'Suspended' ? '#fee2e2' : '#dcfce7', color: u.status === 'Suspended' ? '#b91c1c' : '#15803d' }}>
+                          {t(u.status || 'Active')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button onClick={() => handleToggleStaffStatus(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Toggle Suspend')}</button>
+                          <button onClick={() => handleResetStaffPassword(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('Reset Pass')}</button>
+                          <button onClick={() => handleDeleteStaff(u)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('action.delete')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Shift Logs & Reconciliation View */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {(() => {
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const yestDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                const yestStr = yestDate.toISOString().split('T')[0];
+                
+                const dayOfWeek = now.getDay();
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                const weekStartStr = weekStart.toISOString().split('T')[0];
+                const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+                const filtered = historicalShifts.filter((s: any) => {
+                  const sDate = (s.start_time || s.created_at || '').split('T')[0];
+                  if (shiftFilterCashier !== 'all' && s.cashier_name !== shiftFilterCashier) return false;
+                  
+                  if (shiftFilterDate === 'today') return sDate === todayStr;
+                  if (shiftFilterDate === 'yesterday') return sDate === yestStr;
+                  if (shiftFilterDate === 'week') return sDate >= weekStartStr && sDate <= todayStr;
+                  if (shiftFilterDate === 'month') return sDate.startsWith(monthPrefix);
+                  return true;
+                });
+
+                const totalShiftsCount = filtered.length;
+                const totalCashSalesSum = filtered.reduce((acc: number, s: any) => acc + Number(s.cash_sales || 0), 0);
+                const totalClosingCashSum = filtered.reduce((acc: number, s: any) => acc + Number(s.closing_cash || 0), 0);
+                const totalDifferenceSum = filtered.reduce((acc: number, s: any) => acc + Number(s.difference || 0), 0);
+
+                return (
+                  <>
+                    {/* Shift KPI Metrics */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+                      <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b' }}>{t('Total Shifts')}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#0f172a', marginTop: '4px' }}>{totalShiftsCount}</div>
+                      </div>
+                      <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b' }}>{t('Total Cash Sales')}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#15803d', marginTop: '4px' }}>QR {totalCashSalesSum.toFixed(2)}</div>
+                      </div>
+                      <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b' }}>{t('Total Closing Cash')}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#2563eb', marginTop: '4px' }}>QR {totalClosingCashSum.toFixed(2)}</div>
+                      </div>
+                      <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b' }}>{t('Net Difference (Over/Short)')}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '900', color: totalDifferenceSum === 0 ? '#15803d' : totalDifferenceSum > 0 ? '#2563eb' : '#dc2626', marginTop: '4px' }}>
+                          {totalDifferenceSum === 0 ? 'QR 0.00' : `${totalDifferenceSum > 0 ? '+' : ''}QR ${totalDifferenceSum.toFixed(2)}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reconciliation Table */}
+                    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left', color: '#475569' }}>
+                            <th style={{ padding: '12px' }}>{t('Shift Date & Time')}</th>
+                            <th style={{ padding: '12px' }}>{t('Cashier')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Opening Float')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Cash Sales')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Driver Cash')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Expenses')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Expected Cash')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>{t('Closing Cash')}</th>
+                            <th style={{ padding: '12px', textAlign: 'center' }}>{t('Discrepancy')}</th>
+                            <th style={{ padding: '12px', textAlign: 'center' }}>{t('Status')}</th>
+                            <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.length === 0 ? (
+                            <tr>
+                              <td colSpan={11} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                                {t('No shift records found for the selected filter.')}
+                              </td>
+                            </tr>
+                          ) : (
+                            filtered.map((s: any) => {
+                              const diff = Number(s.difference || 0);
+                              const isDiffZero = diff === 0;
+                              const isOver = diff > 0;
+                              return (
+                                <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '12px', fontWeight: '600' }}>
+                                    <div>{parseShiftDate(s.start_time).toLocaleDateString()}</div>
+                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                      {parseShiftDate(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {s.end_time ? parseShiftDate(s.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('In Progress')}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>
+                                    {tName(s.cashier_name || 'Cashier')}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                    QR {Number(s.opening_cash || 0).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: '#15803d' }}>
+                                    + QR {Number(s.cash_sales || 0).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', color: '#1e40af' }}>
+                                    + QR {Number(s.driver_handovers || 0).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', color: '#b91c1c' }}>
+                                    - QR {Number(s.cash_expenses || 0).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
+                                    QR {Number(s.expected_cash || s.opening_cash || 0).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '800', color: '#2563eb' }}>
+                                    {s.closing_cash !== null && s.closing_cash !== undefined ? `QR ${Number(s.closing_cash).toFixed(2)}` : '—'}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                                    {s.status === 'CLOSED' ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '6px',
+                                        fontWeight: '800',
+                                        fontSize: '0.72rem',
+                                        background: isDiffZero ? '#dcfce7' : isOver ? '#dbeafe' : '#fee2e2',
+                                        color: isDiffZero ? '#15803d' : isOver ? '#1e40af' : '#b91c1c'
+                                      }}>
+                                        {isDiffZero ? '✅ Balanced' : isOver ? `+QR ${diff.toFixed(2)}` : `-QR ${Math.abs(diff).toFixed(2)}`}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#64748b', fontSize: '0.75rem' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                                    <span style={{
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontWeight: '800',
+                                      fontSize: '0.7rem',
+                                      background: s.status === 'OPEN' ? '#dcfce7' : '#f1f5f9',
+                                      color: s.status === 'OPEN' ? '#15803d' : '#64748b'
+                                    }}>
+                                      {s.status === 'OPEN' ? '🟢 Open' : '🔒 Closed'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                                    <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                      <button
+                                        onClick={() => setViewingShiftSummary(s)}
+                                        style={{ padding: '4px 8px', fontSize: '0.72rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}
+                                      >
+                                        👁️ {t('View')}
+                                      </button>
+                                      <button
+                                        onClick={() => handlePrintShiftZReport(s)}
+                                        style={{ padding: '4px 8px', fontSize: '0.72rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}
+                                      >
+                                        🖨️ {t('Print')}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -6875,21 +8240,23 @@ export const AdminPortal: React.FC = () => {
                 placeholder={t('Search Order ID, Customer, or Number...')} 
                 style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px' }} 
               />
-              <select 
-                value={orderFilter} 
-                onChange={e => setOrderFilter(e.target.value)} 
-                style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
-              >
-                <option value="All">{t('All statuses')}</option>
-                <option value="Created">{t('Created')}</option>
-                <option value="Accepted">{t('Accepted')}</option>
-                <option value="Received">{t('Received')}</option>
-                <option value="Fully Picked Up">{t('Fully Picked Up')}</option>
-                <option value="Ready">{t('Ready')}</option>
-                <option value="Out For Delivery">{t('Out For Delivery')}</option>
-                <option value="Delivered">{t('Delivered')}</option>
-                <option value="Fully Delivered at Store">{t('Fully Delivered at Store')}</option>
-              </select>
+              {isDeliveryEnabled && (
+                <select 
+                  value={orderFilter} 
+                  onChange={e => setOrderFilter(e.target.value)} 
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
+                >
+                  <option value="All">{t('All statuses')}</option>
+                  <option value="Created">{t('Created')}</option>
+                  <option value="Accepted">{t('Accepted')}</option>
+                  <option value="Received">{t('Received')}</option>
+                  <option value="Fully Picked Up">{t('Fully Picked Up')}</option>
+                  <option value="Ready">{t('Ready')}</option>
+                  <option value="Out For Delivery">{t('Out For Delivery')}</option>
+                  <option value="Delivered">{t('Delivered')}</option>
+                  <option value="Fully Delivered at Store">{t('Fully Delivered at Store')}</option>
+                </select>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', whiteSpace: 'nowrap' }}>📅 From:</span>
                 <input
@@ -6926,12 +8293,12 @@ export const AdminPortal: React.FC = () => {
                   <th style={{ padding: '12px' }}>{t('th.customer')}</th>
                   <th style={{ padding: '12px' }}>{t('Customer Number')}</th>
                   <th style={{ padding: '12px' }}>{t('th.orderDate')}</th>
-                  <th style={{ padding: '12px' }}>{t('th.deliveryDate')}</th>
+                  {isDeliveryEnabled && <th style={{ padding: '12px' }}>{t('th.deliveryDate')}</th>}
                   <th style={{ padding: '12px' }}>{t('th.totalAmount')}</th>
-                  <th style={{ padding: '12px' }}>{t('th.status')}</th>
+                  {isDeliveryEnabled && <th style={{ padding: '12px' }}>{t('th.status')}</th>}
                   <th style={{ padding: '12px' }}>{t('th.paymentStatus')}</th>
-                  {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>{t('th.courier')}</th>}
-                  <th style={{ padding: '12px', textAlign: 'center' }}>{t('th.modifyStatus')}</th>
+                  {isDeliveryEnabled && db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && <th style={{ padding: '12px' }}>{t('th.courier')}</th>}
+                  <th style={{ padding: '12px', textAlign: 'center' }}>{isDeliveryEnabled ? t('th.modifyStatus') : t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -6956,10 +8323,10 @@ export const AdminPortal: React.FC = () => {
                     const termDigits = term.replace(/[^0-9]/g, '');
                     
                     return name.startsWith(term) || 
-                           orderId.startsWith(term) || 
-                           orderId.startsWith(term.replace(/^#/, '')) ||
-                           phone.startsWith(term) || 
-                           (termDigits.length > 0 && rawPhone.startsWith(termDigits));
+                            orderId.startsWith(term) || 
+                            orderId.startsWith(term.replace(/^#/, '')) ||
+                            phone.startsWith(term) || 
+                            (termDigits.length > 0 && rawPhone.startsWith(termDigits));
                   })
                   .filter(o => orderFilter === 'All' || o.status === orderFilter)
                   .filter(o => {
@@ -6980,7 +8347,7 @@ export const AdminPortal: React.FC = () => {
                     <tr key={o.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px', fontWeight: '700' }}>
                         #{o.id}
-                        {(o.source === 'DELIVERY_AGENT' || o.specialInstructions?.includes('Field Order created by Delivery Agent') || o.specialInstructions?.includes('Field Order')) && (
+                        {isDeliveryEnabled && (o.source === 'DELIVERY_AGENT' || o.specialInstructions?.includes('Field Order created by Delivery Agent') || o.specialInstructions?.includes('Field Order')) && (
                           <div style={{ fontSize: '0.65rem', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '1px 4px', marginTop: '2px', fontWeight: 'bold', width: 'fit-content' }}>
                             🚚 {o.pickupCourier ? `Driver: ${o.pickupCourier}` : 'Field Order'}
                           </div>
@@ -6989,15 +8356,21 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px', color: '#64748b' }}>{o.phone || db.customers.find(c => c.id === o.customerId)?.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date}</td>
-                      <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>{o.deliveredDate || t('Not Delivered')}</td>
+                      {isDeliveryEnabled && (
+                        <td style={{ padding: '12px', color: o.deliveredDate ? '#0f172a' : '#94a3b8', fontWeight: o.deliveredDate ? '600' : 'normal' }}>
+                          {o.deliveredDate || t('Not Delivered')}
+                        </td>
+                      )}
                       <td style={{ padding: '12px', fontWeight: '700', color: '#1e3a8a' }}>QR {o.totalAmount.toFixed(2)}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
-                          background: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#dcfce7' : (o.status === 'Created' ? '#eff6ff' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#fffbeb' : '#fef3c7')),
-                          color: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#15803d' : (o.status === 'Created' ? '#2563eb' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#b45309' : '#b45309'))
-                        }}>{t(o.status)}</span>
-                      </td>
+                      {isDeliveryEnabled && (
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            padding: '3px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: '800',
+                            background: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#dcfce7' : (o.status === 'Created' ? '#eff6ff' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#fffbeb' : '#fef3c7')),
+                            color: (o.status === 'Delivered' || o.status === 'Fully Delivered at Store') ? '#15803d' : (o.status === 'Created' ? '#2563eb' : ((o.status === 'Fully Picked Up' || o.status === 'Fully Picked Up at Store') ? '#b45309' : '#b45309'))
+                          }}>{t(o.status)}</span>
+                        </td>
+                      )}
                       <td style={{ padding: '12px' }}>
                         <span 
                           onClick={() => {
@@ -7014,7 +8387,7 @@ export const AdminPortal: React.FC = () => {
                           display: 'inline-block'
                         }}>{t(o.paymentStatus || 'Unpaid')}</span>
                       </td>
-                      {db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
+                      {isDeliveryEnabled && db.activeRole !== 'Delivery Staff' && db.activeRole !== 'Delivery Boy' && (
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -7211,15 +8584,17 @@ export const AdminPortal: React.FC = () => {
                       )}
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                          <select 
-                            value={o.status} 
-                            onChange={e => handleUpdateOrderStatus(o.id, e.target.value as any)}
-                            style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
-                          >
-                            {Array.from(new Set(['Created', 'Accepted', 'Received', 'Fully Picked Up', 'Ready', 'Out For Delivery', 'Delivered', 'Fully Delivered at Store', o.status].filter(Boolean))).map(s => (
-                              <option key={s} value={s}>{t(s)}</option>
-                            ))}
-                          </select>
+                          {isDeliveryEnabled && (
+                            <select 
+                              value={o.status} 
+                              onChange={e => handleUpdateOrderStatus(o.id, e.target.value as any)}
+                              style={{ padding: '4px 6px', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem' }}
+                            >
+                              {Array.from(new Set(['Created', 'Accepted', 'Received', 'Fully Picked Up', 'Ready', 'Out For Delivery', 'Delivered', 'Fully Delivered at Store', o.status].filter(Boolean))).map(s => (
+                                <option key={s} value={s}>{t(s)}</option>
+                              ))}
+                            </select>
+                          )}
                           <button 
                             onClick={() => handleStartEditOrder(o)} 
                             disabled={['delivered', 'fully delivered at store'].includes((o.status || '').toLowerCase())}
@@ -7228,7 +8603,9 @@ export const AdminPortal: React.FC = () => {
                           >
                             ✏️ {t('Edit')}
                           </button>
-                          <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
+                          {isDeliveryEnabled && (
+                            <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('action.view')}</button>
+                          )}
                           <button onClick={() => handlePrintInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>📄 {t('Invoice')}</button>
                           <button onClick={async () => {
                             if (window.confirm(`Are you sure you want to permanently delete order #${o.id}?\n\nThis will remove it from the database and cannot be undone.`)) {
@@ -7303,13 +8680,15 @@ export const AdminPortal: React.FC = () => {
                   <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>📜 {allHistoryOrders.length}</div>
                 </div>
                 <div style={{ background: '#eff6ff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: '700' }}>{t('RECEIVED / PICKED UP')}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: '700' }}>{isDeliveryEnabled ? t('RECEIVED / PICKED UP') : t('COMPLETED ORDERS')}</div>
                   <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2563eb', marginTop: '4px' }}>🧺 {pickedUpCount}</div>
                 </div>
-                <div style={{ background: '#ecfdf5', padding: '16px 20px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: '700' }}>{t('DELIVERED ORDERS')}</div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#059669', marginTop: '4px' }}>🚚 {deliveredCount}</div>
-                </div>
+                {isDeliveryEnabled && (
+                  <div style={{ background: '#ecfdf5', padding: '16px 20px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: '700' }}>{t('DELIVERED ORDERS')}</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#059669', marginTop: '4px' }}>🚚 {deliveredCount}</div>
+                  </div>
+                )}
                 <div style={{ background: '#faf5ff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e9d5ff' }}>
                   <div style={{ fontSize: '0.8rem', color: '#7e22ce', fontWeight: '700' }}>{t('TOTAL HISTORY REVENUE')}</div>
                   <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#9333ea', marginTop: '4px' }}>QR {totalRevenue.toFixed(2)}</div>
@@ -7328,19 +8707,21 @@ export const AdminPortal: React.FC = () => {
                 placeholder={t('Search History by Order ID, Customer, Phone')} 
                 style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', width: '320px', fontSize: '0.85rem' }} 
               />
-              <select 
-                value={historyFilter} 
-                onChange={e => setHistoryFilter(e.target.value)} 
-                style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.85rem', fontWeight: '600' }}
-              >
-                <option value="All">{t('All Received & Delivered Orders')}</option>
-                <option value="PickedUp">🧺 Received / Picked Up Orders Only</option>
-                <option value="Delivered">🚚 Delivered Orders Only</option>
-                <option value="Completed">✅ Fully Completed Orders</option>
-              </select>
+              {isDeliveryEnabled && (
+                <select 
+                  value={historyFilter} 
+                  onChange={e => setHistoryFilter(e.target.value)} 
+                  style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.85rem', fontWeight: '600' }}
+                >
+                  <option value="All">{t('All Received & Delivered Orders')}</option>
+                  <option value="PickedUp">🧺 Received / Picked Up Orders Only</option>
+                  <option value="Delivered">🚚 Delivered Orders Only</option>
+                  <option value="Completed">✅ Fully Completed Orders</option>
+                </select>
+              )}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
-              {t('Showing archives of Received & Delivered Orders')}
+              {isDeliveryEnabled ? t('Showing archives of Received & Delivered Orders') : t('Showing order history archives')}
             </div>
           </div>
 
@@ -7353,11 +8734,11 @@ export const AdminPortal: React.FC = () => {
                   <th style={{ padding: '12px' }}>{t('Customer')}</th>
                   <th style={{ padding: '12px' }}>{t('Customer Number')}</th>
                   <th style={{ padding: '12px' }}>{t('Order Date')}</th>
-                  <th style={{ padding: '12px' }}>{t('Delivery / Completed Date')}</th>
+                  {isDeliveryEnabled && <th style={{ padding: '12px' }}>{t('Delivery / Completed Date')}</th>}
                   <th style={{ padding: '12px' }}>{t('Total Amount')}</th>
-                  <th style={{ padding: '12px' }}>{t('Status')}</th>
+                  {isDeliveryEnabled && <th style={{ padding: '12px' }}>{t('Status')}</th>}
                   <th style={{ padding: '12px' }}>{t('Payment Status')}</th>
-                  <th style={{ padding: '12px' }}>{t('Assigned Courier')}</th>
+                  {isDeliveryEnabled && <th style={{ padding: '12px' }}>{t('Assigned Courier')}</th>}
                   <th style={{ padding: '12px', textAlign: 'center' }}>{t('Actions')}</th>
                 </tr>
               </thead>
@@ -7402,19 +8783,23 @@ export const AdminPortal: React.FC = () => {
                       <td style={{ padding: '12px', fontWeight: '600' }}>{tName(o.customerName)}</td>
                       <td style={{ padding: '12px' }}>{o.phone || 'N/A'}</td>
                       <td style={{ padding: '12px' }}>{o.date ? new Date(o.date).toLocaleDateString() : 'N/A'}</td>
-                      <td style={{ padding: '12px', color: o.deliveryDate ? '#16a34a' : '#64748b', fontWeight: '600' }}>
-                        {o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString() : (o.date ? new Date(o.date).toLocaleDateString() : 'N/A')}
-                      </td>
+                      {isDeliveryEnabled && (
+                        <td style={{ padding: '12px', color: o.deliveryDate ? '#16a34a' : '#64748b', fontWeight: '600' }}>
+                          {o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString() : (o.date ? new Date(o.date).toLocaleDateString() : 'N/A')}
+                        </td>
+                      )}
                       <td style={{ padding: '12px', fontWeight: 'bold' }}>QR {(Number(o.totalAmount || o.amount) || 0).toFixed(2)}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{ 
-                          padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
-                          background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Picked Up' ? '#eff6ff' : o.status === 'Completed' ? '#dcfce7' : '#fef3c7',
-                          color: o.status === 'Delivered' ? '#15803d' : o.status === 'Picked Up' ? '#1d4ed8' : o.status === 'Completed' ? '#15803d' : '#b45309'
-                        }}>
-                          {t(o.status)}
-                        </span>
-                      </td>
+                      {isDeliveryEnabled && (
+                        <td style={{ padding: '12px' }}>
+                          <span style={{ 
+                            padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
+                            background: o.status === 'Delivered' ? '#dcfce7' : o.status === 'Picked Up' ? '#eff6ff' : o.status === 'Completed' ? '#dcfce7' : '#fef3c7',
+                            color: o.status === 'Delivered' ? '#15803d' : o.status === 'Picked Up' ? '#1d4ed8' : o.status === 'Completed' ? '#15803d' : '#b45309'
+                          }}>
+                            {t(o.status)}
+                          </span>
+                        </td>
+                      )}
                       <td style={{ padding: '12px' }}>
                         <span style={{ 
                           padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
@@ -7424,13 +8809,17 @@ export const AdminPortal: React.FC = () => {
                           {t(o.paymentStatus || 'Pending')}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '0.75rem' }}>
-                        <div><strong style={{ color: '#ea580c' }}>{t('Pickup:')}</strong> {pickupC ? t(pickupC) : t('Unassigned')}</div>
-                        <div><strong style={{ color: '#16a34a' }}>{t('Delivery:')}</strong> {delivC ? t(delivC) : t('Unassigned')}</div>
-                      </td>
+                      {isDeliveryEnabled && (
+                        <td style={{ padding: '12px', fontSize: '0.75rem' }}>
+                          <div><strong style={{ color: '#ea580c' }}>{t('Pickup:')}</strong> {pickupC ? t(pickupC) : t('Unassigned')}</div>
+                          <div><strong style={{ color: '#16a34a' }}>{t('Delivery:')}</strong> {delivC ? t(delivC) : t('Unassigned')}</div>
+                        </td>
+                      )}
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('View')}</button>
+                          {isDeliveryEnabled && (
+                            <button onClick={() => handleOpenViewModal(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>👁️ {t('View')}</button>
+                          )}
                           <button onClick={() => setViewingInvoice(o)} style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🧾 {t('Invoice')}</button>
                         </div>
                       </td>
@@ -7444,7 +8833,82 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {activeModule === 'pos' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 0.7fr', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 0.7fr', gap: '20px' }}>
+          {/* Cashier Shift Status Banner */}
+          <div style={{
+            gridColumn: '1 / -1',
+            background: activeShift ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            border: activeShift ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
+            borderRadius: '12px',
+            padding: '12px 18px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '1.4rem' }}>{activeShift ? '🟢' : '🔴'}</span>
+              <div>
+                <div style={{ fontWeight: '800', fontSize: '0.95rem', color: activeShift ? '#14532d' : '#991b1b' }}>
+                  {activeShift ? `${t('Active Shift Open')} — ${activeShift.cashier_name || 'Cashier'}` : t('Cashier Shift is Closed')}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: activeShift ? '#166534' : '#7f1d1d', marginTop: '2px' }}>
+                  {activeShift 
+                    ? `${t('Opening Float')}: QR ${Number(activeShift.opening_cash || 0).toFixed(2)} • ${t('Started')}: ${parseShiftDate(activeShift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : t('Please open your cashier shift to record starting cash drawer float.')}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {activeShift ? (
+                <button
+                  type="button"
+                  onClick={handleStartCloseShift}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(220,38,38,0.2)'
+                  }}
+                >
+                  <span>🔒</span> {t('Close Shift & Cash Handover')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowOpenShiftModal(true)}
+                  style={{
+                    padding: '8px 18px',
+                    background: '#16a34a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(22,163,74,0.2)'
+                  }}
+                >
+                  <span>➕</span> {t('Open Shift / Enter Float')}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* POS Catalog browsing */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
             {/* Render Category Tabs in Header via Portal */}
@@ -8341,169 +9805,390 @@ export const AdminPortal: React.FC = () => {
 
       {/* 💸 EXPENSES BOOK TAB */}
       {activeModule === 'expenses' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
           
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>💸 {t('Expenses Log')}</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {backendExpenses.map((ex, i) => (
-                <div key={i} style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>💸</span> {t('Expenses Log')}
+                </h3>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '4px' }}>
+                  {backendExpenses.length} {t('records')} • {t('Total Expenses:')} <strong style={{ color: '#ef4444' }}>QR {backendExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0).toFixed(2)}</strong>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setEditingExpense(null);
+                  setExpCategory('');
+                  setExpDesc('');
+                  setExpSource('');
+                  setExpAmount('');
+                  setExpAttachment('');
+                  setExpAttachmentName('');
+                  setExpDate(new Date().toISOString().split('T')[0]);
+                  setShowExpenseModal(true);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '700',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(37,99,235,0.25)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span>➕</span> {t('Add Expense')}
+              </button>
+            </div>
+
+            {backendExpenses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>💸</div>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#1e293b' }}>{t('No Expenses Recorded')}</div>
+                <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>{t('Click the "Add Expense" button in the right corner to record a new business expense.')}</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569' }}>{t('Date of Expense')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569' }}>{t('Category')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569' }}>{t('Description')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569' }}>{t('Payment Type')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569' }}>{t('Amount')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', textAlign: 'center' }}>{t('Attachment')}</th>
+                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', textAlign: 'center' }}>{t('Actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backendExpenses.map((ex, i) => (
+                      <tr key={ex.id || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px 16px', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                          📅 {ex.date}
+                        </td>
+                        <td style={{ padding: '12px 16px', maxWidth: '180px', wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
+                          <span style={{ 
+                            padding: '3px 8px', 
+                            borderRadius: '6px', 
+                            fontSize: '0.75rem', 
+                            fontWeight: '700', 
+                            background: '#f1f5f9', 
+                            color: '#334155', 
+                            border: '1px solid #e2e8f0',
+                            display: 'inline-block',
+                            maxWidth: '100%',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'anywhere',
+                            whiteSpace: 'normal'
+                          }}>
+                            {ex.category}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a', maxWidth: '320px', wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
+                          {(() => {
+                            const desc = ex.description || '';
+                            const rowKey = ex.id || `exp_${i}`;
+                            const isLong = desc.length > 300 || desc.split(/\s+/).length > 50;
+                            const isExpanded = !!expandedExpenseIds[rowKey];
+                            const displayedText = isLong && !isExpanded ? `${desc.slice(0, 300)}...` : desc;
+
+                            return (
+                              <div>
+                                <span>{displayedText}</span>
+                                {isLong && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedExpenseIds(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
+                                    style={{
+                                      background: '#eff6ff',
+                                      border: '1px solid #bfdbfe',
+                                      borderRadius: '4px',
+                                      color: '#2563eb',
+                                      cursor: 'pointer',
+                                      fontWeight: '700',
+                                      fontSize: '0.72rem',
+                                      padding: '2px 6px',
+                                      marginLeft: '6px',
+                                      display: 'inline-block',
+                                      marginTop: '4px'
+                                    }}
+                                  >
+                                    {isExpanded ? `▲ ${t('Show Less')}` : `▼ ${t('View More')}`}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ 
+                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700',
+                            background: ex.source === 'Cash' ? '#f0fdf4' : ex.source === 'Card' ? '#eff6ff' : '#faf5ff',
+                            color: ex.source === 'Cash' ? '#15803d' : ex.source === 'Card' ? '#2563eb' : '#7e22ce',
+                            border: '1px solid #e2e8f0'
+                          }}>
+                            💳 {ex.source || 'N/A'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontWeight: '800', color: '#ef4444', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
+                          - QR {Number(ex.amount).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {ex.attachment ? (
+                            <button
+                              onClick={() => setViewingExpenseAttachment({ url: ex.attachment, description: ex.description || 'Expense Receipt' })}
+                              style={{
+                                padding: '4px 10px',
+                                background: '#eff6ff',
+                                color: '#2563eb',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                fontSize: '0.75rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              👁️ {t('View')}
+                            </button>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: '500' }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <button 
+                              onClick={() => setViewingExpenseInvoice(ex)} 
+                              style={{ padding: '4px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', color: '#2563eb', fontWeight: 'bold', fontSize: '0.75rem' }}
+                            >
+                              🧾 {t('Invoice')}
+                            </button>
+                            <button onClick={() => {
+                              setEditingExpense(ex);
+                              setExpCategory(ex.category || '');
+                              setExpDesc(ex.description || '');
+                              setExpSource(ex.source || '');
+                              setExpAmount(ex.amount?.toString() || '');
+                              setExpDate(ex.date || '');
+                              setExpAttachment(ex.attachment || '');
+                              setExpAttachmentName(ex.attachment ? 'Existing Receipt' : '');
+                              setShowExpenseModal(true);
+                            }} style={{ padding: '4px 8px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.75rem' }}>✏️ {t('Edit')}</button>
+                            <button onClick={async () => {
+                              if (confirm('Are you sure you want to delete this expense?')) {
+                                try {
+                                  const res = await fetch(`${BASE_URL}/api/v1/expenses/${ex.id}`, {
+                                    method: 'DELETE',
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                                  });
+                                  if (res.ok) {
+                                    addActivity('Payment', `Deleted expense: ${ex.description}`);
+                                    fetchBackendData();
+                                  }
+                                } catch (err) {
+                                  console.error('Error deleting expense:', err);
+                                }
+                              }
+                            }} style={{ padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold', fontSize: '0.75rem' }}>🗑️ {t('Delete')}</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Add / Edit Expense Modal Dialog */}
+          {showExpenseModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(15, 23, 42, 0.7)',
+              backdropFilter: 'blur(3px)',
+              zIndex: 9999,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '20px'
+            }}>
+              <div style={{
+                background: 'white',
+                borderRadius: '16px',
+                maxWidth: '560px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                border: '1px solid #cbd5e1',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '16px 22px',
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                  color: 'white'
+                }}>
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{editingExpense ? '✏️' : '➕'}</span>
+                    <span>{editingExpense ? t('Edit') : t('Add Expense')}</span>
+                  </h4>
+                  <button 
+                    onClick={() => {
+                      setShowExpenseModal(false);
+                      setEditingExpense(null);
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.15)',
+                      border: 'none',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveExpense} style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>{t('Date')}</label>
+                      <input type="date" required value={expDate} onChange={e => setExpDate(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>{t('Category')}</label>
+                      <input type="text" required value={expCategory} onChange={e => setExpCategory(e.target.value)} placeholder={t('Enter category')} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }} />
+                    </div>
+                  </div>
+
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong>{ex.description}</strong>
-                      {ex.attachment && (
-                        <span style={{ fontSize: '0.68rem', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                          📎 Bill Attached
-                        </span>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>{t('Description')}</label>
+                    <textarea 
+                      rows={3}
+                      required 
+                      value={expDesc} 
+                      onChange={e => setExpDesc(e.target.value)} 
+                      placeholder={t('e.g. Packaging boxes purchase')} 
+                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', resize: 'vertical', minHeight: '75px', fontFamily: 'inherit' }} 
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>{t('Source')}</label>
+                      <select required value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }}>
+                        <option value="" disabled>Select</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Check">Check</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>{t('Amount (QR)')}</label>
+                      <input type="number" step="0.01" required value={expAmount} onChange={e => setExpAmount(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }} />
+                    </div>
+                  </div>
+
+                  {/* Attachment field */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                      📎 {t('Attachment (Image / PDF / Bill)')}
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <label style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '9px 16px',
+                        background: '#f8fafc',
+                        border: '1.5px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        color: '#334155'
+                      }}>
+                        <span>📁</span> {expAttachment ? t('Change File') : t('Upload Receipt / PDF')}
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setExpAttachmentName(file.name);
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setExpAttachment(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      {expAttachment && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#0d9488', fontWeight: '700', background: '#f0fdf4', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                          <span>✅ {expAttachmentName || 'Attached'}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpAttachment('');
+                              setExpAttachmentName('');
+                            }}
+                            style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '800' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Category: {ex.category} • Source: {ex.source} • Date: {ex.date}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <strong style={{ color: '#ef4444' }}>- QR {Number(ex.amount).toFixed(2)}</strong>
-                    {ex.attachment && (
-                      <button
-                        onClick={() => setViewingExpenseAttachment({ url: ex.attachment, description: ex.description || 'Expense Receipt' })}
-                        style={{
-                          padding: '3px 8px',
-                          background: '#eff6ff',
-                          color: '#2563eb',
-                          border: '1px solid #bfdbfe',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontWeight: '700',
-                          fontSize: '0.75rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        👁️ {t('View')}
-                      </button>
-                    )}
-                    <button onClick={() => {
-                      setEditingExpense(ex);
-                      setExpCategory(ex.category || '');
-                      setExpDesc(ex.description || '');
-                      setExpSource(ex.source || '');
-                      setExpAmount(ex.amount?.toString() || '');
-                      setExpDate(ex.date || '');
-                      setExpAttachment(ex.attachment || '');
-                      setExpAttachmentName(ex.attachment ? 'Existing Receipt' : '');
-                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', fontWeight: 'bold' }}>{t('Edit')}</button>
-                    <button onClick={async () => {
-                      if (confirm('Are you sure you want to delete this expense?')) {
-                        try {
-                          const res = await fetch(`${BASE_URL}/api/v1/expenses/${ex.id}`, {
-                            method: 'DELETE',
-                            headers: { 'Authorization': `Bearer ${token}` }
-                          });
-                          if (res.ok) {
-                            addActivity('Payment', `Deleted expense: ${ex.description}`);
-                            fetchBackendData();
-                          }
-                        } catch (err) {
-                          console.error('Error deleting expense:', err);
-                        }
-                      }
-                    }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>{t('Delete')}</button>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setShowExpenseModal(false);
+                        setEditingExpense(null);
+                      }} 
+                      style={{ padding: '10px 18px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                      {t('Cancel')}
+                    </button>
+                    <button 
+                      type="submit" 
+                      style={{ padding: '10px 22px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(37,99,235,0.2)' }}
+                    >
+                      {editingExpense ? t('Edit') : t('Save Expense')}
+                    </button>
                   </div>
-                </div>
-              ))}
+                </form>
+              </div>
             </div>
-          </div>
-
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', height: 'fit-content' }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>{editingExpense ? `✏️ ${t('Edit')}` : `➕ ${t('Add Expense')}`}</h4>
-            <form onSubmit={handleSaveExpense} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Date')}</label>
-                  <input type="date" required value={expDate} onChange={e => setExpDate(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Category')}</label>
-                  <input type="text" required value={expCategory} onChange={e => setExpCategory(e.target.value)} placeholder={t('Enter category')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Description')}</label>
-                <input type="text" required value={expDesc} onChange={e => setExpDesc(e.target.value)} placeholder={t('e.g. Packaging boxes purchase')} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Source')}</label>
-                  <select required value={expSource} onChange={e => setExpSource(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }}>
-                    <option value="" disabled>Select</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                    <option value="Check">Check</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>{t('Amount (QR)')}</label>
-                  <input type="number" required value={expAmount} onChange={e => setExpAmount(e.target.value)} style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '6px' }} />
-                </div>
-              </div>
-
-              {/* Attachment field */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '4px' }}>
-                  📎 {t('Attachment (Image / PDF / Bill)')}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <label style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    background: '#f8fafc',
-                    border: '1.5px dashed #cbd5e1',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    fontWeight: '700',
-                    color: '#334155'
-                  }}>
-                    <span>📁</span> {expAttachment ? t('Change File') : t('Upload Receipt / PDF')}
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setExpAttachmentName(file.name);
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setExpAttachment(reader.result as string);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                  </label>
-                  {expAttachment && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#0d9488', fontWeight: '700', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
-                      <span>✅ {expAttachmentName || 'Attached'}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setExpAttachment('');
-                          setExpAttachmentName('');
-                        }}
-                        style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: '800' }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <button type="submit" style={{ padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '6px' }}>{t('Save Expense')}</button>
-            </form>
-          </div>
+          )}
 
           {/* Attachment Viewer Modal */}
           {viewingExpenseAttachment && (
@@ -8578,10 +10263,283 @@ export const AdminPortal: React.FC = () => {
             </div>
           )}
 
+          {/* Expense Invoice Receipt Modal */}
+          {viewingExpenseInvoice && (() => {
+            const expCompName = activeComp?.name || 'Laundry & Dry Cleaning';
+            const expCompAddr = (activeComp?.address && activeComp.address !== 'N/A') ? activeComp.address : '';
+            const expCompPhone = (activeComp?.phone && activeComp.phone !== 'N/A') ? activeComp.phone : '';
+            const expCompAltPhone = ((activeComp as any)?.shop_contact_no && (activeComp as any).shop_contact_no !== 'N/A') ? (activeComp as any).shop_contact_no : '';
+            const expPhoneDisplay = [expCompPhone, expCompAltPhone].filter(Boolean).join(', ');
+
+            return (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(15, 23, 42, 0.75)',
+                backdropFilter: 'blur(3px)',
+                zIndex: 99999,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  background: 'white',
+                  borderRadius: '16px',
+                  maxWidth: '440px',
+                  width: '100%',
+                  maxHeight: '90vh',
+                  overflowY: 'auto',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                  border: '1px solid #cbd5e1',
+                  fontFamily: "'Arial', sans-serif",
+                  padding: '24px',
+                  position: 'relative'
+                }}>
+                  <button 
+                    onClick={() => setViewingExpenseInvoice(null)}
+                    style={{
+                      position: 'absolute',
+                      right: '16px',
+                      top: '16px',
+                      background: '#f1f5f9',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                      color: '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    ✕
+                  </button>
+
+                  {/* Company Header */}
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '14px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#0f172a' }}>{expCompName}</div>
+                    {expCompAddr && (
+                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>📍 {expCompAddr}</div>
+                    )}
+                    {expPhoneDisplay && (
+                      <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1e3a8a', marginTop: '3px' }}>📞 {expPhoneDisplay}</div>
+                    )}
+                  </div>
+
+                  {/* Voucher Badge */}
+                  <div style={{ textAlign: 'center', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '8px', marginBottom: '16px' }}>
+                    <div style={{ fontWeight: '800', fontSize: '0.9rem', color: '#0f172a', letterSpacing: '0.5px' }}>
+                      EXPENSE PAYMENT VOUCHER
+                    </div>
+                    <div style={{ fontWeight: '700', fontSize: '0.82rem', color: '#64748b' }}>
+                      سند صرف مصروفات
+                    </div>
+                  </div>
+
+                  {/* Voucher Details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                      <span style={{ color: '#64748b', fontWeight: '600' }}>Voucher No / رقم السند:</span>
+                      <strong style={{ color: '#0f172a' }}>EXP-{viewingExpenseInvoice.id || '001'}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                      <span style={{ color: '#64748b', fontWeight: '600' }}>Date / التاريخ:</span>
+                      <strong style={{ color: '#0f172a' }}>{viewingExpenseInvoice.date}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                      <span style={{ color: '#64748b', fontWeight: '600' }}>Category / الفئة:</span>
+                      <strong style={{ color: '#2563eb', wordBreak: 'break-word', overflowWrap: 'anywhere', textAlign: 'right', maxWidth: '65%' }}>{viewingExpenseInvoice.category}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                      <span style={{ color: '#64748b', fontWeight: '600' }}>Description / البيان:</span>
+                      <div style={{ fontWeight: '700', color: '#0f172a', marginTop: '2px', background: '#f8fafc', padding: '6px 8px', borderRadius: '6px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                        {viewingExpenseInvoice.description}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                      <span style={{ color: '#64748b', fontWeight: '600' }}>Payment Type / طريقة الدفع:</span>
+                      <strong style={{ color: '#0f172a' }}>{viewingExpenseInvoice.source || 'Cash'}</strong>
+                    </div>
+
+                    {viewingExpenseInvoice.attachment && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                        <span style={{ color: '#64748b', fontWeight: '600' }}>Receipt / المرفق:</span>
+                        <span style={{ fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                          📎 Bill Attached
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total Amount Card */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    border: '1.5px solid #fca5a5',
+                    borderRadius: '10px',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '18px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#991b1b' }}>TOTAL AMOUNT PAID</div>
+                      <div style={{ fontSize: '0.75rem', color: '#b91c1c' }}>المبلغ الإجمالي المدفوع</div>
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: '900', color: '#dc2626' }}>
+                      QR {Number(viewingExpenseInvoice.amount).toFixed(2)}
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '20px', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontWeight: '700', color: '#334155' }}>Admin / Prepared By</div>
+                      <div style={{ marginTop: '24px', borderTop: '1px solid #cbd5e1', paddingTop: '4px' }}>Authorized Staff</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontWeight: '700', color: '#334155' }}>Receiver Signature</div>
+                      <div style={{ marginTop: '24px', borderTop: '1px solid #cbd5e1', paddingTop: '4px' }}>توقيع المستلم</div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => {
+                        const printWin = window.open('', '_blank', 'width=450,height=650');
+                        if (printWin) {
+                          printWin.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <title>Expense Voucher - EXP-${viewingExpenseInvoice.id || '001'}</title>
+                              <style>
+                                body { font-family: Arial, sans-serif; padding: 20px; color: #000; font-size: 13px; margin: 0; }
+                                .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
+                                .title { font-size: 18px; font-weight: bold; }
+                                .sub { font-size: 12px; margin-top: 2px; }
+                                .badge { text-align: center; border: 1px dashed #000; padding: 6px; margin-bottom: 14px; font-weight: bold; font-size: 13px; }
+                                .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+                                .row .label { color: #555; }
+                                .row .val { font-weight: bold; }
+                                .desc-box { background: #f9f9f9; padding: 8px; border-radius: 4px; margin: 6px 0; font-weight: bold; }
+                                .total { border: 2px solid #000; padding: 10px; display: flex; justify-content: space-between; align-items: center; margin: 14px 0; font-size: 16px; font-weight: bold; }
+                                .signatures { display: flex; justify-content: space-between; margin-top: 30px; font-size: 11px; text-align: center; }
+                                .sig-box { width: 45%; border-top: 1px solid #000; padding-top: 6px; }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="header">
+                                <div class="title">${expCompName}</div>
+                                ${expCompAddr ? `<div class="sub">📍 ${expCompAddr}</div>` : ''}
+                                ${expPhoneDisplay ? `<div class="sub">📞 ${expPhoneDisplay}</div>` : ''}
+                              </div>
+
+                              <div class="badge">
+                                EXPENSE PAYMENT VOUCHER<br>
+                                <span style="font-size: 11px;">سند صرف مصروفات</span>
+                              </div>
+
+                              <div class="row">
+                                <span class="label">Voucher No / رقم السند:</span>
+                                <span class="val">EXP-${viewingExpenseInvoice.id || '001'}</span>
+                              </div>
+                              <div class="row">
+                                <span class="label">Date / التاريخ:</span>
+                                <span class="val">${viewingExpenseInvoice.date}</span>
+                              </div>
+                              <div class="row">
+                                <span class="label">Category / الفئة:</span>
+                                <span class="val">${viewingExpenseInvoice.category}</span>
+                              </div>
+                              <div style="padding: 5px 0;">
+                                <div class="label" style="color: #555;">Description / البيان:</div>
+                                <div class="desc-box">${viewingExpenseInvoice.description}</div>
+                              </div>
+                              <div class="row">
+                                <span class="label">Payment Type / طريقة الدفع:</span>
+                                <span class="val">${viewingExpenseInvoice.source || 'Cash'}</span>
+                              </div>
+
+                              <div class="total">
+                                <span>TOTAL AMOUNT (QR):</span>
+                                <span>QR ${Number(viewingExpenseInvoice.amount).toFixed(2)}</span>
+                              </div>
+
+                              <div class="signatures">
+                                <div class="sig-box">
+                                  Prepared By<br>
+                                  المحاسب المسؤول
+                                </div>
+                                <div class="sig-box">
+                                  Receiver Signature<br>
+                                  توقيع المستلم
+                                </div>
+                              </div>
+
+                              <script>
+                                window.onload = function() {
+                                  window.print();
+                                }
+                              </script>
+                            </body>
+                            </html>
+                          `);
+                          printWin.document.close();
+                        }
+                      }}
+                      style={{
+                        padding: '9px 18px',
+                        background: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      🖨️ {t('Print Receipt')}
+                    </button>
+                    <button
+                      onClick={() => setViewingExpenseInvoice(null)}
+                      style={{
+                        padding: '9px 16px',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {t('Close')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       )}
 
-      {/* 📊 BUSINESS REPORTS TAB */}
       {/* 📊 BUSINESS REPORTS TAB */}
       {(activeModule === 'reports' || showReportModal) && (
         <div style={showReportModal ? {
@@ -8944,12 +10902,19 @@ export const AdminPortal: React.FC = () => {
       {/* 🎧 CUSTOMER SUPPORT TAB */}
       {activeModule === 'customer-support' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-          <h4 style={{ margin: '0 0 16px 0' }}>🎧 {t('Customer/Delivery Support Desk')}</h4>
-          {adminCustomerTickets.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: '0.9rem' }}>No customer tickets found.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {adminCustomerTickets.map(tkt => (
+          <h4 style={{ margin: '0 0 16px 0' }}>🎧 {isDeliveryEnabled ? t('Customer/Delivery Support Desk') : t('Customer Support Desk')}</h4>
+          {(() => {
+            const displayedTickets = adminCustomerTickets.filter(tkt => {
+              if (isDeliveryEnabled) return true;
+              const st = (tkt.sender_type || '').toUpperCase();
+              return st !== 'DELIVERY' && st !== 'DRIVER' && st !== 'DELIVERY_BOY';
+            });
+            if (displayedTickets.length === 0) {
+              return <div style={{ color: '#64748b', fontSize: '0.9rem' }}>{t('No customer tickets found.')}</div>;
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {displayedTickets.map(tkt => (
                 <div key={tkt.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: tkt.status === 'OPEN' ? '#fdf8f6' : '#f8fafc' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -9017,7 +10982,8 @@ export const AdminPortal: React.FC = () => {
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
 
           {viewingSenderDetails && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -11588,6 +13554,363 @@ export const AdminPortal: React.FC = () => {
               <button onClick={() => setViewingDeliveryStaff(null)} style={{ padding: '10px 20px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Close</button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 OPEN CASHIER SHIFT MODAL */}
+      {showOpenShiftModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', padding: '18px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>💵</span> {t('Open Cashier Shift')}
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#bbf7d0' }}>
+                {t('Enter starting cash float in drawer to begin shift')}
+              </p>
+              <button onClick={() => setShowOpenShiftModal(false)} style={{ position: 'absolute', right: '20px', top: '18px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                  {t('Opening Cash Float Amount (QR)')} *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={openFloatAmount}
+                  onChange={e => setOpenFloatAmount(e.target.value)}
+                  placeholder="e.g. 100.00"
+                  style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}
+                />
+                
+                {/* Quick amount chips */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  {['50', '100', '200', '500'].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setOpenFloatAmount(val)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: openFloatAmount === val ? '#dcfce7' : '#f8fafc',
+                        color: openFloatAmount === val ? '#15803d' : '#475569',
+                        fontWeight: '700',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      QR {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                  {t('Shift Notes / Handover Float Source')}
+                </label>
+                <input
+                  type="text"
+                  value={openShiftNotes}
+                  onChange={e => setOpenShiftNotes(e.target.value)}
+                  placeholder={t('Optional: e.g. Base change from safe')}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowOpenShiftModal(false)}
+                  style={{ flex: 1, padding: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  {t('Cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenShift}
+                  style={{ flex: 2, padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <span>🟢</span> {t('Start Shift & Open Drawer')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔴 CLOSE CASHIER SHIFT MODAL */}
+      {showCloseShiftModal && activeShift && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: 'linear-gradient(135deg, #dc2626, #991b1b)', padding: '18px 24px', color: 'white', position: 'relative' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🔒</span> {t('Close Cashier Shift & Cash Reconciliation')}
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#fecaca' }}>
+                {t('Cashier')}: <strong>{activeShift.cashier_name}</strong> • {t('Started')}: {parseShiftDate(activeShift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              <button onClick={() => setShowCloseShiftModal(false)} style={{ position: 'absolute', right: '20px', top: '18px', color: 'white', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {(() => {
+                const {
+                  floatAmt,
+                  cashSalesTotal,
+                  cardSalesTotal,
+                  driverCashTotal,
+                  cashExpensesTotal,
+                  expectedTotal
+                } = calculateShiftSummary(activeShift);
+
+                const countedNum = parseFloat(countedCashAmount);
+                const isCountedValid = !isNaN(countedNum) && countedNum >= 0;
+                const diff = isCountedValid ? countedNum - expectedTotal : 0;
+
+                return (
+                  <>
+                    {/* Live Drawer Breakdown */}
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+                      <div style={{ fontWeight: '800', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                        📊 {t('Drawer Calculation Breakdown')}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>(+) {t('Opening Float')}:</span>
+                        <strong style={{ color: '#0f172a' }}>QR {floatAmt.toFixed(2)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>(+) {t('Cash Sales Collected')}:</span>
+                        <strong style={{ color: '#15803d' }}>+ QR {cashSalesTotal.toFixed(2)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>(+) {t('Driver Cash Received')}:</span>
+                        <strong style={{ color: '#1e40af' }}>+ QR {driverCashTotal.toFixed(2)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>(-) {t('Cash Expenses Paid Out')}:</span>
+                        <strong style={{ color: '#dc2626' }}>- QR {cashExpensesTotal.toFixed(2)}</strong>
+                      </div>
+                      <div style={{ borderTop: '1.5px dashed #cbd5e1', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
+                        <span style={{ fontWeight: '800', color: '#0f172a' }}>(=) {t('Expected Cash in Drawer')}:</span>
+                        <strong style={{ color: '#0f172a', fontSize: '1.05rem' }}>QR {expectedTotal.toFixed(2)}</strong>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                        💳 Non-Cash Sales (Card / UPI): <strong>QR {cardSalesTotal.toFixed(2)}</strong>
+                      </div>
+                    </div>
+
+                    {/* Cash Count Input */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a' }}>
+                          💵 {t('Actual Physical Cash Counted in Drawer (QR)')} *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setCountedCashAmount(expectedTotal.toFixed(2))}
+                          style={{
+                            background: '#eff6ff',
+                            border: '1px solid #93c5fd',
+                            color: '#1d4ed8',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ⚡ {t('Auto-Fill Expected')} (QR {expectedTotal.toFixed(2)})
+                        </button>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={countedCashAmount}
+                        onChange={e => setCountedCashAmount(e.target.value)}
+                        placeholder="Count all physical cash and enter total..."
+                        style={{ width: '100%', padding: '10px 14px', border: '2px solid #3b82f6', borderRadius: '8px', fontSize: '1.15rem', fontWeight: '800' }}
+                      />
+                      <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '4px' }}>
+                        💡 {t('Pre-filled with calculated cash in drawer. Adjust manually if physical cash differs.')}
+                      </div>
+                    </div>
+
+                    {/* Discrepancy Alert */}
+                    {isCountedValid && (
+                      <div style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        background: diff === 0 ? '#dcfce7' : diff > 0 ? '#dbeafe' : '#fee2e2',
+                        border: diff === 0 ? '1px solid #86efac' : diff > 0 ? '1px solid #93c5fd' : '1px solid #fca5a5',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{ fontWeight: '800', fontSize: '0.88rem', color: diff === 0 ? '#15803d' : diff > 0 ? '#1e40af' : '#b91c1c' }}>
+                          {diff === 0 ? '✅ Drawer is Perfectly Balanced' : diff > 0 ? '🔵 Cash Overage (Extra Cash)' : '⚠️ Cash Shortage (Missing Cash)'}
+                        </div>
+                        <div style={{ fontWeight: '900', fontSize: '1.05rem', color: diff === 0 ? '#15803d' : diff > 0 ? '#1e40af' : '#b91c1c' }}>
+                          {diff === 0 ? 'QR 0.00' : `${diff > 0 ? '+' : ''}QR ${diff.toFixed(2)}`}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Closing Notes */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                        {t('Handover Remarks / Notes')}
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={closeShiftNotes}
+                        onChange={e => setCloseShiftNotes(e.target.value)}
+                        placeholder={t('Optional: Handover notes for store manager')}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowCloseShiftModal(false)}
+                        style={{ flex: 1, padding: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        {t('Cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCloseShift}
+                        disabled={!isCountedValid}
+                        style={{
+                          flex: 2,
+                          padding: '10px',
+                          background: isCountedValid ? '#dc2626' : '#94a3b8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: '800',
+                          cursor: isCountedValid ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <span>🔒</span> {t('Finalize & Close Shift')}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🧾 SHIFT SUMMARY & Z-REPORT MODAL */}
+      {viewingShiftSummary && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: '#0f172a', padding: '16px 20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>
+                🧾 {t('Cashier Shift Report (Z-Report)')}
+              </h3>
+              <button onClick={() => setViewingShiftSummary(null)} style={{ color: '#94a3b8', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', fontFamily: 'monospace', fontSize: '0.85rem', background: '#f8fafc' }}>
+              <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
+                <div style={{ fontWeight: '900', fontSize: '1.1rem', color: '#0f172a' }}>{activeComp?.name || 'LAUNDRA OPERATIONS'}</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>SHIFT RECONCILIATION SUMMARY</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Cashier:</span><strong>{viewingShiftSummary.cashier_name}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Shift Status:</span><strong>{viewingShiftSummary.status}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Start Time:</span><span>{parseShiftDate(viewingShiftSummary.start_time).toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>End Time:</span><span>{viewingShiftSummary.end_time ? parseShiftDate(viewingShiftSummary.end_time).toLocaleString() : 'In Progress'}</span>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontWeight: '800', color: '#334155', marginBottom: '2px' }}>CASH MOVEMENTS</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>(+) Opening Float:</span><strong>QR {Number(viewingShiftSummary.opening_cash || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>(+) Cash Sales:</span><strong style={{ color: '#15803d' }}>+ QR {Number(viewingShiftSummary.cash_sales || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>(+) Driver Collections:</span><strong style={{ color: '#1e40af' }}>+ QR {Number(viewingShiftSummary.driver_handovers || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>(-) Cash Expenses:</span><strong style={{ color: '#dc2626' }}>- QR {Number(viewingShiftSummary.cash_expenses || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: '800' }}>
+                  <span>(=) Expected Cash:</span><span>QR {Number(viewingShiftSummary.expected_cash || viewingShiftSummary.opening_cash || 0).toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '0.95rem', color: '#2563eb' }}>
+                  <span>(★) Actual Counted:</span><span>QR {Number(viewingShiftSummary.closing_cash || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '10px',
+                borderRadius: '6px',
+                background: Number(viewingShiftSummary.difference || 0) === 0 ? '#dcfce7' : Number(viewingShiftSummary.difference || 0) > 0 ? '#dbeafe' : '#fee2e2',
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontWeight: '800'
+              }}>
+                <span>Difference:</span>
+                <span>
+                  {Number(viewingShiftSummary.difference || 0) === 0 
+                    ? 'QR 0.00 (Balanced)' 
+                    : `${Number(viewingShiftSummary.difference || 0) > 0 ? '+' : ''}QR ${Number(viewingShiftSummary.difference || 0).toFixed(2)} (${Number(viewingShiftSummary.difference || 0) > 0 ? 'Overage' : 'Shortage'})`}
+                </span>
+              </div>
+
+              {viewingShiftSummary.notes && (
+                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  <strong>Notes:</strong> {viewingShiftSummary.notes}
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '14px 20px', background: '#ffffff', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => handlePrintShiftZReport(viewingShiftSummary)}
+                style={{ padding: '8px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <span>🖨️</span> {t('Print Thermal Slip')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingShiftSummary(null)}
+                style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+              >
+                {t('Close')}
+              </button>
+            </div>
           </div>
         </div>
       )}

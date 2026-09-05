@@ -115,6 +115,7 @@ export const SuperAdminPortal: React.FC = () => {
   const [permissionsModalCompany, setPermissionsModalCompany] = useState<Company | null>(null);
   const [permState, setPermState] = useState<any>({
     adminPortal: { enabled: true, dashboard: true, orders: true, posCashier: true, customers: true, services: true, prepaidPackages: true, deliveries: true, expenses: true, reports: true, coupons: true, loyalty: true, staffAttendance: true, announcements: true, reviews: true, customerSupport: true, auditLogs: true, settings: true },
+    cashierPortal: { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true },
     customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true },
     deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true }
   });
@@ -139,10 +140,14 @@ export const SuperAdminPortal: React.FC = () => {
     }
 
     if (perms) {
-      setPermState(perms);
+      setPermState({
+        ...perms,
+        cashierPortal: perms.cashierPortal || { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true }
+      });
     } else {
       setPermState({
         adminPortal: { enabled: true, dashboard: true, orders: true, posCashier: true, customers: true, services: true, prepaidPackages: true, deliveries: true, expenses: true, reports: true, coupons: true, loyalty: true, staffAttendance: true, announcements: true, reviews: true, customerSupport: true, auditLogs: true, settings: true },
+        cashierPortal: { enabled: true, dashboard: true, posCashier: true, orders: true, customers: true, expenses: true, deliveries: true, prepaidPackages: true, loyalty: true, services: true, coupons: true, announcements: true, reviews: true },
         customerPortal: { enabled: true, placeOrder: true, orderTracking: true, wallet: true, prepaidPackages: true, supportTickets: true, reviews: true, offers: true },
         deliveryPortal: { enabled: true, activeDeliveries: true, pickups: true, mapNavigation: true, history: true, leaveRequests: true }
       });
@@ -2970,6 +2975,57 @@ export const SuperAdminPortal: React.FC = () => {
                           onChange={e => setPermState({
                             ...permState,
                             adminPortal: { ...permState.adminPortal, [mod.key]: e.target.checked }
+                          })}
+                          style={{ accentColor: '#2563eb' }}
+                        />
+                        {mod.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 💵 CASHIER PORTAL */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b' }}>💵 Cashier Portal Modules</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={permState.cashierPortal?.enabled !== false} 
+                      onChange={e => setPermState({
+                        ...permState,
+                        cashierPortal: { ...(permState.cashierPortal || {}), enabled: e.target.checked }
+                      })}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                    />
+                    {permState.cashierPortal?.enabled !== false ? 'Master Enabled' : 'Master Disabled'}
+                  </label>
+                </div>
+
+                {permState.cashierPortal?.enabled !== false && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                    {[
+                      { key: 'dashboard', label: '📊 Cashier Dashboard' },
+                      { key: 'posCashier', label: '🛒 POS & Cash Register Shift' },
+                      { key: 'orders', label: '📦 Orders & Invoices' },
+                      { key: 'customers', label: '👥 Customer Directory' },
+                      { key: 'expenses', label: '💸 Expenses Book (Cash Drawer)' },
+                      { key: 'deliveries', label: '🚚 Driver Cash Handovers' },
+                      { key: 'prepaidPackages', label: '💳 Prepaid Packages' },
+                      { key: 'loyalty', label: '⭐ Wallet & Loyalty' },
+                      { key: 'services', label: '🏷️ Service Catalog & Rates' },
+                      { key: 'coupons', label: '🎟️ Coupons & Promos' },
+                      { key: 'announcements', label: '📢 Announcements' },
+                      { key: 'reviews', label: '⭐ Customer Reviews' }
+                    ].map(mod => (
+                      <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(permState.cashierPortal as any)?.[mod.key] !== false} 
+                          onChange={e => setPermState({
+                            ...permState,
+                            cashierPortal: { ...(permState.cashierPortal || {}), [mod.key]: e.target.checked }
                           })}
                           style={{ accentColor: '#2563eb' }}
                         />
