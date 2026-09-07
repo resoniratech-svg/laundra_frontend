@@ -250,6 +250,53 @@ class SyncEngineService {
         return res.ok;
       }
 
+      case 'SHIFT_OPEN': {
+        const res = await fetch(`${baseUrl}/api/v1/cashier-shifts/open`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            opening_cash: action.payload.opening_cash,
+            notes: action.payload.notes || 'Offline Shift Sync'
+          })
+        });
+        return res.ok;
+      }
+
+      case 'SHIFT_CLOSE': {
+        const res = await fetch(`${baseUrl}/api/v1/cashier-shifts/close`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            closing_cash: action.payload.closing_cash,
+            cash_sales: action.payload.cash_sales,
+            card_sales: action.payload.card_sales,
+            driver_handovers: action.payload.driver_handovers,
+            cash_expenses: action.payload.cash_expenses,
+            expected_cash: action.payload.expected_cash,
+            notes: action.payload.notes || 'Offline Shift Close Sync'
+          })
+        });
+        return res.ok;
+      }
+
+      case 'EXPENSE_CREATE': {
+        const res = await fetch(`${baseUrl}/api/v1/expenses`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(action.payload)
+        });
+        return res.ok;
+      }
+
+      case 'DRAWER_TX': {
+        const res = await fetch(`${baseUrl}/api/v1/deliveries/settlements`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(action.payload)
+        });
+        return res.ok;
+      }
+
       default:
         return true;
     }

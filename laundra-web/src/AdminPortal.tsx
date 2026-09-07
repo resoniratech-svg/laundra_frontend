@@ -931,7 +931,13 @@ export const AdminPortal: React.FC = () => {
   const [expandedExpenseIds, setExpandedExpenseIds] = useState<Record<string, boolean>>({});
 
   // Cashier Shifts & Drawer Float States
-  const [activeShift, setActiveShift] = useState<any | null>(null);
+  const [activeShift, setActiveShift] = useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('laundra_active_shift');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
   const [historicalShifts, setHistoricalShifts] = useState<any[]>([]);
   const [showOpenShiftModal, setShowOpenShiftModal] = useState<boolean>(false);
   const [showCloseShiftModal, setShowCloseShiftModal] = useState<boolean>(false);
@@ -4161,6 +4167,16 @@ export const AdminPortal: React.FC = () => {
   // Expenses actions
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amt = parseFloat(expAmount) || 0;
+    const expenseData = {
+      description: expDesc,
+      amount: amt,
+      category: expCategory || 'General',
+      source: expSource || 'Cash',
+      date: expDate || new Date().toISOString().split('T')[0],
+      attachment: expAttachment || null
+    };
+
     try {
       if (editingExpense) {
         const res = await fetch(`${BASE_URL}/api/v1/expenses/${editingExpense.id}`, {
@@ -4169,22 +4185,14 @@ export const AdminPortal: React.FC = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            description: expDesc,
-            amount: parseFloat(expAmount) || 0,
-            category: expCategory,
-            source: expSource,
-            date: expDate,
-            attachment: expAttachment || null
-          })
+          body: JSON.stringify(expenseData)
         });
         if (res.ok) {
           addActivity('Payment', `Edited expense: ${expDesc}`);
           setEditingExpense(null);
           fetchBackendData();
         } else {
-          const errData = await res.json().catch(() => ({}));
-          alert(errData?.detail || 'Failed to update expense');
+          throw new Error('Failed to update expense on backend');
         }
       } else {
         const res = await fetch(`${BASE_URL}/api/v1/expenses`, {
@@ -4193,23 +4201,40 @@ export const AdminPortal: React.FC = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            description: expDesc,
-            amount: parseFloat(expAmount) || 0,
-            category: expCategory,
-            source: expSource,
-            date: expDate,
-            attachment: expAttachment || null
-          })
+          body: JSON.stringify(expenseData)
         });
         if (res.ok) {
           addActivity('Payment', `Added expense: ${expDesc}`);
           fetchBackendData();
         } else {
-          const errData = await res.json().catch(() => ({}));
-          alert(errData?.detail || 'Failed to add expense');
+          throw new Error('Failed to add expense on backend');
         }
       }
+    } catch (err) {
+      console.warn('Network offline or backend error saving expense, falling back to offline mode:', err);
+      const offlineExpense = {
+        id: editingExpense?.id || `OFFLINE-EXP-${Date.now()}`,
+        ...expenseData,
+        created_at: new Date().toISOString()
+      };
+
+      setBackendExpenses(prev => {
+        const exists = prev.some(item => item.id === offlineExpense.id);
+        if (exists) {
+          return prev.map(item => item.id === offlineExpense.id ? offlineExpense : item);
+        }
+        return [offlineExpense, ...prev];
+      });
+
+      const updatedDbExpenses = [
+        offlineExpense,
+        ...(db.expenses || []).filter(item => item.id !== offlineExpense.id)
+      ];
+      saveDB({ expenses: updatedDbExpenses });
+
+      addActivity('Payment', `${editingExpense ? 'Edited' : 'Added'} offline expense: ${expDesc}`);
+      await offlineQueue.enqueueAction('EXPENSE_CREATE', offlineExpense, db.activeCompanyId);
+    } finally {
       setShowExpenseModal(false);
       setEditingExpense(null);
       setExpCategory('');
@@ -4219,9 +4244,6 @@ export const AdminPortal: React.FC = () => {
       setExpAttachment('');
       setExpAttachmentName('');
       setExpDate(new Date().toISOString().split('T')[0]);
-    } catch (err) {
-      console.error('Error saving expense:', err);
-      alert('Error connecting to backend.');
     }
   };
 
@@ -4650,6 +4672,18 @@ export const AdminPortal: React.FC = () => {
       alert('Please enter a valid opening float amount.');
       return;
     }
+
+    const offlineShift = {
+      id: `OFFLINE-SHIFT-${Date.now()}`,
+      cashier_id: db.currentUser?.id || 'cashier',
+      cashier_name: db.currentUser?.name || 'Cashier',
+      opening_cash: floatNum,
+      start_time: new Date().toISOString(),
+      status: 'OPEN',
+      notes: openShiftNotes,
+      isOffline: true
+    };
+
     try {
       const res = await fetch(`${BASE_URL}/api/v1/cashier-shifts/open`, {
         method: 'POST',
@@ -4665,17 +4699,30 @@ export const AdminPortal: React.FC = () => {
       if (res.ok) {
         const newShift = await res.json();
         setActiveShift(newShift);
+        localStorage.setItem('laundra_active_shift', JSON.stringify(newShift));
         setShowOpenShiftModal(false);
         setOpenShiftNotes('');
         addActivity('Cashier', `Opened cashier shift with float QR ${floatNum.toFixed(2)}`);
         fetchBackendData();
-      } else {
-        alert('Failed to open shift. Please try again.');
+        return;
       }
     } catch (err) {
-      console.error('Error opening shift:', err);
-      alert('Network error opening shift');
+      console.warn('Network error opening shift on backend. Starting local offline shift:', err);
     }
+
+    // Offline fallback: start shift locally and queue for background sync
+    setActiveShift(offlineShift);
+    localStorage.setItem('laundra_active_shift', JSON.stringify(offlineShift));
+    await offlineQueue.enqueueAction('SHIFT_OPEN', {
+      opening_cash: floatNum,
+      notes: openShiftNotes,
+      start_time: offlineShift.start_time,
+      offline_shift_id: offlineShift.id
+    }, db.activeCompanyId);
+
+    setShowOpenShiftModal(false);
+    setOpenShiftNotes('');
+    addActivity('Cashier', `Opened offline cashier shift with float QR ${floatNum.toFixed(2)}`);
   };
 
   // Helper to parse ISO UTC timestamps correctly into local user Date
@@ -4796,6 +4843,19 @@ export const AdminPortal: React.FC = () => {
       expectedTotal
     } = calculateShiftSummary(activeShift);
 
+    const closePayload = {
+      closing_cash: countedNum,
+      cash_sales: cashSalesTotal,
+      card_sales: cardSalesTotal,
+      driver_handovers: driverCashTotal,
+      cash_expenses: cashExpensesTotal,
+      expected_cash: expectedTotal,
+      difference: countedNum - expectedTotal,
+      end_time: new Date().toISOString(),
+      status: 'CLOSED',
+      notes: closeShiftNotes
+    };
+
     try {
       const res = await fetch(`${BASE_URL}/api/v1/cashier-shifts/close`, {
         method: 'POST',
@@ -4816,19 +4876,32 @@ export const AdminPortal: React.FC = () => {
       if (res.ok) {
         const closedShift = await res.json();
         setActiveShift(null);
+        localStorage.removeItem('laundra_active_shift');
         setShowCloseShiftModal(false);
         setCountedCashAmount('');
         setCloseShiftNotes('');
         setViewingShiftSummary(closedShift);
         addActivity('Cashier', `Closed shift with counted cash QR ${countedNum.toFixed(2)} (Diff: QR ${(countedNum - expectedTotal).toFixed(2)})`);
         fetchBackendData();
-      } else {
-        alert('Failed to close shift. Please try again.');
+        return;
       }
     } catch (err) {
-      console.error('Error closing shift:', err);
-      alert('Network error closing shift');
+      console.warn('Network error closing shift on backend. Closing local offline shift:', err);
     }
+
+    // Offline fallback: close locally, show Z-Report, and enqueue for background sync
+    const offlineClosedShift = {
+      ...activeShift,
+      ...closePayload
+    };
+    await offlineQueue.enqueueAction('SHIFT_CLOSE', offlineClosedShift, db.activeCompanyId);
+    setActiveShift(null);
+    localStorage.removeItem('laundra_active_shift');
+    setShowCloseShiftModal(false);
+    setCountedCashAmount('');
+    setCloseShiftNotes('');
+    setViewingShiftSummary(offlineClosedShift);
+    addActivity('Cashier', `Closed shift offline with counted cash QR ${countedNum.toFixed(2)} (Diff: QR ${(countedNum - expectedTotal).toFixed(2)})`);
   };
 
   // Printing Shift Z-Report Receipt
@@ -7724,7 +7797,26 @@ export const AdminPortal: React.FC = () => {
                           driverSettlements: updatedSettlements
                         });
 
-                        // 4. Directly save settlement into PostgreSQL database
+                        // 4. Directly save settlement into PostgreSQL database (or enqueue if offline)
+                        const settlementPayload = {
+                          settlement_number: settlementNum,
+                          driver_id: targetDriverObj?.id ? String(targetDriverObj.id) : undefined,
+                          driver_name: targetDriverName,
+                          cash_amount: selectedCash,
+                          card_amount: selectedCard,
+                          cheque_amount: selectedCheque,
+                          total_amount: selectedTotal,
+                          order_count: displayedOrders.length,
+                          orders: displayedOrders.map(o => ({
+                            orderId: o.order_number || o.id || o.backendId,
+                            id: o.backendId || o.id,
+                            customerName: o.customerName,
+                            amount: Number(o.totalAmount || 0),
+                            paymentMethod: o.paymentMethod || 'Cash'
+                          })),
+                          notes: handoverNotes
+                        };
+
                         try {
                           const token = localStorage.getItem('ll_admin_auth_token') || localStorage.getItem('ll_auth_token') || localStorage.getItem('token') || localStorage.getItem('saas_token') || '';
                           const response = await fetch(`${BASE_URL}/api/v1/deliveries/settlements`, {
@@ -7733,32 +7825,17 @@ export const AdminPortal: React.FC = () => {
                               'Content-Type': 'application/json',
                               ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                             },
-                            body: JSON.stringify({
-                              settlement_number: settlementNum,
-                              driver_id: targetDriverObj?.id ? String(targetDriverObj.id) : undefined,
-                              driver_name: targetDriverName,
-                              cash_amount: selectedCash,
-                              card_amount: selectedCard,
-                              cheque_amount: selectedCheque,
-                              total_amount: selectedTotal,
-                              order_count: displayedOrders.length,
-                              orders: displayedOrders.map(o => ({
-                                orderId: o.order_number || o.id || o.backendId,
-                                id: o.backendId || o.id,
-                                customerName: o.customerName,
-                                amount: Number(o.totalAmount || 0),
-                                paymentMethod: o.paymentMethod || 'Cash'
-                              })),
-                              notes: handoverNotes
-                            })
+                            body: JSON.stringify(settlementPayload)
                           });
                           if (response.ok) {
                             await fetchBackendData();
                           } else {
-                            console.warn('Backend settlement sync responded with non-200:', response.status);
+                            console.warn('Backend settlement sync responded with non-200, enqueuing offline action:', response.status);
+                            await offlineQueue.enqueueAction('DRAWER_TX', settlementPayload, db.activeCompanyId);
                           }
                         } catch (e) {
-                          console.warn('Settlement backend sync error:', e);
+                          console.warn('Settlement backend sync error/offline, enqueuing offline action:', e);
+                          await offlineQueue.enqueueAction('DRAWER_TX', settlementPayload, db.activeCompanyId);
                         }
 
                         setHandoverNotes('');
@@ -10192,9 +10269,14 @@ export const AdminPortal: React.FC = () => {
                                   if (res.ok) {
                                     addActivity('Payment', `Deleted expense: ${ex.description}`);
                                     fetchBackendData();
+                                  } else {
+                                    throw new Error('Server returned non-200');
                                   }
                                 } catch (err) {
-                                  console.error('Error deleting expense:', err);
+                                  console.warn('Offline or error deleting expense:', err);
+                                  setBackendExpenses(prev => prev.filter(item => item.id !== ex.id));
+                                  saveDB({ expenses: (db.expenses || []).filter(item => item.id !== ex.id) });
+                                  addActivity('Payment', `Deleted expense (offline): ${ex.description}`);
                                 }
                               }
                             }} style={{ padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold', fontSize: '0.75rem' }}>🗑️ {t('Delete')}</button>

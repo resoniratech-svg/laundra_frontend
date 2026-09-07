@@ -2,7 +2,7 @@
 
 export interface OfflineAction {
   id: string;
-  type: 'ORDER_CREATE' | 'ORDER_DELETE' | 'COURIER_ASSIGN' | 'ORDER_STATUS_UPDATE' | 'PACKAGE_DEDUCT' | 'CUSTOMER_CREATE' | 'EXPENSE_CREATE' | 'DRAWER_TX';
+  type: 'ORDER_CREATE' | 'ORDER_DELETE' | 'COURIER_ASSIGN' | 'ORDER_STATUS_UPDATE' | 'PACKAGE_DEDUCT' | 'CUSTOMER_CREATE' | 'EXPENSE_CREATE' | 'DRAWER_TX' | 'SHIFT_OPEN' | 'SHIFT_CLOSE';
   payload: any;
   companyId: string;
   createdAt: string;
