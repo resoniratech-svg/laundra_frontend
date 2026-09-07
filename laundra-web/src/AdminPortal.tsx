@@ -758,6 +758,32 @@ export const AdminPortal: React.FC = () => {
     return { start: `${y}-${m}-01`, end: `${y}-${m}-${day}` };
   });
 
+  // 📊 Sale Report Module Filter State
+  const [saleReportPreset, setSaleReportPreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'all' | 'custom'>('thisMonth');
+  const [saleReportCustomStart, setSaleReportCustomStart] = useState<string>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  });
+  const [saleReportCustomEnd, setSaleReportCustomEnd] = useState<string>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+  const [saleReportAppliedRange, setSaleReportAppliedRange] = useState<{ start: string; end: string }>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return { start: `${y}-${m}-01`, end: `${y}-${m}-${day}` };
+  });
+  const [saleReportSearch, setSaleReportSearch] = useState<string>('');
+  const [saleReportPaymentStatus, setSaleReportPaymentStatus] = useState<string>('All');
+  const [saleReportPayMethod, setSaleReportPayMethod] = useState<string>('All');
+
   // Manual orders / POS
   const [posCart, setPosCart] = useState<{ itemId: string; itemName: string; serviceTypeId: string; serviceTypeName: string; variantId: string; variantName: string; price: number; qty: number }[]>([]);
   const [selectedPosItem, setSelectedPosItem] = useState<string | null>(null);
@@ -917,6 +943,19 @@ export const AdminPortal: React.FC = () => {
   const [cashierSubTab, setCashierSubTab] = useState<'staff' | 'shifts'>('staff');
   const [shiftFilterDate, setShiftFilterDate] = useState<string>('all');
   const [shiftFilterCashier, setShiftFilterCashier] = useState<string>('all');
+
+  // Cashier Role & Shift Enforcement State
+  const isCashier = db.activeRole === 'Cashier' || localStorage.getItem('ll_activerole') === 'Cashier';
+  const isCashierShiftClosed = isCashier && !activeShift;
+
+  const requireOpenShiftForCashier = (): boolean => {
+    if (isCashierShiftClosed) {
+      alert(t('Please open your cashier shift with starting cash float before taking orders.'));
+      setShowOpenShiftModal(true);
+      return true;
+    }
+    return false;
+  };
 
   // Support ticket Forms
   const [tktSubject, setTktSubject] = useState('');
@@ -3108,6 +3147,7 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleCheckoutPOS = async () => {
+    if (requireOpenShiftForCashier()) return;
     if (posCart.length === 0) return;
 
     const total = getPOSCartTotal();
@@ -8870,12 +8910,18 @@ export const AdminPortal: React.FC = () => {
               <span style={{ fontSize: '1.4rem' }}>{activeShift ? '🟢' : '🔴'}</span>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '0.95rem', color: activeShift ? '#14532d' : '#991b1b' }}>
-                  {activeShift ? `${t('Active Shift Open')} — ${activeShift.cashier_name || 'Cashier'}` : t('Cashier Shift is Closed')}
+                  {activeShift 
+                    ? `${t('Active Shift Open')} — ${activeShift.cashier_name || 'Cashier'}` 
+                    : (isCashier ? t('Cashier Shift is Closed — Open Shift Required') : t('Cashier Shift is Closed'))
+                  }
                 </div>
                 <div style={{ fontSize: '0.78rem', color: activeShift ? '#166534' : '#7f1d1d', marginTop: '2px' }}>
                   {activeShift 
                     ? `${t('Opening Float')}: QR ${Number(activeShift.opening_cash || 0).toFixed(2)} • ${t('Started')}: ${parseShiftDate(activeShift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : t('Please open your cashier shift to record starting cash drawer float.')}
+                    : (isCashier 
+                        ? t('Please open your cashier shift with starting cash float before taking orders.')
+                        : t('Please open your cashier shift to record starting cash drawer float.')
+                      )}
                 </div>
               </div>
             </div>
@@ -9036,6 +9082,7 @@ export const AdminPortal: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (requireOpenShiftForCashier()) return;
                               const variantId = `normal_${service.id}`;
                               const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
                               if (existing) {
@@ -9076,6 +9123,7 @@ export const AdminPortal: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (requireOpenShiftForCashier()) return;
                               const variantId = `express_${service.id}`;
                               const existing = posCart.find(i => i.itemId === service.id && i.variantId === variantId);
                               if (existing) {
@@ -9731,6 +9779,10 @@ export const AdminPortal: React.FC = () => {
 
                             <button 
                               onClick={() => {
+                                if (isCashierShiftClosed) {
+                                  setShowOpenShiftModal(true);
+                                  return;
+                                }
                                 const posTotal = isPackageCustomer ? packageBreakdown.totalExtraCharges : (customPOSAmount !== '' ? parseFloat(String(customPOSAmount)) : getPOSCartTotal());
                                 if (posCart.length === 0) {
                                   alert('Please add at least one laundry service to the cart before checking out.');
@@ -9746,22 +9798,26 @@ export const AdminPortal: React.FC = () => {
                                 }
                                 handleCheckoutPOS();
                               }} 
-                              disabled={posCart.length === 0}
+                              disabled={!isCashierShiftClosed && posCart.length === 0}
                               style={{ 
                                 padding: '12px', 
-                                background: posCart.length === 0 ? '#94a3b8' : (isPackageCustomer ? '#c2410c' : '#16a34a'), 
+                                background: isCashierShiftClosed ? '#dc2626' : (posCart.length === 0 ? '#94a3b8' : (isPackageCustomer ? '#c2410c' : '#16a34a')), 
                                 color: 'white', 
                                 border: 'none', 
                                 borderRadius: '6px', 
                                 fontWeight: '800', 
                                 fontSize: '0.95rem',
-                                cursor: posCart.length === 0 ? 'not-allowed' : 'pointer',
-                                opacity: posCart.length === 0 ? 0.6 : 1,
+                                cursor: 'pointer',
+                                opacity: (!isCashierShiftClosed && posCart.length === 0) ? 0.6 : 1,
                                 marginTop: '12px',
-                                width: '100%'
+                                width: '100%',
+                                boxShadow: isCashierShiftClosed ? '0 4px 6px -1px rgba(220, 38, 38, 0.3)' : 'none'
                               }}
                             >
-                              {posEditingOrder ? `✏️ Update Order #${posEditingOrder.id}` : (isPackageCustomer ? `📦 Checkout (Package + Extra Payment: QR ${packageBreakdown.totalExtraCharges.toFixed(2)})` : t('Checkout'))}
+                              {isCashierShiftClosed 
+                                ? `🔒 ${t('Open Shift to Checkout')}`
+                                : (posEditingOrder ? `✏️ Update Order #${posEditingOrder.id}` : (isPackageCustomer ? `📦 Checkout (Package + Extra Payment: QR ${packageBreakdown.totalExtraCharges.toFixed(2)})` : t('Checkout')))
+                              }
                             </button>
                           </>
                         ) : (
@@ -9769,28 +9825,35 @@ export const AdminPortal: React.FC = () => {
                           <div style={{ marginTop: '14px' }}>
                             <button 
                               onClick={() => {
+                                if (isCashierShiftClosed) {
+                                  setShowOpenShiftModal(true);
+                                  return;
+                                }
                                 if (posCart.length === 0) {
                                   alert('Please add at least one laundry service to the cart before checking out.');
                                   return;
                                 }
                                 handleCheckoutPOS();
                               }} 
-                              disabled={posCart.length === 0}
+                              disabled={!isCashierShiftClosed && posCart.length === 0}
                               style={{ 
                                 padding: '12px', 
-                                background: posCart.length === 0 ? '#94a3b8' : '#7c3aed', 
+                                background: isCashierShiftClosed ? '#dc2626' : (posCart.length === 0 ? '#94a3b8' : '#7c3aed'), 
                                 color: 'white', 
                                 border: 'none', 
                                 borderRadius: '6px', 
                                 fontWeight: '800', 
                                 fontSize: '0.95rem',
-                                cursor: posCart.length === 0 ? 'not-allowed' : 'pointer',
-                                opacity: posCart.length === 0 ? 0.6 : 1,
+                                cursor: 'pointer',
+                                opacity: (!isCashierShiftClosed && posCart.length === 0) ? 0.6 : 1,
                                 width: '100%',
-                                boxShadow: posCart.length === 0 ? 'none' : '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
+                                boxShadow: isCashierShiftClosed ? '0 4px 6px -1px rgba(220, 38, 38, 0.3)' : (posCart.length === 0 ? 'none' : '0 4px 6px -1px rgba(124, 58, 237, 0.3)')
                               }}
                             >
-                              📦 {t('Checkout (Package Customer — No Payment)')}
+                              {isCashierShiftClosed 
+                                ? `🔒 ${t('Open Shift to Checkout')}`
+                                : `📦 ${t('Checkout (Package Customer — No Payment)')}`
+                              }
                             </button>
                           </div>
                         )}
@@ -10674,49 +10737,672 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* 📊 BUSINESS REPORTS TAB */}
-      {(activeModule === 'reports' || showReportModal) && (
-        <div style={showReportModal ? {
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', zIndex: 9999,
-          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
-        } : { display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          <div style={showReportModal ? {
-            background: '#f8fafc', padding: '24px', borderRadius: '16px', 
-            width: '95%', maxWidth: '1600px', maxHeight: '95vh', overflowY: 'auto',
-            display: 'flex', flexDirection: 'column', gap: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
-          } : { display: 'contents' }}>
+      {/* 📊 SALE REPORT TAB */}
+      {(activeModule === 'reports' || showReportModal) && (() => {
+        const setSalePreset = (preset: 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'all' | 'custom') => {
+          setSaleReportPreset(preset);
+          const d = new Date();
+          const formatYMD = (date: Date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          };
 
-            {showReportModal && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '12px', marginBottom: '8px' }}>
-                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>{t('Business Reports Engine')}</h2>
-                <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}>✖</button>
-              </div>
-            )}
-          
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-            <h4 style={{ margin: '0 0 16px 0' }}>📈 {t('Sales & Performance Reports Console')}</h4>
+          if (preset === 'today') {
+            const todayStr = formatYMD(d);
+            setSaleReportAppliedRange({ start: todayStr, end: todayStr });
+          } else if (preset === 'yesterday') {
+            const yest = new Date(d);
+            yest.setDate(yest.getDate() - 1);
+            const yestStr = formatYMD(yest);
+            setSaleReportAppliedRange({ start: yestStr, end: yestStr });
+          } else if (preset === 'thisWeek') {
+            const startOfWeek = new Date(d);
+            startOfWeek.setDate(d.getDate() - d.getDay());
+            setSaleReportAppliedRange({ start: formatYMD(startOfWeek), end: formatYMD(d) });
+          } else if (preset === 'thisMonth') {
+            const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+            setSaleReportAppliedRange({ start: formatYMD(startOfMonth), end: formatYMD(d) });
+          } else if (preset === 'lastMonth') {
+            const startOfLastMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+            const endOfLastMonth = new Date(d.getFullYear(), d.getMonth(), 0);
+            setSaleReportAppliedRange({ start: formatYMD(startOfLastMonth), end: formatYMD(endOfLastMonth) });
+          } else if (preset === 'thisYear') {
+            const startOfYear = new Date(d.getFullYear(), 0, 1);
+            setSaleReportAppliedRange({ start: formatYMD(startOfYear), end: formatYMD(d) });
+          } else if (preset === 'all') {
+            setSaleReportAppliedRange({ start: '2000-01-01', end: '2099-12-31' });
+          }
+        };
+
+        const parsedOrders = (db.orders || []).map((o: any) => {
+          const rawDate = o.orderDate || o.createdAt || o.date || o.created_at || '';
+          let orderDateStr = '';
+          let formattedDisplayDate = 'N/A';
+          if (rawDate) {
+            try {
+              const dt = new Date(rawDate);
+              if (!isNaN(dt.getTime())) {
+                const y = dt.getFullYear();
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const day = String(dt.getDate()).padStart(2, '0');
+                orderDateStr = `${y}-${m}-${day}`;
+                formattedDisplayDate = dt.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              }
+            } catch {
+              orderDateStr = '';
+            }
+          }
+
+          const actualAmount = Number(o.totalAmount ?? o.total ?? 0);
+          const pStatus = (o.paymentStatus || '').trim().toLowerCase();
+          const pMethod = (o.paymentMethod || '').trim().toLowerCase();
+
+          let paidAmount = 0;
+          let calculatedStatus: 'Paid' | 'Unpaid' | 'Due' = 'Paid';
+
+          if (pStatus === 'paid') {
+            paidAmount = actualAmount;
+            calculatedStatus = 'Paid';
+          } else if (pStatus === 'unpaid' || pMethod === 'pay later') {
+            paidAmount = o.paidAmount !== undefined && o.paidAmount !== null ? Number(o.paidAmount) : 0;
+            calculatedStatus = paidAmount >= actualAmount && actualAmount > 0 ? 'Paid' : (paidAmount > 0 ? 'Due' : 'Unpaid');
+          } else {
+            if (o.paidAmount !== undefined && o.paidAmount !== null) {
+              paidAmount = Number(o.paidAmount);
+            } else {
+              paidAmount = pMethod === 'pay later' ? 0 : actualAmount;
+            }
+            calculatedStatus = paidAmount >= actualAmount && actualAmount > 0 ? 'Paid' : (paidAmount === 0 ? 'Unpaid' : 'Due');
+          }
+
+          const dueAmount = Math.max(0, actualAmount - paidAmount);
+
+          return {
+            ...o,
+            rawDate,
+            orderDateStr,
+            formattedDisplayDate,
+            actualAmount,
+            paidAmount,
+            dueAmount,
+            calculatedStatus
+          };
+        });
+
+        const filteredSaleOrders = parsedOrders.filter((o: any) => {
+          if (saleReportPreset !== 'all' && o.orderDateStr) {
+            if (o.orderDateStr < saleReportAppliedRange.start || o.orderDateStr > saleReportAppliedRange.end) {
+              return false;
+            }
+          }
+
+          if (saleReportSearch.trim()) {
+            const q = saleReportSearch.trim().toLowerCase().replace('#', '');
+            const idMatch = String(o.id || '').toLowerCase().includes(q);
+            const nameMatch = String(o.customerName || '').toLowerCase().includes(q);
+            const phoneMatch = String(o.phone || '').toLowerCase().includes(q);
+            if (!idMatch && !nameMatch && !phoneMatch) return false;
+          }
+
+          if (saleReportPaymentStatus !== 'All') {
+            if (saleReportPaymentStatus === 'Paid' && o.calculatedStatus !== 'Paid') return false;
+            if (saleReportPaymentStatus === 'Unpaid' && o.calculatedStatus !== 'Unpaid') return false;
+            if (saleReportPaymentStatus === 'Due' && o.calculatedStatus !== 'Due') return false;
+          }
+
+          if (saleReportPayMethod !== 'All') {
+            if ((o.paymentMethod || '').toLowerCase() !== saleReportPayMethod.toLowerCase()) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        const totalActual = filteredSaleOrders.reduce((sum: number, o: any) => sum + (o.actualAmount || 0), 0);
+        const totalPaid = filteredSaleOrders.reduce((sum: number, o: any) => sum + (o.paidAmount || 0), 0);
+        const totalDue = filteredSaleOrders.reduce((sum: number, o: any) => sum + (o.dueAmount || 0), 0);
+
+        const handleExportCSV = () => {
+          const headers = ['Order ID', 'Order Date', 'Customer Name', 'Phone', 'Payment Method', 'Actual Amount (QR)', 'Paid Amount (QR)', 'Due Amount (QR)', 'Payment Status'];
+          const rows = filteredSaleOrders.map((o: any) => [
+            `"${o.id}"`,
+            `"${o.orderDateStr || (o.rawDate ? o.rawDate.split('T')[0] : '')}"`,
+            `"${(o.customerName || '').replace(/"/g, '""')}"`,
+            `"${o.phone || ''}"`,
+            `"${o.paymentMethod || 'Cash'}"`,
+            o.actualAmount.toFixed(2),
+            o.paidAmount.toFixed(2),
+            o.dueAmount.toFixed(2),
+            `"${o.calculatedStatus}"`
+          ]);
+
+          const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+          const encodedUri = encodeURI(csvContent);
+          const link = document.createElement('a');
+          link.setAttribute('href', encodedUri);
+          link.setAttribute('download', `sale_report_${saleReportAppliedRange.start}_to_${saleReportAppliedRange.end}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        };
+
+        return (
+          <div style={showReportModal ? {
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+            display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
+          } : { display: 'flex', flexDirection: 'column', gap: '22px' }}>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem' }}>
-              <div style={{ padding: '14px', background: '#eff6ff', borderRadius: '8px' }}>
-                <strong>{t("Today's Sales Count:")}</strong> {db.orders.length} {t('bookings')}
+            <div style={showReportModal ? {
+              background: '#f8fafc', padding: '24px', borderRadius: '16px', 
+              width: '95%', maxWidth: '1600px', maxHeight: '95vh', overflowY: 'auto',
+              display: 'flex', flexDirection: 'column', gap: '22px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+            } : { display: 'flex', flexDirection: 'column', gap: '22px' }}>
+
+              {/* Module Header Bar */}
+              <div style={{
+                background: 'white',
+                borderRadius: '14px',
+                padding: '20px 24px',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '16px'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '1.6rem' }}>📊</span>
+                    <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.4rem', fontWeight: '800' }}>
+                      {t('Sale Report')}
+                    </h2>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748b' }}>
+                    {t('Individual order-by-order sales breakdown, payment audit, actual billed values, paid amounts, and due balances.')}
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    style={{
+                      padding: '9px 16px',
+                      background: '#16a34a',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: '700',
+                      fontSize: '0.84rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                    }}
+                  >
+                    <span>📥</span> {t('Export CSV')}
+                  </button>
+
+                  {showReportModal && (
+                    <button
+                      onClick={() => setShowReportModal(false)}
+                      style={{
+                        background: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '1.1rem',
+                        cursor: 'pointer',
+                        color: '#64748b'
+                      }}
+                    >
+                      ✖
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ padding: '14px', background: '#ecfdf5', borderRadius: '8px' }}>
-                <strong>{t('Monthly Sales Value:')}</strong> QR {todayRevenue.toFixed(2)}
+
+              {/* 4 Financial KPI Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                {/* 1. Actual Billed Sales */}
+                <div style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '18px 20px',
+                  border: '1px solid #cbd5e1',
+                  borderLeft: '5px solid #3b82f6',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>
+                      💳 {t('Total Invoiced')} ({t('Actual Amount')})
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      {t('Gross Sales')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '900', color: '#1e293b' }}>
+                    QR {totalActual.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                    {t('Total billing value of filtered orders')}
+                  </div>
+                </div>
+
+                {/* 2. Paid Amount */}
+                <div style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '18px 20px',
+                  border: '1px solid #cbd5e1',
+                  borderLeft: '5px solid #10b981',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>
+                      🟢 {t('Total Paid')} ({t('Paid Amount')})
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      {t('Collected')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '900', color: '#059669' }}>
+                    QR {totalPaid.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                    {t('Settled & received cash/card/wallet')}
+                  </div>
+                </div>
+
+                {/* 3. Due / Unpaid Amount */}
+                <div style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '18px 20px',
+                  border: '1px solid #cbd5e1',
+                  borderLeft: '5px solid #ef4444',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>
+                      🔴 {t('Total Due')} ({t('Unpaid Amount')})
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: '#fef2f2', color: '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      {t('Pending')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '900', color: totalDue > 0 ? '#dc2626' : '#64748b' }}>
+                    QR {totalDue.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                    {t('Outstanding balances to be collected')}
+                  </div>
+                </div>
+
+                {/* 4. Total Orders Count */}
+                <div style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '18px 20px',
+                  border: '1px solid #cbd5e1',
+                  borderLeft: '5px solid #8b5cf6',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>
+                      📦 {t('Total Orders')}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: '#f5f3ff', color: '#6d28d9', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      {t('Count')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '900', color: '#6d28d9' }}>
+                    {filteredSaleOrders.length}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                    {t('Matched orders in selected timeframe')}
+                  </div>
+                </div>
               </div>
-              <div style={{ padding: '14px', background: '#fffbeb', borderRadius: '8px' }}>
-                <strong>{t('Total Catalog Items:')}</strong> {db.services.length} {t('services')}
+
+              {/* Filter Controls Bar */}
+              <div style={{
+                background: 'white',
+                borderRadius: '14px',
+                padding: '18px 20px',
+                border: '1px solid #cbd5e1',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+              }}>
+                {/* Date Presets Row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569', marginRight: '4px' }}>
+                    📅 {t('Period')}:
+                  </span>
+                  {[
+                    { id: 'today', label: t('Today') },
+                    { id: 'yesterday', label: t('Yesterday') },
+                    { id: 'thisWeek', label: t('This Week') },
+                    { id: 'thisMonth', label: t('This Month') },
+                    { id: 'lastMonth', label: t('Last Month') },
+                    { id: 'thisYear', label: t('This Year') },
+                    { id: 'all', label: t('All Time') },
+                    { id: 'custom', label: t('Custom Range') }
+                  ].map((preset: any) => {
+                    const isActive = saleReportPreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setSalePreset(preset.id)}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          border: isActive ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                          background: isActive ? '#eff6ff' : '#f8fafc',
+                          color: isActive ? '#1d4ed8' : '#475569',
+                          fontWeight: isActive ? '800' : '600',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Search & Dropdown Filters Row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  {/* Custom Date Range Pickers (if custom selected) */}
+                  {saleReportPreset === 'custom' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="date"
+                        value={saleReportCustomStart}
+                        onChange={(e) => setSaleReportCustomStart(e.target.value)}
+                        style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                      />
+                      <span style={{ fontSize: '0.82rem', color: '#64748b' }}>➔</span>
+                      <input
+                        type="date"
+                        value={saleReportCustomEnd}
+                        onChange={(e) => setSaleReportCustomEnd(e.target.value)}
+                        style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSaleReportAppliedRange({ start: saleReportCustomStart, end: saleReportCustomEnd })}
+                        style={{ padding: '7px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
+                      >
+                        {t('Apply')}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Search by ID / Name / Phone */}
+                  <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder={t('Search Order ID, Customer, or Number...')}
+                      value={saleReportSearch}
+                      onChange={(e) => setSaleReportSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px 8px 34px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.84rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: '#94a3b8' }}>🔍</span>
+                  </div>
+
+                  {/* Payment Status Dropdown */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>{t('Payment Status')}:</label>
+                    <select
+                      value={saleReportPaymentStatus}
+                      onChange={(e) => setSaleReportPaymentStatus(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: 'white' }}
+                    >
+                      <option value="All">{t('All Statuses')}</option>
+                      <option value="Paid">🟢 {t('Paid')}</option>
+                      <option value="Unpaid">🔴 {t('Unpaid')}</option>
+                      <option value="Due">🟡 {t('Due Amount')}</option>
+                    </select>
+                  </div>
+
+                  {/* Payment Method Dropdown */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>{t('Payment Method')}:</label>
+                    <select
+                      value={saleReportPayMethod}
+                      onChange={(e) => setSaleReportPayMethod(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: 'white' }}
+                    >
+                      <option value="All">{t('All')}</option>
+                      <option value="Cash">{t('pos.cashPayment', 'Cash')}</option>
+                      <option value="Card">{t('pos.cardPayment', 'Card')}</option>
+                      <option value="Wallet">{t('pos.walletPayment', 'Wallet')}</option>
+                      <option value="Pay Later">{t('pos.payLater', 'Pay Later')}</option>
+                      <option value="Package">{t('menu.packages', 'Package')}</option>
+                    </select>
+                  </div>
+
+                  {/* Reset Filters */}
+                  {(saleReportSearch || saleReportPaymentStatus !== 'All' || saleReportPayMethod !== 'All' || saleReportPreset !== 'thisMonth') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSaleReportSearch('');
+                        setSaleReportPaymentStatus('All');
+                        setSaleReportPayMethod('All');
+                        setSalePreset('thisMonth');
+                      }}
+                      style={{
+                        padding: '7px 12px',
+                        background: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        color: '#64748b',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 {t('Reset')}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ padding: '14px', background: '#fdf2f8', borderRadius: '8px' }}>
-                <strong>{t('Total Company Registered Customers:')}</strong> {totalCustomers}
+
+              {/* Order-by-Order Sale Report Table */}
+              <div style={{
+                background: 'white',
+                borderRadius: '14px',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div style={{ fontWeight: '800', fontSize: '0.95rem', color: '#0f172a' }}>
+                    📑 {t('Orders Sale Audit')} ({filteredSaleOrders.length} {t('records')})
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    {t('Showing sales from')} <strong>{saleReportAppliedRange.start}</strong> {t('to')} <strong>{saleReportAppliedRange.end}</strong>
+                  </div>
+                </div>
+
+                {filteredSaleOrders.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🔍</div>
+                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#475569' }}>{t('No sales orders found for selected filters')}</div>
+                    <div style={{ fontSize: '0.82rem', marginTop: '4px' }}>{t('Try adjusting your date range or clearing search criteria.')}</div>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                          <th style={{ padding: '12px 16px', fontWeight: '800' }}>{t('Order ID')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800' }}>{t('Order Date')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800' }}>{t('Customer')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800' }}>{t('Payment Method')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', textAlign: 'right' }}>{t('Actual Amount')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', textAlign: 'right' }}>{t('Paid Amount')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', textAlign: 'right' }}>{t('Due Amount')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', textAlign: 'center' }}>{t('Payment Status')}</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', textAlign: 'center' }}>{t('Actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSaleOrders.map((o: any) => {
+                          const isPaid = o.calculatedStatus === 'Paid';
+                          const isUnpaid = o.calculatedStatus === 'Unpaid';
+                          const isDue = o.calculatedStatus === 'Due';
+
+                          return (
+                            <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              {/* Order ID */}
+                              <td style={{ padding: '12px 16px', fontWeight: '800', color: '#1e40af' }}>
+                                #{o.id}
+                              </td>
+
+                              {/* Order Date */}
+                              <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                {o.formattedDisplayDate}
+                              </td>
+
+                              {/* Customer */}
+                              <td style={{ padding: '12px 16px' }}>
+                                <div style={{ fontWeight: '700', color: '#1e293b' }}>
+                                  {tName(o.customerName || 'Walk-in Guest')}
+                                </div>
+                                {o.phone && (
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                    📞 {o.phone}
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Payment Method */}
+                              <td style={{ padding: '12px 16px' }}>
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: '700',
+                                  background: (o.paymentMethod || '').toLowerCase() === 'cash' ? '#dcfce7' : ((o.paymentMethod || '').toLowerCase() === 'card' ? '#eff6ff' : '#f1f5f9'),
+                                  color: (o.paymentMethod || '').toLowerCase() === 'cash' ? '#15803d' : ((o.paymentMethod || '').toLowerCase() === 'card' ? '#1d4ed8' : '#475569')
+                                }}>
+                                  {o.paymentMethod || 'Cash'}
+                                </span>
+                              </td>
+
+                              {/* Actual Amount */}
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                                QR {o.actualAmount.toFixed(2)}
+                              </td>
+
+                              {/* Paid Amount */}
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '800', color: '#15803d' }}>
+                                QR {o.paidAmount.toFixed(2)}
+                              </td>
+
+                              {/* Due Amount */}
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '800', color: o.dueAmount > 0 ? '#dc2626' : '#94a3b8' }}>
+                                QR {o.dueAmount.toFixed(2)}
+                              </td>
+
+                              {/* Payment Status Badge */}
+                              <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                <span style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '800',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: isPaid ? '#dcfce7' : (isDue ? '#fef3c7' : '#fee2e2'),
+                                  color: isPaid ? '#15803d' : (isDue ? '#b45309' : '#b91c1c'),
+                                  border: `1px solid ${isPaid ? '#86efac' : (isDue ? '#fde68a' : '#fca5a5')}`
+                                }}>
+                                  <span>{isPaid ? '🟢' : (isDue ? '🟡' : '🔴')}</span>
+                                  {isPaid ? t('Paid') : (isDue ? `${t('Due')}: QR ${o.dueAmount.toFixed(2)}` : t('Unpaid'))}
+                                </span>
+                              </td>
+
+                              {/* Action Buttons */}
+                              <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingInvoice(o)}
+                                  title={t('Invoice Slip')}
+                                  style={{
+                                    padding: '5px 12px',
+                                    fontSize: '0.78rem',
+                                    background: '#f8fafc',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: '700',
+                                    color: '#1e293b',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  <span>🧾</span> {t('Invoice')}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: '800' }}>
+                          <td colSpan={4} style={{ padding: '14px 16px', color: '#0f172a', textAlign: 'right', fontSize: '0.9rem' }}>
+                            {t('Grand Total')}:
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', color: '#0f172a', fontSize: '0.95rem' }}>
+                            QR {totalActual.toFixed(2)}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', color: '#15803d', fontSize: '0.95rem' }}>
+                            QR {totalPaid.toFixed(2)}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', color: totalDue > 0 ? '#dc2626' : '#64748b', fontSize: '0.95rem' }}>
+                            QR {totalDue.toFixed(2)}
+                          </td>
+                          <td colSpan={2} style={{ padding: '14px 16px' }}></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </div>
+
             </div>
           </div>
-
-        </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* 📢 COMPANY & SYSTEM ANNOUNCEMENTS TAB */}
